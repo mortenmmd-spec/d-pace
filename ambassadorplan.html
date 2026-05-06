@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<title>Pace Ambassadørplan</title>
+<style>
+  :root {
+    --bg: #0e1116;
+    --card: #161b22;
+    --line: #2a313c;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --orange: #f0883e;
+    --pink: #f778ba;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    padding: 32px 24px 48px;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); margin: 0 0 28px; font-size: 14px; }
+  h2 { font-size: 16px; margin: 0 0 14px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 22px;
+    margin-bottom: 18px;
+  }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; }
+  .grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 18px; }
+  @media (max-width: 800px) {
+    .grid-3, .grid-2 { grid-template-columns: 1fr; }
+  }
+  ul { margin: 8px 0; padding-left: 18px; }
+  li { margin: 6px 0; line-height: 1.5; }
+  .small { font-size: 13px; color: var(--muted); }
+  .pill { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .pill-green { background: rgba(63,185,80,0.15); color: var(--green); }
+  .pill-orange { background: rgba(240,136,62,0.15); color: var(--orange); }
+  .pill-pink { background: rgba(247,120,186,0.15); color: var(--pink); }
+  .timeline {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .month {
+    text-align: center;
+    padding: 16px 8px;
+    border-radius: 10px;
+    background: #1a2029;
+    border: 1px solid var(--line);
+    position: relative;
+  }
+  .month .num {
+    font-size: 38px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--text);
+  }
+  .month .label { font-size: 13px; color: var(--muted); margin-top: 6px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .month .focus { font-size: 12px; color: var(--text); margin-top: 10px; min-height: 32px; }
+  .month .delta { font-size: 11px; color: var(--green); margin-top: 6px; font-weight: 600; }
+  .month.start { border-color: var(--accent); }
+  .month.goal { border-color: var(--green); background: rgba(63,185,80,0.08); }
+  .month.start .num { color: var(--accent); }
+  .month.goal .num { color: var(--green); }
+  .barwrap { margin-top: 24px; }
+  .bar {
+    display: grid;
+    grid-template-columns: 60px 1fr 50px;
+    gap: 10px;
+    align-items: center;
+    margin: 6px 0;
+    font-size: 13px;
+  }
+  .bar .lbl { color: var(--muted); }
+  .bar .track { background: #1a2029; border-radius: 6px; height: 22px; overflow: hidden; }
+  .bar .fill { height: 100%; background: linear-gradient(90deg, #58a6ff, #3fb950); border-radius: 6px; }
+  .bar .val { text-align: right; font-weight: 600; }
+  .donut { display: flex; align-items: center; gap: 22px; }
+  .legend li { list-style: none; padding-left: 0; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .week-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  .day {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px;
+    background: #1a2029;
+  }
+  .day h3 { margin: 0 0 4px; font-size: 14px; }
+  .day .time { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .day ul { padding-left: 16px; font-size: 13px; }
+  .stack { display: flex; flex-direction: column; gap: 10px; }
+  .row-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .num-big { font-size: 56px; font-weight: 800; line-height: 1; letter-spacing: -0.03em; }
+  .num-big.green { color: var(--green); }
+  .num-big.accent { color: var(--accent); }
+  .footnote { color: var(--muted); font-size: 12px; margin-top: 6px; }
+  .check { color: var(--green); }
+  .x { color: #f85149; }
+  .keyword { color: var(--accent); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Pace Ambassadørplan</h1>
+  <p class="sub">Utkast for Marte · mål 30.09.2026</p>
+
+  <!-- TIDSLINJE -->
+  <div class="card">
+    <h2>Tidslinje — fra 7 til 20 ambassadører</h2>
+    <div class="timeline">
+      <div class="month start">
+        <div class="label">Mai</div>
+        <div class="num">7</div>
+        <div class="delta">START</div>
+        <div class="focus">Aktivere eksisterende — kontakt med alle 7</div>
+      </div>
+      <div class="month">
+        <div class="label">Juni</div>
+        <div class="num">10</div>
+        <div class="delta">+3</div>
+        <div class="focus">Volleyball-miljøet først</div>
+      </div>
+      <div class="month">
+        <div class="label">Juli</div>
+        <div class="num">13</div>
+        <div class="delta">+3</div>
+        <div class="focus">Løp / sykkel</div>
+      </div>
+      <div class="month">
+        <div class="label">Aug</div>
+        <div class="num">17</div>
+        <div class="delta">+4</div>
+        <div class="focus">CrossFit / lagidrett</div>
+      </div>
+      <div class="month goal">
+        <div class="label">Sep</div>
+        <div class="num">20</div>
+        <div class="delta">MÅL</div>
+        <div class="focus">Fylle hull — bredde i idretter</div>
+      </div>
+    </div>
+
+    <div class="barwrap">
+      <div class="bar"><span class="lbl">Mai</span><div class="track"><div class="fill" style="width:35%"></div></div><span class="val">7</span></div>
+      <div class="bar"><span class="lbl">Juni</span><div class="track"><div class="fill" style="width:50%"></div></div><span class="val">10</span></div>
+      <div class="bar"><span class="lbl">Juli</span><div class="track"><div class="fill" style="width:65%"></div></div><span class="val">13</span></div>
+      <div class="bar"><span class="lbl">Aug</span><div class="track"><div class="fill" style="width:85%"></div></div><span class="val">17</span></div>
+      <div class="bar"><span class="lbl">Sep</span><div class="track"><div class="fill" style="width:100%"></div></div><span class="val">20</span></div>
+    </div>
+  </div>
+
+  <!-- HVEM ER DE 20 -->
+  <div class="grid-2">
+    <div class="card">
+      <h2>Hvem er de 20?</h2>
+      <div class="donut">
+        <svg width="180" height="180" viewBox="0 0 42 42">
+          <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#2a313c" stroke-width="6"/>
+          <!-- Eksisterende 7 = 35% -->
+          <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#58a6ff" stroke-width="6"
+            stroke-dasharray="35 65" stroke-dashoffset="25"/>
+          <!-- Nye 13 = 65% -->
+          <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#3fb950" stroke-width="6"
+            stroke-dasharray="65 35" stroke-dashoffset="-10"/>
+          <text x="21" y="22" text-anchor="middle" fill="#e6edf3" font-size="9" font-weight="700">20</text>
+          <text x="21" y="28" text-anchor="middle" fill="#8b949e" font-size="3">ambassadører</text>
+        </svg>
+        <ul class="legend" style="padding:0">
+          <li><span class="dot" style="background:#58a6ff"></span> <strong>7 eksisterende</strong></li>
+          <li class="small" style="margin-left:18px">6 × Go! volleyball</li>
+          <li class="small" style="margin-left:18px">1 × Solveig Sude</li>
+          <li style="margin-top:10px"><span class="dot" style="background:#3fb950"></span> <strong>13 nye</strong></li>
+          <li class="small" style="margin-left:18px">volleyball, løp, sykkel, CrossFit</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Filter for nye</h2>
+      <ul>
+        <li>Norsk</li>
+        <li>1 000 – 20 000 følgere</li>
+        <li>Aktiv siste 30 dager</li>
+        <li>Ekte engasjement</li>
+        <li>Treningsorientert profil</li>
+      </ul>
+      <p class="footnote">Prioriteringsrekkefølge: volleyball/sand → løp/sykkel → CrossFit → lagidrett.</p>
+    </div>
+  </div>
+
+  <!-- FÅR / GIR -->
+  <div class="grid-2">
+    <div class="card">
+      <h2>Hva ambassadøren får</h2>
+      <ul>
+        <li><span class="keyword">1 sjaktel (30 sticks)</span> gratis hver måned, valgfri smak</li>
+        <li>Tidlig tilgang til nye smaker</li>
+        <li>Invitasjon til Pace-event 2× / år</li>
+      </ul>
+      <p class="footnote">Rabattkode med provisjon: <em>ikke nå</em>. Vurderes som incentiv for topp-ytere senere.</p>
+    </div>
+    <div class="card">
+      <h2>Hva ambassadøren gir</h2>
+      <ul>
+        <li>Signert ambassadørkontrakt (mal finnes)</li>
+        <li>Min. <span class="keyword">1 IG/TikTok-post / mnd</span> med @getpace</li>
+        <li>Story når sjaktelen kommer</li>
+        <li>Pace kan reposte innholdet</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- MARTE UKERUTINE -->
+  <div class="card">
+    <div class="row-head">
+      <h2 style="margin:0">Martes ukerutine</h2>
+      <span class="pill pill-green">~ 1 t / uke</span>
+    </div>
+    <div class="week-grid">
+      <div class="day">
+        <span class="time">Mandag · 15 min</span>
+        <h3>Outreach</h3>
+        <ul>
+          <li>Åpne ambassadør-arket</li>
+          <li>Send ferdig mal til 3 kandidater</li>
+          <li>Svar på innkommende søknader</li>
+        </ul>
+      </div>
+      <div class="day">
+        <span class="time">Onsdag · 10 min</span>
+        <h3>Engasjement</h3>
+        <ul>
+          <li>Like + kort kommentar på alle ambassadørposter siste 7 dager</li>
+        </ul>
+      </div>
+      <div class="day">
+        <span class="time">Den 1. i mnd · 30 min</span>
+        <h3>Pakke + takk</h3>
+        <ul>
+          <li>Send "tusen takk"-melding til alle aktive</li>
+          <li>Bekreft pakkeliste til utsending</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRYGGHET -->
+  <div class="grid-2">
+    <div class="card">
+      <h2>Når Marte er usikker</h2>
+      <ul>
+        <li><span class="x">×</span> Kald outreach er <em>ikke</em> Martes jobb</li>
+        <li><span class="check">✓</span> Hun kontakter kun de som står på kandidatlisten eller har søkt selv</li>
+        <li><span class="check">✓</span> Kandidatlisten fylles på løpende — Marte trykker bare "send" på ferdig mal</li>
+        <li><span class="check">✓</span> Usikker på melding? Legg utkast i #marte-x-pace, svar samme dag</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>Kontrakt</h2>
+      <ul>
+        <li>Eksisterende ambassadørkontrakt-mal</li>
+        <li>Varighet 6 mnd, fornyes hvis krav oppfylt</li>
+        <li>Exit: 30 dagers oppsigelse</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- AVKLARING -->
+  <div class="card">
+    <h2>Trenger avklaring</h2>
+    <ul>
+      <li>Hashtag — har dere én etablert allerede?</li>
+      <li>Når skal rutinen starte? <span class="small">(forslag: uke 20, 12. mai)</span></li>
+    </ul>
+  </div>
+
+</div>
+</body>
+</html>

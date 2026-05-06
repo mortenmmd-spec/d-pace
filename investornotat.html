@@ -1,0 +1,687 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<title>Pace Sport — Information Memorandum</title>
+<style>
+  :root {
+    --bg: #0e1116;
+    --card: #161b22;
+    --line: #2a313c;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --orange: #f0883e;
+    --pink: #f778ba;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    padding: 32px 24px 48px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 32px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); margin: 0 0 28px; font-size: 14px; }
+  h2 { font-size: 14px; margin: 0 0 14px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); font-weight: 600; }
+  h3 { font-size: 16px; margin: 18px 0 8px; color: var(--text); }
+  p { margin: 8px 0; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 18px;
+  }
+  .tldr {
+    background: linear-gradient(135deg, rgba(88,166,255,0.08), rgba(63,185,80,0.08));
+    border: 1px solid var(--accent);
+  }
+  .tldr p { font-size: 16px; line-height: 1.6; }
+  .tldr strong { color: var(--accent); }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; }
+  @media (max-width: 800px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    margin: 8px 0;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  th {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  tr:last-child td { border-bottom: none; }
+  ul { margin: 8px 0; padding-left: 20px; }
+  li { margin: 6px 0; }
+  .pill { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .pill-green { background: rgba(63,185,80,0.15); color: var(--green); }
+  .pill-orange { background: rgba(240,136,62,0.15); color: var(--orange); }
+  .pill-accent { background: rgba(88,166,255,0.15); color: var(--accent); }
+  .num-big { font-size: 36px; font-weight: 800; line-height: 1; letter-spacing: -0.02em; color: var(--accent); }
+  .num-big.green { color: var(--green); }
+  .num-big.orange { color: var(--orange); }
+  .placeholder { color: var(--orange); font-style: italic; }
+  .barwrap { margin-top: 8px; }
+  .bar {
+    display: grid;
+    grid-template-columns: 220px 1fr 90px;
+    gap: 10px;
+    align-items: center;
+    margin: 6px 0;
+    font-size: 13px;
+  }
+  .bar .lbl { color: var(--muted); }
+  .bar .track { background: #1a2029; border-radius: 6px; height: 22px; overflow: hidden; }
+  .bar .fill { height: 100%; border-radius: 6px; }
+  .fill-50 { background: linear-gradient(90deg, #58a6ff, #3fb950); }
+  .fill-25 { background: linear-gradient(90deg, #f778ba, #f0883e); }
+  .fill-15 { background: linear-gradient(90deg, #f0883e, #f8d557); }
+  .fill-10 { background: var(--muted); }
+  .bar .val { text-align: right; font-weight: 600; }
+  .footer { margin-top: 28px; color: var(--muted); font-size: 13px; text-align: center; }
+  .stamp {
+    display: inline-block;
+    background: rgba(247,120,186,0.15);
+    color: var(--pink);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <span class="stamp">Konfidensielt</span>
+  <h1 style="margin-top:8px;">Pace Sport AS — Information Memorandum</h1>
+  <p class="sub">Mai 2026 · Runde NOK 1 000 000 · Anders Bvaage som lead</p>
+
+  <div class="card tldr">
+    <h2 style="color: var(--accent);">TL;DR</h2>
+    <p>
+      <strong>Pace har 15-doblet omsetningen mellom desember 2025 og april 2026</strong> — fra 6 670 kr til 100 068 kr/mnd — <strong>uten ekstern kapital</strong>. Run-rate er nå over 1 MNOK/år, og det opprinnelige 12-måneders-omsetningsmålet treffes på april-rate alene.
+    </p>
+    <p>
+      Vi henter <strong>NOK 1 000 000</strong> for å lansere <strong>karb-gel som ny kategori</strong> + tredje elektrolytt-smak, og skalere eksisterende produksjon for å holde tritt med etterspørselen.
+    </p>
+    <p>
+      <strong>Vilkår:</strong> 5 MNOK post-money · 20 % dilusjon · 2 investorer à NOK 500 000 · Anders Bvaage lead med 1 styreplass · pre-money aksjepris <strong>19,20 kr</strong> (5,5x over opsjons-utøvelsespris jan 2026).
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>1 · Selskapet</h2>
+    <table>
+      <tr><th style="width:35%">Felt</th><th>Verdi</th></tr>
+      <tr><td>Org.nr</td><td>934 744 748</td></tr>
+      <tr><td>Lansering nettbutikk</td><td>2. juni 2025</td></tr>
+      <tr><td>Domene</td><td><a href="https://getpace.no" style="color:var(--accent);">getpace.no</a></td></tr>
+      <tr><td>Kategori</td><td>Sportsernæring — elektrolytter, utvider til karb-gel</td></tr>
+      <tr><td>Marked</td><td>Norden (D2C + sponsorat-aktivering)</td></tr>
+      <tr><td>Produsent</td><td>Pharmatech AS, Rolvsøy</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>2 · Produkt</h2>
+    <div class="grid-3">
+      <div>
+        <h3>PACE01 — Sitron &amp; Lime</h3>
+        <p class="sub">Eksisterende SKU · Sukkerfri · Naturlig aroma</p>
+      </div>
+      <div>
+        <h3>PACE02 — Bringebær</h3>
+        <p class="sub">Eksisterende SKU · Sukkerfri · Naturlig aroma</p>
+      </div>
+      <div>
+        <h3>PACE03 — Ny smak</h3>
+        <p class="sub" style="color:var(--orange);">Lanseres med denne runden</p>
+      </div>
+    </div>
+    <p style="margin-top:14px;"><strong>Pris:</strong> 379 kr per pakke à 30 sticks · <strong>Format:</strong> stickpack · <strong>Etikett:</strong> ren, naturlig, sukkerfri</p>
+  </div>
+
+  <div class="card">
+    <h2>3 · Traction (per 5. mai 2026, kilde: Shopify)</h2>
+    <div class="grid-3">
+      <div>
+        <p class="sub">Omsetning siden lansering</p>
+        <div class="num-big green">419 812</div>
+        <p class="sub" style="margin-top:4px;">NOK · juni 2025 → mai 2026</p>
+      </div>
+      <div>
+        <p class="sub">Antall ordre</p>
+        <div class="num-big">1 036</div>
+        <p class="sub" style="margin-top:4px;">1 014 betalt · 22 refundert</p>
+      </div>
+      <div>
+        <p class="sub">Stickpacks solgt</p>
+        <div class="num-big">1 422</div>
+        <p class="sub" style="margin-top:4px;">PACE01: 59 % · PACE02: 41 %</p>
+      </div>
+    </div>
+
+    <h3 style="margin-top:22px;">Veksttakt</h3>
+    <div class="grid-3">
+      <div>
+        <p class="sub">Siste 30 dager</p>
+        <div class="num-big orange">112 674</div>
+        <p class="sub" style="margin-top:4px;">NOK · 268 ordre</p>
+      </div>
+      <div>
+        <p class="sub">April 2026 (rekord)</p>
+        <div class="num-big orange">100 068</div>
+        <p class="sub" style="margin-top:4px;">NOK · 234 ordre</p>
+      </div>
+      <div>
+        <p class="sub">Run-rate (apr × 12)</p>
+        <div class="num-big green">1,2 MNOK</div>
+        <p class="sub" style="margin-top:4px;">årlig basert på april</p>
+      </div>
+    </div>
+
+    <h3 style="margin-top:22px;">Måneds-momentum</h3>
+    <div class="barwrap">
+      <div class="bar"><span class="lbl">Nov 2025</span><div class="track"><div class="fill fill-10" style="width:12%"></div></div><span class="val">27 467</span></div>
+      <div class="bar"><span class="lbl">Des 2025</span><div class="track"><div class="fill fill-10" style="width:3%"></div></div><span class="val">6 670</span></div>
+      <div class="bar"><span class="lbl">Jan 2026</span><div class="track"><div class="fill fill-10" style="width:6%"></div></div><span class="val">13 272</span></div>
+      <div class="bar"><span class="lbl">Feb 2026</span><div class="track"><div class="fill fill-10" style="width:7%"></div></div><span class="val">14 253</span></div>
+      <div class="bar"><span class="lbl">Mar 2026</span><div class="track"><div class="fill fill-25" style="width:40%"></div></div><span class="val">81 968</span></div>
+      <div class="bar"><span class="lbl">Apr 2026</span><div class="track"><div class="fill fill-50" style="width:50%"></div></div><span class="val">100 068</span></div>
+      <div class="bar"><span class="lbl">Mai 2026 (5d)</span><div class="track"><div class="fill fill-15" style="width:12%"></div></div><span class="val">24 911</span></div>
+    </div>
+
+    <h3 style="margin-top:22px;">Sponsorater og partnerskap 2026</h3>
+    <ul>
+      <li><span class="pill pill-green">Aktiv</span> Vålerenga Elite</li>
+      <li><span class="pill pill-green">Signert 02.05</span> Bryne FK 2026 — NOK 47 375 inkl. mva</li>
+      <li><span class="pill pill-green">Aktiv</span> OSVB (Oslo Sandvolleyball) — Pace trykket på alt av klær. Hovedsponsor Norgestour Oslo 2026 (NT Oslo 23-25. mai + NT finale Oslo 21-22. aug)</li>
+      <li><span class="pill pill-accent">Partner</span> Ygdra — distribusjon og sampling (selger Pace + deler ut smaksprøver)</li>
+    </ul>
+    <h3>Aktivering 2026</h3>
+    <ul>
+      <li><span class="pill pill-orange">Planlagt</span> Jentamila 2026 — stand som i 2025; <strong>12 000 sticks i goodiebag</strong></li>
+    </ul>
+    <h3>Ambassadører</h3>
+    <p>7 aktive per i dag (6 Go! Volleyball + Solveig Sude). Mål: <strong>20 ambassadører innen 30. september 2026</strong>.</p>
+
+    <div style="margin-top:18px; padding:14px 16px; background:rgba(88,166,255,0.06); border-left:3px solid var(--accent); border-radius:6px;">
+      <p style="margin:0; font-size:13px;"><strong style="color:var(--accent);">Driftsstatus i dag:</strong> Selskapet drives <strong>break-even på dagens skala</strong> — eksisterende inntjening på ~1,2 MNOK/år dekker alle løpende kostnader (COGS, 3PL, frakt, plattform-/betaling-fees, generell drift). Runden går til <em>vekst</em>, ikke til å dekke drifts-underskudd.</p>
+    </div>
+
+    <h3 style="margin-top:22px;">Unit economics (Shopify, kalkulert mai 2026)</h3>
+    <div class="grid-3">
+      <div>
+        <p class="sub">Gjennomsnittlig ordreverdi (AOV)</p>
+        <div class="num-big green">405 <span style="font-size:18px;">kr</span></div>
+        <p class="sub" style="margin-top:4px;">419 812 kr / 1 036 ordre — over 379 kr-pakkeprisen</p>
+      </div>
+      <div>
+        <p class="sub">Stickpacks per ordre</p>
+        <div class="num-big">1,37</div>
+        <p class="sub" style="margin-top:4px;">1 422 enheter / 1 036 ordre</p>
+      </div>
+      <div>
+        <p class="sub">Repeat-rate · CAC · LTV</p>
+        <div class="num-big" style="color:var(--muted); font-size:24px;">analyse pågår</div>
+        <p class="sub" style="margin-top:4px;">Leveres ved DD via Shopify-eksport</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>4 · Hvorfor nå</h2>
+    <ul>
+      <li><strong>Kategorivekst</strong> — funksjonell hydrering vokser raskt i Norden, drevet av løp/sykkel/triathlon-bølge og sukkerfri-trend.</li>
+      <li><strong>Sponsorat- og partner-leverage</strong> — Vålerenga Elite, Bryne FK, OSVB Norgestour og Ygdra gir tilsammen synlighet, distribusjon og sampling. Lav CAC sammenlignet med rene Meta-kampanjer.</li>
+      <li><strong>Etablert produksjon</strong> — Pharmatech investerer nå i utstyr for stickpack-gel, så karb-gel-utvidelsen krever ikke ny leverandør.</li>
+      <li><strong>Ren etikett-trend</strong> — Pace er allerede posisjonert i den voksende clean-label-nisjen.</li>
+      <li><strong>Roadmap 12-24 mnd</strong> — neste planlagte produktutvidelse er <strong>Pace ferdigblandet i cans</strong> (lansering ~mai 2027). Konsentrat-base hos Pharmatech, tapping under utredning hos <strong>Nøisom AS</strong> (Fredrikstad) som har bekreftet kapasitet for 0,33 / 0,44 / 0,50 L standardbokser. Steget finansieres av neste runde.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>5 · Bruk av kapital — NOK 1 000 000 / 12 mnd</h2>
+    <div class="barwrap">
+      <div class="bar">
+        <span class="lbl">Elektrolytt-produksjon</span>
+        <div class="track"><div class="fill fill-50" style="width:50%"></div></div>
+        <span class="val">250 000</span>
+      </div>
+      <div class="bar">
+        <span class="lbl">Karb-gel pilot</span>
+        <div class="track"><div class="fill fill-25" style="width:50%"></div></div>
+        <span class="val">250 000</span>
+      </div>
+      <div class="bar">
+        <span class="lbl">Design + ny smak</span>
+        <div class="track"><div class="fill fill-15" style="width:30%"></div></div>
+        <span class="val">150 000</span>
+      </div>
+      <div class="bar">
+        <span class="lbl">Markedsføring</span>
+        <div class="track"><div class="fill fill-10" style="width:20%"></div></div>
+        <span class="val">100 000</span>
+      </div>
+      <div class="bar">
+        <span class="lbl">Ambassadørsatsing</span>
+        <div class="track"><div class="fill fill-10" style="width:20%"></div></div>
+        <span class="val">100 000</span>
+      </div>
+      <div class="bar">
+        <span class="lbl">MKT + buffer</span>
+        <div class="track"><div class="fill fill-10" style="width:20%"></div></div>
+        <span class="val">100 000</span>
+      </div>
+      <div class="bar">
+        <span class="lbl">Generell drift</span>
+        <div class="track"><div class="fill fill-10" style="width:10%"></div></div>
+        <span class="val">50 000</span>
+      </div>
+    </div>
+    <p style="margin-top:14px; font-size:13px; color: var(--muted);">
+      Elektrolytt-posten dekker <strong>2 400 nye sjaktler hos Pharmatech</strong> (= 72 000 sticks). Markedsføring dekker OSVB Norgestour, Jentamila goodiebag og Ygdra-sampling. MKT + buffer dekker generelle kampanjer og contingency.
+    </p>
+    <h3 style="margin-top:20px;">Forventet etter 12 måneder</h3>
+    <ul>
+      <li>3 elektrolytt-smaker i markedet (vs. 2 i dag)</li>
+      <li>Karb-gel-pilot lansert med første salgsdata fra norsk marked</li>
+      <li>20 aktive ambassadører</li>
+      <li>Aktivering gjennomført på OSVB Norgestour 2026 og Jentamila 2026</li>
+      <li>Skalering klargjort for 2027 — neste runde basert på faktisk gel-traction</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>5b · Karb-gel — salgsanslag pilot</h2>
+    <p class="sub" style="margin-top:-8px;">Produksjonsstart juni 2026 · klart til salg august 2026 · ~9-10 mnd salgsvindu</p>
+
+    <h3 style="margin-top:14px;">Forutsetninger <span class="placeholder" style="font-size:13px; font-weight:normal;">(anslag — må bekreftes med Pharmatech)</span></h3>
+    <table>
+      <tr><th>Parameter</th><th>Verdi</th><th>Kilde</th></tr>
+      <tr><td>Salgspris per gel</td><td>30 kr</td><td>Markedsstandard 2026: SiS 25-30 · GU 28-32 · Maurten 35-40</td></tr>
+      <tr><td>COGS per gel</td><td>~3 kr</td><td>Pharmatech stickpack-format (22mm bredde, mindre emballasje)</td></tr>
+      <tr><td>Pilot-batch</td><td>25 000 geler</td><td>Skalert i tråd med 2 400-sjaktels elektrolytt-batch</td></tr>
+      <tr><td>Avsetning innen mai 2027</td><td>80 %</td><td>D2C-kanal + OSVB/Bryne-aktivering</td></tr>
+    </table>
+
+    <div class="grid-2" style="margin-top:18px;">
+      <div style="padding:16px; background:rgba(63,185,80,0.08); border-left:3px solid var(--green); border-radius:6px;">
+        <p class="sub" style="margin:0;">Inntekt pilot 12 mnd</p>
+        <div class="num-big green" style="margin-top:4px;">600 000 <span style="font-size:18px;">kr</span></div>
+        <p class="sub" style="margin-top:6px; font-size:12px;">25 000 × 0,80 × 30 kr</p>
+      </div>
+      <div style="padding:16px; background:rgba(88,166,255,0.08); border-left:3px solid var(--accent); border-radius:6px;">
+        <p class="sub" style="margin:0;">Bruttofortjeneste</p>
+        <div class="num-big" style="margin-top:4px;">540 000 <span style="font-size:18px;">kr</span></div>
+        <p class="sub" style="margin-top:6px; font-size:12px;">~90 % bruttomargin (markedsstandard for sport-gel)</p>
+      </div>
+    </div>
+
+    <p style="margin-top:14px; font-size:13px; color: var(--muted);">
+      Bruttomargin på 90 % er normal for kategorien — Maurten og SiS opererer i samme spenn. Pharmatech-relasjonen og Pace' egen distribusjon (sponsorat + D2C) reduserer go-to-market-kostnaden.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>5c · PACE03 — tredje elektrolytt-smak</h2>
+    <p class="sub" style="margin-top:-8px;">Smaksutvikling jun-jul · pakkedesign jul-aug · lansering september 2026 · ~8-9 mnd salgsvindu</p>
+
+    <div style="margin-top:14px; padding:16px; background:rgba(247,120,186,0.08); border-left:3px solid var(--pink); border-radius:6px;">
+      <p class="sub" style="margin:0;">Inkrementelt bidrag (anslag) over salgsvinduet</p>
+      <div class="num-big" style="color:var(--pink); margin-top:4px;">~200 000 <span style="font-size:18px;">kr</span></div>
+      <p class="sub" style="margin-top:6px; font-size:12px;">~25 000 kr/mnd etter 1-2 mnd ramp-up</p>
+    </div>
+
+    <p style="margin-top:14px; font-size:13px; color: var(--muted);">
+      En tredje smak utvider TAM ved å treffe smaks-preferanser PACE01 (Sitron &amp; Lime) og PACE02 (Bringebær) ikke dekker. Konservativt anslag — ingen kannibalisering antatt mot eksisterende SKUer.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>5d · Kapitalsyklus 12 mnd</h2>
+    <p class="sub" style="margin-top:-8px;">Inntjening + runde → drift + investering. Operasjonelt overskudd reinvesteres i 2027-skalering, ikke holdes som kasse.</p>
+
+    <div class="grid-2" style="margin-top:14px;">
+      <div>
+        <h3 style="color:var(--green);">INN — ~3,0 MNOK</h3>
+        <div class="barwrap">
+          <div class="bar">
+            <span class="lbl">Elektrolytt eksisterende SKUer</span>
+            <div class="track"><div class="fill fill-50" style="width:100%"></div></div>
+            <span class="val">1 200 000</span>
+          </div>
+          <div class="bar">
+            <span class="lbl">Karb-gel pilot</span>
+            <div class="track"><div class="fill fill-25" style="width:50%"></div></div>
+            <span class="val">600 000</span>
+          </div>
+          <div class="bar">
+            <span class="lbl">PACE03 ny smak</span>
+            <div class="track"><div class="fill fill-15" style="width:17%"></div></div>
+            <span class="val">200 000</span>
+          </div>
+          <div class="bar">
+            <span class="lbl">Kapitalrunde</span>
+            <div class="track"><div class="fill fill-10" style="width:83%"></div></div>
+            <span class="val">1 000 000</span>
+          </div>
+        </div>
+        <p class="sub" style="margin-top:8px; font-size:12px;">Elektrolytt = april run-rate × 12. Gel + PACE03 = anslag (§5b, §5c).</p>
+      </div>
+      <div>
+        <h3 style="color:var(--orange);">UT — ~3,0 MNOK</h3>
+        <div class="barwrap">
+          <div class="bar">
+            <span class="lbl">Eksisterende drift (break-even)</span>
+            <div class="track"><div class="fill fill-50" style="width:100%"></div></div>
+            <span class="val">1 200 000</span>
+          </div>
+          <div class="bar">
+            <span class="lbl">Marginal-drift gel (~50 %)</span>
+            <div class="track"><div class="fill fill-25" style="width:25%"></div></div>
+            <span class="val">300 000</span>
+          </div>
+          <div class="bar">
+            <span class="lbl">Marginal-drift PACE03 (~50 %)</span>
+            <div class="track"><div class="fill fill-15" style="width:8%"></div></div>
+            <span class="val">100 000</span>
+          </div>
+          <div class="bar">
+            <span class="lbl">Investeringsposter (§5)</span>
+            <div class="track"><div class="fill fill-15" style="width:83%"></div></div>
+            <span class="val">1 000 000</span>
+          </div>
+          <div class="bar">
+            <span class="lbl">2027-reserve (overskudd)</span>
+            <div class="track"><div class="fill fill-10" style="width:33%"></div></div>
+            <span class="val">~400 000</span>
+          </div>
+        </div>
+        <p class="sub" style="margin-top:8px; font-size:12px;">Eksisterende drift = dagens inntekt (break-even). Nye kategorier har høyere bruttomargin enn fast-kost — kun marginalkostnaden trekkes fra ny inntekt.</p>
+      </div>
+    </div>
+
+    <p style="margin-top:18px; font-size:13px; color: var(--text); border-left: 3px solid var(--accent); padding-left:12px;">
+      <strong>Konklusjon:</strong> Pace går fra <strong>break-even på dagens skala</strong> til <strong>~400 000 kr operasjonelt overskudd</strong> over 12 mnd. Overskuddet reinvesteres i 2027-skalering (cans-lansering, neste runde) — ingen kasseoppbygging.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>5e · Årshjul mai 2026 → mai 2027</h2>
+    <table>
+      <tr>
+        <th style="width:14%">Måned</th>
+        <th>Hovedaktivitet</th>
+        <th style="width:30%">Sponsorat / aktivering</th>
+      </tr>
+      <tr>
+        <td><strong>Mai 2026</strong></td>
+        <td>Investornotat ferdigstilt · Anders-runden åpner · oppstart 2 400 sjaktler hos Pharmatech</td>
+        <td><span class="pill pill-green">23-25. mai</span> NT Oslo (Norgestour)</td>
+      </tr>
+      <tr>
+        <td><strong>Juni 2026</strong></td>
+        <td><span class="pill pill-orange">Produksjon</span> Karb-gel-start · smaksutvikling PACE03</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td><strong>Juli 2026</strong></td>
+        <td>Karb-gel produksjon pågår · pakkedesign 3. SKU</td>
+        <td>—</td>
+      </tr>
+      <tr style="background:rgba(63,185,80,0.06);">
+        <td><strong>Aug 2026</strong></td>
+        <td><span class="pill pill-green">Lansering</span> Karb-gel klar til salg</td>
+        <td><span class="pill pill-green">21-22. aug</span> NT finale Oslo (Norgestour)</td>
+      </tr>
+      <tr style="background:rgba(247,120,186,0.06);">
+        <td><strong>Sept 2026</strong></td>
+        <td><span class="pill pill-accent">Lansering</span> PACE03 · ambassadør-mål 20 (frist 30.09.) · Bryne FK termin 2</td>
+        <td><span class="pill pill-accent">4-5. sept</span> Jentemila Bislett — stand + <strong>12 000 sticks goodiebag</strong></td>
+      </tr>
+      <tr>
+        <td><strong>Okt 2026</strong></td>
+        <td>Q4-kampanjer · gel-skalering hvis pilot leverer</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td><strong>Nov 2026</strong></td>
+        <td>Black Week-kampanje · Q4-aktivering</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td><strong>Des 2026</strong></td>
+        <td>Q4-avslutning · budsjett 2027</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td><strong>Jan 2027</strong></td>
+        <td>Innendørs sesongstart · kampanjer</td>
+        <td>Norgestour-vinter</td>
+      </tr>
+      <tr>
+        <td><strong>Feb 2027</strong></td>
+        <td>Ambassadør-fornyelse · konsolidering</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td><strong>Mar 2027</strong></td>
+        <td>Sesong-oppstart sand · sponsorat-evaluering 2027</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td><strong>Apr 2027</strong></td>
+        <td>Aktivering opp mot sandvolleyball-start</td>
+        <td>—</td>
+      </tr>
+      <tr style="background:rgba(88,166,255,0.06);">
+        <td><strong>Mai 2027</strong></td>
+        <td>12-mnd-evaluering · neste finansieringsrunde · <span class="pill pill-accent">Roadmap</span> forberede lansering <strong>Pace ferdigblandet i cans</strong></td>
+        <td>—</td>
+      </tr>
+    </table>
+    <p style="margin-top:14px; font-size:13px; color: var(--muted); font-style: italic;">
+      Vi legger til mer aktivitet etter hvert som sponsorat-fornyelser og gel-pilot-resultater kommer inn.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>5f · Diagram — kumulativ inntekt vs. kumulativ kapitalbruk</h2>
+    <p class="sub" style="margin-top:-8px;">13 måneder · mai 2026 → mai 2027 · Crossover oktober 2026</p>
+
+    <svg viewBox="0 0 700 320" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:auto; margin-top:12px;">
+      <line x1="50" y1="270" x2="674" y2="270" stroke="#2a313c" stroke-width="1"/>
+      <line x1="50" y1="215" x2="674" y2="215" stroke="#2a313c" stroke-width="0.5" stroke-dasharray="2,3"/>
+      <line x1="50" y1="161" x2="674" y2="161" stroke="#2a313c" stroke-width="0.5" stroke-dasharray="2,3"/>
+      <line x1="50" y1="106" x2="674" y2="106" stroke="#2a313c" stroke-width="0.5" stroke-dasharray="2,3"/>
+      <line x1="50" y1="52"  x2="674" y2="52"  stroke="#2a313c" stroke-width="0.5" stroke-dasharray="2,3"/>
+
+      <text x="44" y="274" fill="#8b949e" font-size="11" text-anchor="end">0</text>
+      <text x="44" y="219" fill="#8b949e" font-size="11" text-anchor="end">500k</text>
+      <text x="44" y="165" fill="#8b949e" font-size="11" text-anchor="end">1,0M</text>
+      <text x="44" y="110" fill="#8b949e" font-size="11" text-anchor="end">1,5M</text>
+      <text x="44" y="56"  fill="#8b949e" font-size="11" text-anchor="end">2,0M</text>
+
+      <text x="50"  y="290" fill="#8b949e" font-size="10" text-anchor="middle">mai 26</text>
+      <text x="102" y="290" fill="#8b949e" font-size="10" text-anchor="middle">jun</text>
+      <text x="154" y="290" fill="#8b949e" font-size="10" text-anchor="middle">jul</text>
+      <text x="206" y="290" fill="#8b949e" font-size="10" text-anchor="middle">aug</text>
+      <text x="258" y="290" fill="#8b949e" font-size="10" text-anchor="middle">sep</text>
+      <text x="310" y="290" fill="#8b949e" font-size="10" text-anchor="middle">okt</text>
+      <text x="362" y="290" fill="#8b949e" font-size="10" text-anchor="middle">nov</text>
+      <text x="414" y="290" fill="#8b949e" font-size="10" text-anchor="middle">des</text>
+      <text x="466" y="290" fill="#8b949e" font-size="10" text-anchor="middle">jan 27</text>
+      <text x="518" y="290" fill="#8b949e" font-size="10" text-anchor="middle">feb</text>
+      <text x="570" y="290" fill="#8b949e" font-size="10" text-anchor="middle">mar</text>
+      <text x="622" y="290" fill="#8b949e" font-size="10" text-anchor="middle">apr</text>
+      <text x="674" y="290" fill="#8b949e" font-size="10" text-anchor="middle">mai 27</text>
+
+      <polygon points="50,261 102,248 154,228 206,215 258,199 310,194 362,188 414,183 466,177 518,172 570,166 622,161 674,161 674,270 50,270" fill="rgba(240,136,62,0.12)"/>
+      <polyline points="50,261 102,248 154,228 206,215 258,199 310,194 362,188 414,183 466,177 518,172 570,166 622,161 674,161" fill="none" stroke="#f0883e" stroke-width="2.5"/>
+
+      <polygon points="50,259 102,248 154,237 206,223 258,206 310,187 362,166 414,145 466,124 518,102 570,81 622,61 674,42 674,270 50,270" fill="rgba(63,185,80,0.10)"/>
+      <polyline points="50,259 102,248 154,237 206,223 258,206 310,187 362,166 414,145 466,124 518,102 570,81 622,61 674,42" fill="none" stroke="#3fb950" stroke-width="2.5"/>
+
+      <line x1="310" y1="270" x2="310" y2="170" stroke="#3fb950" stroke-width="1" stroke-dasharray="3,3" opacity="0.6"/>
+      <circle cx="310" cy="187" r="5" fill="#3fb950" stroke="#161b22" stroke-width="2"/>
+      <text x="310" y="178" fill="#3fb950" font-size="11" text-anchor="middle" font-weight="bold">Crossover okt</text>
+
+      <rect x="60" y="14" width="14" height="3" fill="#3fb950"/>
+      <text x="80" y="19" fill="#e6edf3" font-size="12">Kumulativ inntekt</text>
+      <rect x="240" y="14" width="14" height="3" fill="#f0883e"/>
+      <text x="260" y="19" fill="#e6edf3" font-size="12">Kumulativ kapitalbruk</text>
+
+      <text x="600" y="42" fill="#3fb950" font-size="11" font-weight="bold" text-anchor="end" style="font-family:inherit;">~2,1 MNOK</text>
+      <text x="600" y="158" fill="#f0883e" font-size="11" font-weight="bold" text-anchor="end" style="font-family:inherit;">1,0 MNOK</text>
+    </svg>
+
+    <table style="margin-top:18px;">
+      <tr>
+        <th>Måned</th>
+        <th style="text-align:right;">Elektrolytt</th>
+        <th style="text-align:right;">PACE03</th>
+        <th style="text-align:right;">Gel</th>
+        <th style="text-align:right;">Inntekt mnd</th>
+        <th style="text-align:right;">Inntekt kum</th>
+        <th style="text-align:right;">Kapital kum</th>
+      </tr>
+      <tr><td>Mai 2026</td><td style="text-align:right;">100 000</td><td style="text-align:right;">–</td><td style="text-align:right;">–</td><td style="text-align:right;">100 000</td><td style="text-align:right;">100 000</td><td style="text-align:right;">80 000</td></tr>
+      <tr><td>Jun 2026</td><td style="text-align:right;">100 000</td><td style="text-align:right;">–</td><td style="text-align:right;">–</td><td style="text-align:right;">100 000</td><td style="text-align:right;">200 000</td><td style="text-align:right;">200 000</td></tr>
+      <tr><td>Jul 2026</td><td style="text-align:right;">100 000</td><td style="text-align:right;">–</td><td style="text-align:right;">–</td><td style="text-align:right;">100 000</td><td style="text-align:right;">300 000</td><td style="text-align:right;">380 000</td></tr>
+      <tr><td>Aug 2026</td><td style="text-align:right;">100 000</td><td style="text-align:right;">–</td><td style="text-align:right;">30 000</td><td style="text-align:right;">130 000</td><td style="text-align:right;">430 000</td><td style="text-align:right;">500 000</td></tr>
+      <tr><td>Sep 2026</td><td style="text-align:right;">100 000</td><td style="text-align:right;">5 000</td><td style="text-align:right;">50 000</td><td style="text-align:right;">155 000</td><td style="text-align:right;">585 000</td><td style="text-align:right;">650 000</td></tr>
+      <tr style="background:rgba(63,185,80,0.10);"><td><strong>Okt 2026</strong></td><td style="text-align:right;">100 000</td><td style="text-align:right;">15 000</td><td style="text-align:right;">60 000</td><td style="text-align:right;">175 000</td><td style="text-align:right;"><strong>760 000</strong></td><td style="text-align:right;"><strong>700 000</strong> ⬅</td></tr>
+      <tr><td>Nov 2026</td><td style="text-align:right;">100 000</td><td style="text-align:right;">20 000</td><td style="text-align:right;">70 000</td><td style="text-align:right;">190 000</td><td style="text-align:right;">950 000</td><td style="text-align:right;">750 000</td></tr>
+      <tr><td>Des 2026</td><td style="text-align:right;">100 000</td><td style="text-align:right;">25 000</td><td style="text-align:right;">70 000</td><td style="text-align:right;">195 000</td><td style="text-align:right;">1 145 000</td><td style="text-align:right;">800 000</td></tr>
+      <tr><td>Jan 2027</td><td style="text-align:right;">100 000</td><td style="text-align:right;">25 000</td><td style="text-align:right;">70 000</td><td style="text-align:right;">195 000</td><td style="text-align:right;">1 340 000</td><td style="text-align:right;">850 000</td></tr>
+      <tr><td>Feb 2027</td><td style="text-align:right;">100 000</td><td style="text-align:right;">25 000</td><td style="text-align:right;">70 000</td><td style="text-align:right;">195 000</td><td style="text-align:right;">1 535 000</td><td style="text-align:right;">900 000</td></tr>
+      <tr><td>Mar 2027</td><td style="text-align:right;">100 000</td><td style="text-align:right;">25 000</td><td style="text-align:right;">70 000</td><td style="text-align:right;">195 000</td><td style="text-align:right;">1 730 000</td><td style="text-align:right;">950 000</td></tr>
+      <tr><td>Apr 2027</td><td style="text-align:right;">100 000</td><td style="text-align:right;">25 000</td><td style="text-align:right;">60 000</td><td style="text-align:right;">185 000</td><td style="text-align:right;">1 915 000</td><td style="text-align:right;">1 000 000</td></tr>
+      <tr style="background:rgba(63,185,80,0.06);"><td><strong>Mai 2027</strong></td><td style="text-align:right;">100 000</td><td style="text-align:right;">25 000</td><td style="text-align:right;">50 000</td><td style="text-align:right;">175 000</td><td style="text-align:right;"><strong>2 090 000</strong></td><td style="text-align:right;"><strong>1 000 000</strong></td></tr>
+    </table>
+
+    <p style="margin-top:18px; font-size:13px; color: var(--text); border-left: 3px solid var(--green); padding-left:12px;">
+      <strong>Crossover oktober 2026.</strong> Kumulativ inntekt overstiger kumulativ kapitalbruk. Mai 2027: ~2,1 MNOK inntekt mot 1,0 MNOK kapitalbruk. Gapet på ~1,1 MNOK fordeles mellom marginal-drift på nye kategorier (~400k) og operasjonelt overskudd til 2027-reserve (~400k) — Pace går fra <strong>break-even-skala i dag</strong> til <strong>positivt operasjonelt resultat</strong> innen 12 mnd.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>6 · Investerings-vilkår</h2>
+    <table>
+      <tr><th style="width:40%">Vilkår</th><th>Verdi</th></tr>
+      <tr><td>Runde-størrelse</td><td>NOK 1 000 000</td></tr>
+      <tr><td>Pre-money</td><td>NOK 4 500 000</td></tr>
+      <tr><td>Post-money</td><td>NOK 5 000 000</td></tr>
+      <tr><td>Total dilusjon</td><td>20 %</td></tr>
+      <tr><td>Investor-struktur</td><td>2 investorer à NOK 500 000 (10 % hver)</td></tr>
+      <tr><td>Lead-investor</td><td>Anders Bvaage — 1 styreplass</td></tr>
+      <tr><td>Investor #2</td><td>Under sondering</td></tr>
+      <tr><td>Form</td><td>Kapitalforhøyelse mot kontant innskudd</td></tr>
+      <tr><td>Aksjonæravtale</td><td>Ny SHA mellom alle aksjonærer</td></tr>
+    </table>
+    <h3>Verdsettings-begrunnelse</h3>
+    <ul>
+      <li>NOK 419 812 omsetning på 11 måneder fra lansering — <strong>uten ekstern kapital</strong></li>
+      <li>Run-rate ~1,2 MNOK/år basert på april 2026 (234 ordre / 100 068 NOK)</li>
+      <li>April 2026 hadde 11x flere ordre enn desember 2025</li>
+      <li>Sponsorat- og partner-portefølje (Vålerenga Elite, Bryne FK, OSVB Norgestour, Ygdra) gir distribusjon, sampling og brand-validering</li>
+      <li>Audun Finstad som medisinsk ambassadør gir helsefaglig troverdighet</li>
+      <li>Kategoriutvidelse til karb-gel doblet TAM (estimert)</li>
+      <li>Pharmatech-relasjonen senker risiko for nye SKU-er</li>
+      <li>5 MNOK post-money = ~4,2x ARR-rate basert på april — moderat for sports nutrition med dette momentumet</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>7 · Team</h2>
+    <table>
+      <tr><th style="width:35%">Person</th><th>Rolle</th></tr>
+      <tr><td><strong>Morten Meling Dobloug</strong></td><td>Daglig leder · Grunnlegger · Produksjon</td></tr>
+      <tr><td>Isak Tuene</td><td>Drift · E-handel</td></tr>
+      <tr><td>Alexander Andfossen</td><td>Produksjon (sammen med Morten)</td></tr>
+      <tr><td><strong>Sebastian</strong> <span class="pill pill-accent">Ny inn</span></td><td>Salgssjef</td></tr>
+      <tr><td>Audun Finstad</td><td>Medisinsk ambassadør</td></tr>
+      <tr><td>Marte Mæhlum Johansen</td><td>Ambassadøransvarlig</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>8 · Risiko</h2>
+    <ul>
+      <li><strong>Kategorivolatilitet</strong> — sportsernæring er konkurranseutsatt, nye merker kommer raskt.</li>
+      <li><strong>Single-supplier-eksponering</strong> — Pharmatech er primær produsent. Vi bygger relasjon mot EU-backup (Sequoya/Carletti) som kontinuitetsplan.</li>
+      <li><strong>Verdsettings-spranget</strong> — pre-money 4,5 MNOK reflekterer kategori-utvidelse og sponsorat-momentum, ikke bare historisk omsetning.</li>
+      <li><strong>Karb-gel-eksekvering</strong> — markedet er dominert av etablerte merker; vi konkurrerer med differensiering (norsk, ren etikett, sponsorat-distribusjon).</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>9 · Exit-tankegang</h2>
+    <p>Pace bygges for å kunne kjøpes opp av en etablert nordisk sportsernærings- eller wellness-aktør innen 3-5 år. Exit-tesen hviler på:</p>
+    <ul>
+      <li>Etablert D2C-kanal med brand og kundebase</li>
+      <li>Sponsorat- og partner-portefølje (Vålerenga Elite, Bryne FK, OSVB Norgestour, Ygdra) som distribusjons-, samplings- og synlighetsmotor</li>
+      <li>Karb-gel-sortiment som komplementerer elektrolytt-sticks → bredere produkt-portefølje</li>
+      <li>Norsk merkevare i "ren etikett"-posisjon — kategori-trend som etablerte aktører vil eie</li>
+    </ul>
+
+    <h3 style="margin-top:18px;">Realistiske nordiske oppkjøpere</h3>
+    <table>
+      <tr><th style="width:30%">Aktør</th><th>Hvorfor relevant</th></tr>
+      <tr>
+        <td><strong>Orkla Health</strong> <span class="pill pill-accent">NO</span></td>
+        <td>Eier Maxim (sportsdrikke), Möller's, Vitae. Naturlig konsolidator av norske sports-/wellness-merker.</td>
+      </tr>
+      <tr>
+        <td><strong>Humble Group AB</strong> <span class="pill pill-accent">SE · Nasdaq</span></td>
+        <td>Eier Pändy (sukkerfri protein-konfekt). Sterk i sukkerfri funksjonell mat i Norden.</td>
+      </tr>
+      <tr>
+        <td><strong>Maurten AB</strong> <span class="pill pill-accent">SE</span></td>
+        <td>Dominerer gel-markedet i Norden — porteføljeutvidelse kan gi strategisk interesse.</td>
+      </tr>
+    </table>
+    <p style="margin-top:14px; font-size:13px; color: var(--muted);">
+      Vi forplikter oss ikke til én bestemt exit-rute. Strukturen (norsk AS, Pharmatech-kontrakt, ren cap-table etter Anders-runde) er bygget for å være DD-klar.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>10 · Neste steg</h2>
+    <ol>
+      <li>Signering av term sheet (1–2 uker)</li>
+      <li>Due diligence (3 uker)</li>
+      <li>Aksjonæravtale + emisjonspapirer signert (2 uker)</li>
+      <li>Innbetaling og registrering Brønnøysund (1 mnd)</li>
+      <li>Anders inn i styret ved første styremøte etter registrering</li>
+    </ol>
+  </div>
+
+  <div class="footer">
+    Morten Meling Dobloug · +47 452 17 097 · morten@tempel.no · hei@getpace.no
+  </div>
+
+</div>
+</body>
+</html>

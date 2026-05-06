@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="nb">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Kreftnavigasjonsklinikken — MVP-oversikt 6. mai 2026</title>
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #161b22;
+    --panel-2: #1c2129;
+    --line: #2a313c;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #4f8cf7;
+    --accent-soft: rgba(79,140,247,.12);
+    --good: #3fb950;
+    --warn: #d29922;
+    --bad: #f85149;
+    --kost: #ec8b5e;
+    --tren: #4f8cf7;
+    --stress: #a371f7;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  header.top {
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, #1a2231 0%, #0e1116 100%);
+    padding: 24px 32px 20px;
+  }
+  header.top h1 { margin: 0 0 6px; font-size: 22px; letter-spacing: -.01em; }
+  header.top .sub { color: var(--muted); font-size: 13px; }
+  header.top .pivot-line { margin-top: 12px; font-size: 13px; color: var(--text); }
+  header.top .pivot-line strong { color: var(--warn); }
+
+  nav.toc {
+    position: sticky; top: 0; z-index: 5;
+    background: rgba(14,17,22,.95);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+    padding: 10px 32px;
+    display: flex; flex-wrap: wrap; gap: 14px;
+    font-size: 13px;
+  }
+  nav.toc a { color: var(--muted); padding: 4px 8px; border-radius: 4px; }
+  nav.toc a:hover { color: var(--text); background: var(--panel-2); text-decoration: none; }
+
+  main {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 24px 32px 60px;
+  }
+
+  section { margin-bottom: 40px; }
+  section > h2 { font-size: 18px; margin: 0 0 4px; letter-spacing: -.005em; }
+  section > .lead { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+
+  .grid { display: grid; gap: 12px; }
+  .grid.two { grid-template-columns: 1fr 1fr; }
+  .grid.three { grid-template-columns: 1fr 1fr 1fr; }
+  @media (max-width: 880px) {
+    .grid.two, .grid.three { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .card h3 {
+    margin: 0 0 8px; font-size: 13px; letter-spacing: .02em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600;
+  }
+  .card p { margin: 0 0 6px; font-size: 14px; }
+  .card p:last-child { margin-bottom: 0; }
+
+  /* MVP block — most prominent thing on page */
+  .mvp {
+    position: relative;
+    background: linear-gradient(180deg, var(--accent-soft) 0%, var(--panel) 80%);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    padding: 22px 24px 20px;
+    margin-bottom: 14px;
+  }
+  .mvp .badge {
+    position: absolute; top: 14px; right: 16px;
+    background: var(--accent); color: #fff;
+    font-size: 11px; font-weight: 700; letter-spacing: .08em;
+    padding: 4px 10px; border-radius: 4px;
+  }
+  .mvp h2 { margin: 0 0 4px; font-size: 20px; }
+  .mvp .pitch { color: var(--text); font-size: 14px; margin: 0 0 14px; max-width: 760px; }
+  .mvp .grid-mvp {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    font-size: 13px;
+  }
+  @media (max-width: 880px) { .mvp .grid-mvp { grid-template-columns: 1fr; } }
+  .mvp .item {
+    background: rgba(14,17,22,.55);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px 12px;
+  }
+  .mvp .item .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .mvp .item .v { font-weight: 600; margin-top: 2px; }
+  .mvp .item .v small { font-weight: 400; color: var(--muted); display: block; margin-top: 2px; }
+
+  .fase2 {
+    margin-top: 14px;
+    background: rgba(14,17,22,.4);
+    border: 1px dashed var(--line);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .fase2 strong { color: var(--text); }
+
+  .pillar {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 14px 16px;
+    border-top: 3px solid var(--line);
+  }
+  .pillar.kost   { border-top-color: var(--kost); }
+  .pillar.tren   { border-top-color: var(--tren); }
+  .pillar.stress { border-top-color: var(--stress); opacity: .55; }
+  .pillar h3 { margin: 0 0 4px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+  .pillar .tag { font-size: 11px; color: var(--muted); margin-bottom: 8px; display: block; }
+  .pillar ul { margin: 0; padding-left: 18px; font-size: 13px; }
+  .pillar li { margin-bottom: 3px; }
+  .fase2-tag {
+    background: rgba(210,153,34,.18); color: var(--warn);
+    font-size: 10px; font-weight: 700; letter-spacing: .06em;
+    padding: 2px 6px; border-radius: 3px; text-transform: uppercase;
+  }
+
+  .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  @media (max-width: 880px) { .flow { grid-template-columns: 1fr; } }
+  .flow .step {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 6px;
+    padding: 10px 12px;
+  }
+  .flow .step .num { font-size: 10px; color: var(--accent); font-weight: 700; letter-spacing: .06em; }
+  .flow .step h4 { margin: 2px 0 4px; font-size: 13px; }
+  .flow .step p { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.45; }
+
+  .question {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+  }
+  .question .q { font-weight: 600; margin-bottom: 2px; font-size: 14px; }
+  .question .why { color: var(--muted); font-size: 13px; }
+
+  /* Appendix as collapsed details */
+  .appendix-wrap { margin-top: 32px; padding-top: 20px; border-top: 1px dashed var(--line); }
+  .appendix-wrap > h2 {
+    font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em;
+    margin: 0 0 12px;
+  }
+  details.appx {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    margin-bottom: 6px;
+  }
+  details.appx > summary {
+    cursor: pointer;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--muted);
+    list-style: none;
+  }
+  details.appx > summary::-webkit-details-marker { display: none; }
+  details.appx > summary::before {
+    content: "▸ "; color: var(--accent); margin-right: 4px;
+  }
+  details.appx[open] > summary::before { content: "▾ "; }
+  details.appx[open] > summary { color: var(--text); border-bottom: 1px solid var(--line); }
+  details.appx .body { padding: 14px 16px; font-size: 13px; }
+  details.appx .body table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  details.appx .body th, details.appx .body td {
+    text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top;
+  }
+  details.appx .body th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; }
+  details.appx .body .yes { color: var(--good); }
+  details.appx .body .no  { color: var(--bad); }
+  details.appx .body ul { margin: 0; padding-left: 18px; }
+  details.appx .body li { margin-bottom: 4px; }
+
+  .pill {
+    display: inline-block; padding: 2px 7px; border-radius: 999px;
+    font-size: 10px; font-weight: 700; letter-spacing: .04em;
+  }
+  .pill.copy { background: rgba(63,185,80,.15); color: var(--good); }
+  .pill.drop { background: rgba(248,81,73,.15); color: var(--bad); }
+
+  footer { color: var(--muted); font-size: 12px; padding: 20px 0 0; border-top: 1px solid var(--line); margin-top: 28px; }
+  footer p { margin: 0 0 6px; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1>Kreftnavigasjonsklinikken — MVP-oversikt</h1>
+  <div class="sub">6. mai 2026 · Smaleste pilot vi faktisk skal bygge først · Detaljer i appendiks nederst</div>
+  <div class="pivot-line"><strong>Pivot 4. mai:</strong> Bort fra studie-matching → integrativ medisin (kost · trening · stress) komplementært til skolemedisin, gjennom hele behandlingsforløpet.</div>
+</header>
+
+<nav class="toc">
+  <a href="#mvp">MVP</a>
+  <a href="#pilarer">Pilarer</a>
+  <a href="#reise">Pasientreise</a>
+  <a href="#sparring">Sparring</a>
+  <a href="#appx">Appendiks</a>
+</nav>
+
+<main>
+
+<section id="mvp">
+  <div class="mvp">
+    <div class="badge">MVP — PILOT</div>
+    <h2>Det vi bygger først</h2>
+    <p class="pitch">Smal pilot: <strong>kost + trening tilpasset pasientens spesifikke krefttype</strong> for 5–10 pasienter. Stress, AI-coach, B2B og full team kommer i fase 2 — etter at pilot har bevist betalingsvilje og klinisk verdi.</p>
+
+    <div class="grid-mvp">
+      <div class="item"><div class="k">Innhold</div><div class="v">Kost + trening<small>Krefttype-spesifikt (ASCO/ESPEN per diagnose) — differensiator mot Pusterom og generelt KEF</small></div></div>
+      <div class="item"><div class="k">Pilotvolum</div><div class="v">5–10 pasienter<small>Alle krefttyper, Oslo-region</small></div></div>
+      <div class="item"><div class="k">Team</div><div class="v">3 personer<small>Navigator (sykepleier-onkologi) · KEF · Medisinsk leder</small></div></div>
+      <div class="item"><div class="k">Inntak</div><div class="v">B2C selvbooking<small>Valgfri henvisning, ikke krav</small></div></div>
+      <div class="item"><div class="k">Forløp</div><div class="v">6 måneder<small>4 faser: kartlegging → plan → rehab → avslutning</small></div></div>
+      <div class="item"><div class="k">Pris-anker</div><div class="v">1500–2500 kr/mnd<small>Smertegrense ~3000 kr/mnd · åpent for hybrid</small></div></div>
+      <div class="item"><div class="k">Plattform</div><div class="v">Web + Teams<small>Ingen egen app · AI brukt for inntak og plan-utkast</small></div></div>
+      <div class="item"><div class="k">Suksesskriterium</div><div class="v">Defineres med Fedon<small>Forslag: 70 % fullfører 6 mnd · NPS &gt; 40 · 50 % vil betale videre</small></div></div>
+      <div class="item"><div class="k">Tidsramme</div><div class="v">Pilot Q3 2026<small>Forutsetter team og platform klar Q2</small></div></div>
+    </div>
+
+    <div class="fase2">
+      <strong>Fase 2 (etter pilot):</strong> Stress-pilar (mindfulness, internet-therapy, psykolog) · AI-coach for pasient-spørsmål · Full team (farmasøyt, psykolog, sosialrådgiver, onkolog som fagveileder) · B2B-spor mot helseforsikring (840k forsikrede i Norge).
+    </div>
+  </div>
+</section>
+
+<section id="pilarer">
+  <h2>3 pilarer — innhold</h2>
+  <p class="lead">Kost + trening er med i pilot, begge tilpasset spesifikk krefttype. Stress er dimmet — fase 2.</p>
+
+  <div class="grid three">
+    <div class="pillar kost">
+      <h3>Kost</h3>
+      <span class="tag">KEF · ESPEN-rammeverk · krefttype-spesifikt</span>
+      <ul>
+        <li>Diagnose-spesifikke planer (svelgvansker for hode/hals, vekttap for lunge, osteoporose-risiko for prostata-ADT, glykemisk for bryst-tamoxifen)</li>
+        <li>Bivirkningstilpasset (kvalme, mukositt, smaksendring)</li>
+        <li>Foto-logging med AI-feedback</li>
+        <li>Supplement-interaksjoner mot cellegift/immunoterapi</li>
+      </ul>
+    </div>
+
+    <div class="pillar tren">
+      <h3>Trening</h3>
+      <span class="tag">Onkologisk fysioterapeut · ASCO-protokoller · krefttype-spesifikt</span>
+      <ul>
+        <li>Diagnose-spesifikke programmer (lymfødem-protokoll bryst, ADT-styrketrening prostata, fatigue-bevegelse for kjemo, balanse for nevropati)</li>
+        <li>Hjemmetrening via video — styrke, kondisjon, balanse</li>
+        <li>Utgangsnivå målt med 6MWT eller IPAQ</li>
+        <li>Re-vurdering hver 12 uker</li>
+      </ul>
+    </div>
+
+    <div class="pillar stress">
+      <h3>Stress <span class="fase2-tag">Fase 2</span></h3>
+      <span class="tag">Modul-bibliotek · psykolog ad hoc</span>
+      <ul>
+        <li>Mindfulness, yoga, avspenning, musikkterapi (SE KIM-stack)</li>
+        <li>Internet-therapy for fatigue og angst-for-tilbakefall (NL HDI)</li>
+        <li>Søvn, åndedrett, gruppestøtte digitalt</li>
+        <li>Integreres i full stack etter pilot</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="reise">
+  <h2>Pasientreise — 4 faser</h2>
+  <p class="lead">Strukturen lånt fra Centrum för cancerrehabilitering Stockholm + DK CKSK.</p>
+
+  <div class="flow">
+    <div class="step"><div class="num">FASE 1</div><h4>Kartlegging</h4><p>AI-adaptiv inntak. Førstesamtale navigator + KEF, 60 min video.</p></div>
+    <div class="step"><div class="num">FASE 2</div><h4>Planlegging</h4><p>AI genererer plan. Kliniker validerer. Levert innen 7 dager.</p></div>
+    <div class="step"><div class="num">FASE 3</div><h4>Rehabilitering</h4><p>Daglig logging. Touchpoint hver 2–4 uke. Plan justeres ved behandlingsskifte.</p></div>
+    <div class="step"><div class="num">FASE 4</div><h4>Avslutning</h4><p>Sluttrapport + survivorship-spor på lavere pris.</p></div>
+  </div>
+</section>
+
+<section id="sparring">
+  <h2>Sparring-punkter — MVP-kritiske</h2>
+  <p class="lead">6 spørsmål som må avklares før pilot startes. 4 øvrige i appendiks.</p>
+
+  <div class="question">
+    <div class="q">Hvor "krefttype-spesifikt" må det være for å holde løftet?</div>
+    <div class="why">Topp 5 diagnoser (bryst, prostata, lunge, tarm, lymfom) dekker ~60 % av norske krefttilfeller. Bygger vi protokoller for disse 5 først, eller starter vi smalere (1–2 diagnoser)? Avgjør innholdsproduksjon-volum og tid-til-pilot.</div>
+  </div>
+  <div class="question">
+    <div class="q">Henvisning eller selvbooking?</div>
+    <div class="why">Alle benchmark-program krever henvisning. Selvbooking gir B2C-fart men reiser klinisk-juridisk risiko. Må avklares med Fedon + jurist.</div>
+  </div>
+  <div class="question">
+    <div class="q">Volum per KEF / coach — hvor mange aktive pasienter?</div>
+    <div class="why">Avgjør kapasitet, marginer og pris. Antagelig 30–50 (CKSK gir ikke offentlig tall). Bekreftes for finansmodell.</div>
+  </div>
+  <div class="question">
+    <div class="q">Pris-modell — månedlig, pakke, eller hybrid?</div>
+    <div class="why">Månedlig matcher 6 mnd-rammen. Hybrid (oppstart 5000 kr + 1500/mnd) gir høyere CAC-dekning. Pakke gir lavere terskel.</div>
+  </div>
+  <div class="question">
+    <div class="q">Pusterom som "gratis konkurrent" på trening — hva er differensiatoren?</div>
+    <div class="why">Pusterom er gratis ved 24 sykehus men er et generelt treningsprogram, ikke krefttype-spesifikk ASCO-protokoll. Holder differensiatoren betalingsvilje, eller bør vi heller partnere?</div>
+  </div>
+  <div class="question">
+    <div class="q">Eskalerings-protokoll og røde flagg — hvem signerer?</div>
+    <div class="why">Vekttap &gt;5 %, depresjon-skala, suicidalitet. Ingen offentlig benchmark har dette synlig. Designes fra konsensus, signeres av medisinsk leder.</div>
+  </div>
+</section>
+
+<div class="appendix-wrap" id="appx">
+  <h2>Appendiks — bakgrunn og detaljer</h2>
+
+  <details class="appx">
+    <summary>Internasjonal benchmark — SE / DK / FI / NL</summary>
+    <div class="body">
+      <table>
+        <thead><tr><th>Dim.</th><th>SE Stockholm</th><th>DK CKSK</th><th>FI Syöpäjärj.</th><th>NL HDI</th></tr></thead>
+        <tbody>
+          <tr><td>Pris pasient</td><td>Lav egenandel</td><td><span class="yes">Gratis</span></td><td><span class="yes">Gratis</span></td><td>Forsikring + egenandel</td></tr>
+          <tr><td>Varighet</td><td>Ikke standard</td><td><strong>6–9 mnd</strong></td><td>Service-katalog</td><td>Individuell</td></tr>
+          <tr><td>Kost</td><td>Begrenset</td><td><span class="yes">Sterk · 3 KEF</span></td><td>Generell</td><td><span class="no">Nei</span></td></tr>
+          <tr><td>Trening</td><td>Fysio + grupper</td><td>Fysio + grupper</td><td><span class="yes">Live online</span></td><td><span class="no">Nei</span></td></tr>
+          <tr><td>Stress</td><td><strong>KIM-stack</strong></td><td>Psykososial</td><td>LUOTO chat</td><td><span class="yes">5 modaliteter</span></td></tr>
+          <tr><td>Navigator</td><td>Implisitt</td><td><span class="yes"><strong>Eksplisitt</strong></span></td><td>Nei</td><td>Nei</td></tr>
+          <tr><td>Telehealth</td><td>Video</td><td>Teams</td><td><span class="yes">Sterk</span></td><td><span class="yes">eHealth</span></td></tr>
+          <tr><td>AI</td><td><span class="no">Nei</span></td><td><span class="no">Nei</span></td><td><span class="no">Nei</span></td><td><span class="no">Nei</span></td></tr>
+          <tr><td>Henvisning</td><td>Ja</td><td>Ja</td><td>Delvis</td><td>Ja</td></tr>
+          <tr><td>Ventetid</td><td>Ikke offentlig</td><td>Ikke offentlig</td><td>Lav</td><td><strong>3–6 mnd</strong></td></tr>
+        </tbody>
+      </table>
+      <p style="margin-top:10px;color:var(--muted)">SE og DK kjører strukturen vi lander på, fysisk og gratis. FI er digitalt sterkest. NL er smalt psyko-fokus. Ingen har AI eller moderne digital plattform.</p>
+    </div>
+  </details>
+
+  <details class="appx">
+    <summary>Kopier dette / dropp dette</summary>
+    <div class="body">
+      <p><span class="pill copy">Kopier</span></p>
+      <ul>
+        <li>4-fase pasientreise (SE Stockholm)</li>
+        <li>Dedikert navigator gjennom hele forløpet (DK CKSK)</li>
+        <li>6–9 mnd standard ramme + survivorship (DK CKSK)</li>
+        <li>PRO-instrumenter som strukturell input til samtale (DK CKSK)</li>
+        <li>KIM-modul-stack for stress: mindfulness, yoga, avspenning, musikk (SE KIM)</li>
+        <li>Live distansetrening online (FI Syöpäjärjestöt) — fase 2</li>
+        <li>Internet-therapy for fatigue og angst-for-tilbakefall (NL HDI)</li>
+        <li>Bivirkningstilpasset kostmateriell (DK CKSK)</li>
+      </ul>
+      <p style="margin-top:10px"><span class="pill drop">Dropp</span></p>
+      <ul>
+        <li>Henvisning som eneste inntak — bygg selvbooking + valgfri henvisning</li>
+        <li>Ren psyko-only-modell — for smalt (NL HDI)</li>
+        <li>Geografisk lokalsenter-modell — ikke skalerbart digitalt</li>
+        <li>3–6 mnd ventetid — vår motsats er kjernefordel</li>
+        <li>Gratis-modell som primær — krever skattefinansiering. B2B-spor parallelt</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="appx">
+    <summary>Forhold til Fedon Helse — struktur og åpne IP-punkter</summary>
+    <div class="body">
+      <p><strong>Anbefalt struktur</strong> (Anders 4. mai: egen teknisk plattform, ikke bygget på Fedon Helse):</p>
+      <ul>
+        <li>Branding: Fedon som ambassadør og fagansvarlig, selvstendig brand for kreftnav</li>
+        <li>Helsepoden: kreftserie som rekrutteringskanal til pilot</li>
+        <li>Eksisterende kreftkurs: lisensavtale (Anders' alternativ A)</li>
+        <li>Pasient-overlap: Fedon Helse-medlem som får diagnose → oppgradering</li>
+        <li>Ressurs-deling: KEF/instruktører leies inn på avtale, ikke ansettes</li>
+      </ul>
+      <p style="margin-top:10px"><strong>Åpne IP-/eierskaps-punkter:</strong></p>
+      <ul>
+        <li>Nutriston AS / NutriIQ — verdsett som IP-innskudd hvis aktivt</li>
+        <li>Aksjonærpost reflekterer operasjonell rolle, ikke bare IP-bidrag</li>
+        <li>Affiliate (psykolog/fysio 30 %) — eksplisitt fra dag én eller etter pilot?</li>
+        <li>Fedons faktiske volum/tid på prosjektet — trenger separat daglig leder?</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="appx">
+    <summary>Pris — norsk konkurransebilde</summary>
+    <div class="body">
+      <table>
+        <tr><th>Tilbud</th><th>Pris</th></tr>
+        <tr><td>Pusterom (Aktiv mot kreft)</td><td>Gratis (henvisning)</td></tr>
+        <tr><td>Vardesenteret fysio/gruppe</td><td>375 kr/sesjon</td></tr>
+        <tr><td>Aktiv Otta «Frisktrening»</td><td>430 kr/mnd</td></tr>
+        <tr><td>KEF (1. konsultasjon 60 min)</td><td>750 kr</td></tr>
+        <tr><td>KEF oppfølging 30 min</td><td>550 kr</td></tr>
+        <tr><td>Fedon Helse nettkurs</td><td>890–1190 kr engang</td></tr>
+        <tr><td>Privat psykolog</td><td>1500–2500 kr/sesjon</td></tr>
+      </table>
+      <p style="margin-top:10px;color:var(--muted)">Sum enkeltkjøp 6 mnd: ca. 10–15 000 NOK. Risikoen er ikke produktet — det er at konkurrenten heter "gratis offentlig". B2B-spor (helseforsikring) bærer 25–45k/case lettere enn B2C alene.</p>
+    </div>
+  </details>
+
+  <details class="appx">
+    <summary>Plattform &amp; AI-rolle (full liste)</summary>
+    <div class="body">
+      <ul>
+        <li><strong>Plattform:</strong> Web-først, pasient-dashboard, kliniker-arbeidsflate, video/Teams, egen teknisk base</li>
+        <li><strong>AI:</strong> adaptiv inntakskartlegging, plan-generering (kliniker validerer), samtale-oppsummering, AI-coach (fase 2), røde-flagg-deteksjon</li>
+        <li><strong>Funn fra benchmark:</strong> ingen av SE/DK/FI/NL har AI-personalisering eller moderne digital plattform — åpen vinkel</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="appx">
+    <summary>Fagteam ad hoc-roller (post-pilot)</summary>
+    <div class="body">
+      <ul>
+        <li><strong>Klinisk farmasøyt</strong> — interaksjons-vurdering ved supplement-spor</li>
+        <li><strong>Psykolog</strong> — internet-therapy + 1:1 ved behov</li>
+        <li><strong>Sosialrådgiver</strong> — arbeidsliv, NAV, økonomi (CKSK-modell)</li>
+        <li><strong>Onkolog</strong> — fagveileder, ikke pasient-onkolog</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="appx">
+    <summary>Sparring-punkter ikke MVP-kritiske</summary>
+    <div class="body">
+      <ul>
+        <li><strong>Affiliate-modell på supplementer fra dag én?</strong> Inntektskilde nevnt 4. mai (30 % returprovisjon). Risiko for klinisk integritet — kanskje vente til pilot er etablert.</li>
+        <li><strong>B2C alene eller parallell B2B-spor fra dag én?</strong> Tidligere arbeidsdokument: 840k forsikrede + 1,4M innen 2030, ROI 5,5:1. B2B (25–45k/case) bærer modellen lettere enn B2C alene.</li>
+        <li><strong>De 18 prioriterte spørsmålene fra Anders til Fedon</strong> — be Anders dele listen.</li>
+        <li><strong>Palliativ fase — etisk grense for å la pasient betale for "livsstilsendring"?</strong> Stadium IV inn i pilot, men palliativ fase reiser etiske spørsmål om verdiløftet. Krever policy-tekst.</li>
+      </ul>
+    </div>
+  </details>
+</div>
+
+<footer>
+  <p><strong>Kilder:</strong> Anders' epost 5. mai 2026 (ID 19df771ae191cfbb), Sporsmal-til-Fedon-2026-05-05.docx (59 spørsmål, 7 kategorier), benchmark Desktop/Claude/kreft-benchmark-norden-nl-2026-05-05.md, prosjekt-memory project_kreftnavigasjon.</p>
+  <p><strong>Verifisert med kilde:</strong> CKSK kraeft.kk.dk, RCC cancercentrum.se, KIM kunskapsbanken, HDI hdi.nl, Cancer Society of Finland, Aktiv mot kreft, Fedon Helse, Aktiv Otta.</p>
+  <p><strong>Usikkert / ikke verifisert:</strong> Eksakt pris CKSK · KEF-volum per coach · norsk privat integrativ-konkurranse · forsikringsdekning for integrativ kreftbehandling. Åpne sparring-punkter, ikke påstander.</p>
+</footer>
+
+</main>
+
+</body>
+</html>
