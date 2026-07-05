@@ -1,0 +1,6 @@
+# Plaintext-kilder skal ALDRI publiseres (staticrypt-input)
+*-plain.html
+encrypted/
+.staticrypt.json
+*.bak-*
+*.png
