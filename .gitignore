@@ -4,3 +4,6 @@ encrypted/
 .staticrypt.json
 *.bak-*
 *.png
+staticrypt_swap.js
+*.bak*
+alex-selvstendig.html
