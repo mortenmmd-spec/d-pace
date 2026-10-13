@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pace — Fremdrift</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --page:        #0d0d0d;
+    --surface:     #1a1a19;
+    --surface-2:   #232322;
+    --ink:         #ffffff;
+    --ink-2:       #c3c2b7;
+    --ink-muted:   #898781;
+    --hairline:    rgba(255,255,255,0.10);
+    --grid:        #2c2c2a;
+    --blue:        #3987e5;
+    --good:        #0ca30c;
+    --warning:     #fab219;
+    --critical:    #d03b3b;
+    --magenta:     #d55181;
+    --orange:      #d95926;
+    --aqua:        #199e70;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --page:      #f9f9f7;
+      --surface:   #fcfcfb;
+      --surface-2: #f0efec;
+      --ink:       #0b0b0b;
+      --ink-2:     #52514e;
+      --ink-muted: #898781;
+      --hairline:  rgba(11,11,11,0.10);
+      --grid:      #e1e0d9;
+      --blue:      #2a78d6;
+      --magenta:   #e87ba4;
+      --orange:    #eb6834;
+      --aqua:      #1baf7a;
+    }
+  }
+  * { margin: 0; box-sizing: border-box; }
+  body {
+    background: var(--page);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.45;
+    padding: 24px 16px 64px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+
+  header { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 8px; }
+  h1 { font-size: 1.5rem; letter-spacing: -0.01em; }
+  h1 small { display: block; font-size: 0.85rem; font-weight: 400; color: var(--ink-2); margin-top: 2px; }
+  h1 small a { color: var(--blue); text-decoration: none; }
+  h1 small a:hover { text-decoration: underline; }
+
+  /* ---------- live/setup banner ---------- */
+  .banner {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    background: var(--surface); border: 1px solid var(--warning);
+    border-radius: 12px; padding: 12px 16px; margin-top: 14px;
+    font-size: 0.85rem; color: var(--ink-2);
+  }
+  .banner input {
+    flex: 1; min-width: 220px;
+    background: var(--surface-2); color: var(--ink);
+    border: 1px solid var(--hairline); border-radius: 8px; padding: 7px 10px;
+    font: inherit;
+  }
+  .banner button {
+    background: var(--blue); color: #fff; border: 0; border-radius: 8px;
+    padding: 7px 16px; font: inherit; font-weight: 700; cursor: pointer;
+  }
+  .banner a { color: var(--blue); }
+  .live-pill {
+    font-size: 0.75rem; font-weight: 700; border-radius: 999px; padding: 3px 10px;
+    border: 1px solid var(--hairline);
+  }
+  .live-pill.on  { color: var(--good); border-color: var(--good); }
+  .live-pill.off { color: var(--warning); border-color: var(--warning); }
+
+  /* ---------- hero row ---------- */
+  .hero {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 20px;
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: 16px;
+    padding: 20px 24px;
+    margin: 18px 0;
+  }
+  .ring-box { position: relative; width: 132px; height: 132px; }
+  .ring-box svg { transform: rotate(-90deg); }
+  .ring-track { stroke: var(--grid); }
+  .ring-fill  { stroke: var(--blue); stroke-linecap: round; transition: stroke-dashoffset 700ms cubic-bezier(.22,1,.36,1); }
+  .ring-label {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .ring-label b { font-size: 1.7rem; }
+  .ring-label span { font-size: 0.7rem; color: var(--ink-2); }
+
+  .level-box { min-width: 0; }
+
+  /* ---------- tall ---------- */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0 0 18px; }
+  .stat { background: var(--surface); border: 1px solid var(--hairline); border-radius: 14px; padding: 14px 16px; }
+  .stat .k { font-size: 0.72rem; color: var(--ink-muted); text-transform: uppercase; letter-spacing: .04em; }
+  .stat .v { font-size: 1.5rem; font-weight: 700; color: var(--ink); margin: 2px 0; }
+  .stat .s { font-size: 0.78rem; color: var(--ink-2); }
+  .stats-note { font-size: 0.72rem; color: var(--ink-muted); margin: -10px 0 18px; }
+  .level-title { font-size: 1.05rem; font-weight: 700; color: var(--blue); }
+  .level-sub { color: var(--ink-2); font-size: 0.85rem; margin: 2px 0 10px; }
+  .xp-bar {
+    height: 12px; border-radius: 6px; background: var(--surface-2);
+    overflow: hidden; border: 1px solid var(--hairline);
+  }
+  .xp-fill {
+    height: 100%; width: 0%;
+    background: var(--blue);
+    border-radius: 6px;
+    transition: width 700ms cubic-bezier(.22,1,.36,1);
+  }
+  .xp-nums { font-size: 0.75rem; color: var(--ink-muted); margin-top: 5px; font-variant-numeric: tabular-nums; }
+
+  .streak {
+    font-size: 0.8rem; color: var(--ink-2);
+    background: var(--surface-2); border: 1px solid var(--hairline);
+    border-radius: 999px; padding: 4px 12px; white-space: nowrap;
+  }
+
+  /* ---------- board ---------- */
+  .board { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .col {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: 14px;
+    padding: 14px;
+    transition: background 150ms ease, border-color 150ms ease;
+  }
+  .col.drop-hint { border-color: var(--blue); background: color-mix(in oklab, var(--blue) 8%, var(--surface)); }
+  .col h2 {
+    font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--ink-2); display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+  }
+  .col h2 .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .col h2 .count {
+    margin-left: auto; font-size: 0.75rem; color: var(--ink-muted);
+    background: var(--surface-2); border-radius: 999px; padding: 1px 8px;
+    font-variant-numeric: tabular-nums;
+  }
+  .task {
+    display: flex; gap: 10px; align-items: flex-start;
+    background: var(--surface-2);
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    transition: transform 120ms ease, opacity 200ms ease;
+    user-select: none;
+  }
+  body.live .task { cursor: grab; }
+  body.live .task:hover { transform: translateY(-1px); }
+  .task.dragging { opacity: 0.4; transform: scale(0.97); cursor: grabbing; }
+  .task .box {
+    width: 18px; height: 18px; flex: none; margin-top: 2px;
+    border: 2px solid var(--ink-muted); border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: transparent;
+    transition: all 150ms ease;
+  }
+  body.live .task .box { cursor: pointer; }
+  body.live .task .box:hover { border-color: var(--good); }
+  .task.done .box { background: var(--good); border-color: var(--good); color: #fff; }
+  .task.done .txt { text-decoration: line-through; color: var(--ink-muted); }
+  .task .txt { font-size: 0.875rem; }
+  .task .who, .task .strom {
+    display: inline-block; font-size: 0.72rem; color: var(--ink-muted);
+    margin: 4px 4px 0 0; padding: 1px 8px; border-radius: 999px;
+    border: 1px solid var(--hairline);
+  }
+  body.live .task .who { cursor: pointer; }
+  body.live .task .who:hover { border-color: var(--ink-muted); }
+  .empty { font-size: 0.8rem; color: var(--ink-muted); font-style: italic; padding: 6px 2px; }
+  .task .due { display: inline-block; font-size: 0.72rem; color: var(--ink-muted); margin: 4px 4px 0 0; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--hairline); }
+  .task.overdue { border-color: var(--critical); }
+  .task.overdue .due { color: var(--critical); border-color: var(--critical); font-weight: 700; }
+
+  /* ---------- ny oppgave ---------- */
+  .add-bar { display: none; gap: 8px; margin: 0 0 14px; }
+  body.live .add-bar { display: flex; }
+  .add-bar input {
+    flex: 1; background: var(--surface); color: var(--ink);
+    border: 1px solid var(--hairline); border-radius: 10px; padding: 9px 12px; font: inherit;
+  }
+  .add-bar button {
+    background: var(--blue); color: #fff; border: 0; border-radius: 10px;
+    padding: 9px 18px; font: inherit; font-weight: 700; cursor: pointer;
+  }
+
+  /* ---------- milepæler ---------- */
+  .miles-h { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-2); margin: 26px 0 10px; }
+  .miles {
+    display: flex; align-items: flex-start; gap: 0;
+    background: var(--surface); border: 1px solid var(--hairline);
+    border-radius: 14px; padding: 18px 14px 14px;
+    overflow-x: auto;
+  }
+  .mile { flex: 1; min-width: 110px; text-align: center; position: relative; }
+  .mile .node {
+    width: 34px; height: 34px; border-radius: 50%; margin: 0 auto;
+    display: flex; align-items: center; justify-content: center; font-size: 16px;
+    background: var(--surface-2); border: 2px solid var(--grid);
+    position: relative; z-index: 1;
+  }
+  body.live .mile .node { cursor: pointer; }
+  .mile.done .node { background: color-mix(in oklab, var(--good) 25%, var(--surface-2)); border-color: var(--good); }
+  .mile:not(:first-child)::before {
+    content: ""; position: absolute; top: 17px; left: calc(-50% + 17px); right: calc(50% + 17px);
+    height: 2px; background: var(--grid);
+  }
+  .mile.done:not(:first-child)::before { background: var(--good); }
+  .mile .lbl { font-size: 0.72rem; color: var(--ink-2); margin-top: 6px; padding: 0 4px; }
+  .mile.done .lbl { color: var(--good); font-weight: 700; }
+
+  /* ---------- roller ---------- */
+  .roles { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+  .role { background: var(--surface); border: 1px solid var(--hairline); border-radius: 12px; padding: 10px 12px; font-size: 0.82rem; }
+  .role .who { display: inline-block; font-size: 0.72rem; color: var(--ink-muted); margin-top: 6px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--hairline); }
+  body.live .role .who { cursor: pointer; }
+  .stale { background: color-mix(in oklab, var(--warning) 18%, var(--surface)); border: 1px solid var(--warning); border-radius: 10px; padding: 8px 12px; font-size: 0.8rem; margin: 0 0 18px; }
+  .stats-h { font-weight: 700; margin: 4px 0 8px; }
+  .linkbtn { background: none; border: 0; color: var(--blue); font: inherit; font-size: 0.8rem; cursor: pointer; padding: 0 4px; text-decoration: underline; }
+
+  /* ---------- badges ---------- */
+  .badges-h { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-2); margin: 26px 0 10px; }
+  .badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+  .badge {
+    display: flex; gap: 10px; align-items: center;
+    background: var(--surface); border: 1px solid var(--hairline);
+    border-radius: 12px; padding: 10px 12px;
+  }
+  .badge .ico {
+    width: 38px; height: 38px; flex: none; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 19px;
+    background: var(--surface-2);
+  }
+  .badge.won .ico { background: color-mix(in oklab, var(--good) 22%, var(--surface-2)); }
+  .badge b { font-size: 0.82rem; display: block; }
+  .badge span { font-size: 0.72rem; color: var(--ink-muted); display: block; }
+  .badge.locked { opacity: 0.55; }
+  .badge.locked .ico { filter: grayscale(1); }
+
+  /* ---------- toast & confetti ---------- */
+  #toast {
+    position: fixed; left: 50%; bottom: 34px; transform: translate(-50%, 20px);
+    background: var(--good); color: #fff; font-weight: 700;
+    padding: 10px 22px; border-radius: 999px; font-size: 0.95rem;
+    opacity: 0; pointer-events: none;
+    transition: all 250ms ease;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.35);
+  }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  #toast.err { background: var(--critical); }
+  .confetti {
+    position: fixed; width: 9px; height: 9px; pointer-events: none; z-index: 99;
+    border-radius: 2px;
+  }
+
+  footer { margin-top: 30px; font-size: 0.75rem; color: var(--ink-muted); }
+  footer code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+  footer a { color: var(--blue); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Pace — Fremdrift
+      <small><a href="https://github.com/orgs/Tempelbois/projects/2">GitHub-boardet</a> er kilden
+        · <span id="mode-pill" class="live-pill off">⏳ kobler til …</span>
+        <button id="token-clear" class="linkbtn" hidden>Koble fra</button></small>
+    </h1>
+  </header>
+
+  <div class="banner" id="setup" hidden>
+    <span>🔑 <b>Engangsoppsett:</b> lim inn en GitHub-token så lagres alt du gjør her direkte på boardet.
+      <a href="https://github.com/settings/tokens/new?scopes=project&description=Pace-quest-board" target="_blank">Lag token her</a>
+      (classic, kun «project»-scope) — den lagres bare i denne nettleseren.</span>
+    <input type="password" id="token-input" placeholder="ghp_…">
+    <button id="token-save">Koble til</button>
+  </div>
+
+  <div class="stats-h">Tall</div>
+  <section class="stats" id="stats"><!--STATS--><!--/STATS--></section>
+  <div class="stats-note" id="stats-note"><!--STATSNOTE--><!--/STATSNOTE--></div>
+  <div class="stale" id="stale" hidden></div>
+
+  <section class="hero">
+    <div class="ring-box">
+      <svg width="132" height="132" viewBox="0 0 132 132">
+        <circle class="ring-track" cx="66" cy="66" r="56" fill="none" stroke-width="12"/>
+        <circle class="ring-fill" id="ring" cx="66" cy="66" r="56" fill="none" stroke-width="12"
+                stroke-dasharray="351.86" stroke-dashoffset="351.86"/>
+      </svg>
+      <div class="ring-label"><b id="pct">0%</b><span>av oppgavene ferdig</span></div>
+    </div>
+    <div class="level-box">
+      <div class="level-title" id="sum-title"></div>
+      <div class="level-sub" id="sum-sub"></div>
+      <div class="xp-nums" id="sum-meta"></div>
+    </div>
+  </section>
+
+  <div class="add-bar">
+    <input id="new-task" placeholder="Ny oppgave … (havner i Innboks)" maxlength="200">
+    <button id="add-task">+ Legg til</button>
+  </div>
+
+  <section class="board" id="board"></section>
+
+  <div class="miles-h">Milepæler — Eierskifte</div>
+  <section class="miles" id="miles-eierskifte"></section>
+
+  <div class="miles-h">Milepæler — Drift</div>
+  <section class="miles" id="miles-drift"></section>
+
+  <div class="miles-h">Roller (løpende ansvar)</div>
+  <section class="roles" id="roles"></section>
+
+  <footer>
+    Med token tilkoblet lagres drag &amp; drop, avhuking og 👤-bytte direkte på GitHub-boardet. Uten token er siden en
+    skrivebeskyttet visning. Siden bygges automatisk hver time 06–23 (GitHub Actions); sist bygget <b><!--SYNC--><!--/SYNC--></b>.
+  </footer>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ============================================================
+   KONFIG
+   ============================================================ */
+const ORG = "Tempelbois";
+const PROJECT_NUMBER = 2;
+const TOKEN_KEY = "pace-gh-token";
+const PREV_KEY  = "pace-prev-sec";
+
+// Fallback-snapshot uten token. Skrives av scripts/build-pace-quest.mjs — ikke rediger for hånd.
+/*__META__*/ const META = {}; /*__META_END__*/
+/*__TASKS__*/ const SNAPSHOT = []; /*__TASKS_END__*/
+
+const SECTION_META = {
+  "Innboks": { color: "var(--ink-muted)", empty: "Tomt." },
+  "Neste":   { color: "var(--blue)",      empty: "Tomt." },
+  "Pågår":   { color: "var(--orange)",    empty: "Ingenting pågår." },
+  "Venter":  { color: "var(--warning)",   empty: "Ingen blokkerte oppgaver." },
+  "Ferdig":  { color: "var(--good)",      empty: "Ingenting ferdig ennå." },
+};
+const OWNER_COLOR = {
+  "Morten": "var(--blue)", "Martin": "var(--green, #199e70)", "Victoria": "var(--magenta)", "Anders": "var(--aqua)",
+  "Morten & Martin": "var(--aqua)", "Morten & Victoria": "var(--magenta)", "Anders & Martin": "var(--aqua)", "Alle": "var(--ink-2)", "Ikke fordelt": "var(--ink-muted)",
+};
+
+
+/* ============================================================
+   STATE
+   ============================================================ */
+let live = false;                 // true når GitHub-tilkobling er oppe
+let tasks = SNAPSHOT.slice();     // gjeldende visning
+let project = null;               // { id, statusField, ansvarligField } fra GitHub
+let prevSec = {};
+try { prevSec = JSON.parse(localStorage.getItem(PREV_KEY) || "{}"); } catch {}
+
+const isDone = t => t.sec === "Ferdig";
+const isMile = t => t.kat === "Milepæl";
+const isRole = t => t.kat === "Rolle";
+const quests = () => tasks.filter(t => !isMile(t) && !isRole(t));
+const doneCount = () => quests().filter(isDone).length;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* ============================================================
+   GITHUB API
+   ============================================================ */
+async function gql(query, variables) {
+  const res = await fetch("https://api.github.com/graphql", {
+    method: "POST",
+    headers: {
+      "Authorization": "Bearer " + localStorage.getItem(TOKEN_KEY),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+  const json = await res.json();
+  if (!res.ok || json.errors) throw new Error(json.errors?.[0]?.message || res.status);
+  return json.data;
+}
+
+async function loadBoard() {
+  const d = await gql(`query {
+    organization(login: "${ORG}") {
+      projectV2(number: ${PROJECT_NUMBER}) {
+        id
+        fields(first: 30) { nodes { ... on ProjectV2SingleSelectField { id name options { id name } } } }
+        items(first: 100) { nodes {
+          id
+          content { ... on DraftIssue { title } ... on Issue { title } ... on PullRequest { title } }
+          fieldValues(first: 20) { nodes {
+            ... on ProjectV2ItemFieldSingleSelectValue {
+              name
+              field { ... on ProjectV2SingleSelectField { name } }
+            }
+            ... on ProjectV2ItemFieldDateValue {
+              date
+              field { ... on ProjectV2Field { name } }
+            }
+          } }
+        } }
+      }
+    }
+  }`);
+  const p = d.organization.projectV2;
+  const fields = p.fields.nodes.filter(f => f.name);
+  project = {
+    id: p.id,
+    statusField:    fields.find(f => f.name === "Status"),
+    ansvarligField: fields.find(f => f.name === "Ansvarlig"),
+  };
+  tasks = p.items.nodes.map(n => {
+    const fv = Object.fromEntries(n.fieldValues.nodes.filter(v => v.field).map(v => [v.field.name, v.name ?? v.date]));
+    return {
+      id: n.id,
+      txt: n.content?.title || "(uten tittel)",
+      sec: fv["Status"] || "Innboks",
+      owner: fv["Ansvarlig"] || "Ikke fordelt",
+      strom: fv["Arbeidsstrøm"] || "",
+      kat: fv["Kategori"] || "Oppgave",
+      due: fv["Måldato"] || "",
+    };
+  });
+}
+
+async function setField(itemId, field, optionName) {
+  const opt = field.options.find(o => o.name === optionName);
+  if (!opt) throw new Error("Ukjent valg: " + optionName);
+  await gql(`mutation {
+    updateProjectV2ItemFieldValue(input: {
+      projectId: "${project.id}", itemId: "${itemId}",
+      fieldId: "${field.id}", value: { singleSelectOptionId: "${opt.id}" }
+    }) { projectV2Item { id } }
+  }`);
+}
+
+/* ============================================================
+   HANDLINGER (kun i live-modus)
+   ============================================================ */
+async function moveTask(id, toSec, fxEl) {
+  const t = tasks.find(t => t.id === id);
+  if (!live || !t || t.sec === toSec) return;
+  const from = t.sec;
+  t.sec = toSec;
+  prevSec[id] = from;
+  localStorage.setItem(PREV_KEY, JSON.stringify(prevSec));
+  render();
+  try {
+    await setField(id, project.statusField, toSec);
+    if (toSec === "Ferdig") celebrate(fxEl);
+    else if (toSec === "Venter") toast("Venter ⏳");
+    else toast("Lagret på boardet ✅");
+  } catch (e) {
+    t.sec = from;
+    render();
+    toast("Lagring feilet: " + e.message + " ⚠️", true);
+  }
+}
+
+function toggleDone(id, el) {
+  const t = tasks.find(t => t.id === id);
+  if (!t) return;
+  moveTask(id, isDone(t) ? (prevSec[id] && prevSec[id] !== "Ferdig" ? prevSec[id] : "Pågår") : "Ferdig", el);
+}
+
+async function addTask(title) {
+  if (!live || !title.trim()) return;
+  try {
+    const d = await gql(`mutation($pid: ID!, $title: String!) {
+      addProjectV2DraftIssue(input: { projectId: $pid, title: $title }) { projectItem { id } }
+    }`, { pid: project.id, title: title.trim() });
+    const id = d.addProjectV2DraftIssue.projectItem.id;
+    await setField(id, project.statusField, "Innboks");
+    tasks.push({ id, txt: title.trim(), sec: "Innboks", owner: "Ikke fordelt", strom: "", kat: "Oppgave", due: "" });
+    render();
+    toast("Lagt i Innboks ✅");
+  } catch (e) {
+    toast("Kunne ikke legge til: " + e.message + " ⚠️", true);
+  }
+}
+
+async function cycleOwner(id) {
+  const t = tasks.find(t => t.id === id);
+  if (!live || !t) return;
+  const opts = project.ansvarligField.options.map(o => o.name);
+  const from = t.owner;
+  const next = opts[(opts.indexOf(t.owner) + 1) % opts.length];
+  t.owner = next;
+  render();
+  try {
+    await setField(id, project.ansvarligField, next);
+    toast(`Ansvarlig: ${next} 👤`);
+  } catch (e) {
+    t.owner = from;
+    render();
+    toast("Lagring feilet: " + e.message + " ⚠️", true);
+  }
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function render() {
+  const board = document.getElementById("board");
+  board.innerHTML = "";
+  // ukjente statuser (f.eks. omdøpt kolonne på boardet) vises i stedet for å forsvinne
+  const names = [...new Set([...Object.keys(SECTION_META), ...quests().map(t => t.sec)])];
+  for (const name of names) {
+    const meta = SECTION_META[name] || { color: "var(--ink-muted)", empty: "Tomt!" };
+    const items = quests().filter(t => t.sec === name);
+    const col = document.createElement("div");
+    col.className = "col";
+    col.innerHTML = `<h2><span class="dot" style="background:${meta.color}"></span>${esc(name)}<span class="count">${items.length}</span></h2>`;
+    if (!items.length) col.insertAdjacentHTML("beforeend", `<div class="empty">${meta.empty}</div>`);
+    for (const t of items) col.appendChild(taskCard(t));
+    if (live) {
+      col.addEventListener("dragover", e => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; col.classList.add("drop-hint"); });
+      col.addEventListener("dragleave", e => { if (!col.contains(e.relatedTarget)) col.classList.remove("drop-hint"); });
+      col.addEventListener("drop", e => {
+        e.preventDefault();
+        col.classList.remove("drop-hint");
+        moveTask(e.dataTransfer.getData("text/plain"), name, col);
+      });
+    }
+    board.appendChild(col);
+  }
+  renderMiles();
+  renderRoles();
+  renderHero();
+}
+
+function renderMiles() {
+  const all = tasks.filter(isMile);
+  const groups = {
+    "miles-drift":     all.filter(m => m.strom === "Drift"),
+    "miles-eierskifte": all.filter(m => m.strom !== "Drift"),
+  };
+  for (const [elId, miles] of Object.entries(groups)) {
+    const el = document.getElementById(elId);
+    el.innerHTML = "";
+    if (!miles.length) { el.innerHTML = `<div class="empty">Ingen milepæler ennå (Kategori = Milepæl på boardet).</div>`; continue; }
+    for (const m of miles) {
+      const d = document.createElement("div");
+      d.className = "mile" + (isDone(m) ? " done" : "");
+      const due = m.due ? `<div class="lbl">📅 ${fmtDate(m.due)}</div>` : "";
+      d.innerHTML = `<div class="node" title="${live ? "Klikk for å markere nådd / ikke nådd" : ""}">${isDone(m) ? "🏁" : "🚩"}</div><div class="lbl">${esc(m.txt)}</div>${due}`;
+      if (live) d.querySelector(".node").onclick = () => moveTask(m.id, isDone(m) ? "Neste" : "Ferdig", d);
+      el.appendChild(d);
+    }
+  }
+}
+
+function fmtDate(iso) {
+  const [y, mo, da] = iso.split("-");
+  return `${da}.${mo}.${y.slice(2)}`;
+}
+
+function taskCard(t) {
+  const el = document.createElement("div");
+  const overdue = t.due && !isDone(t) && t.due < new Date().toISOString().slice(0, 10);
+  el.className = "task" + (isDone(t) ? " done" : "") + (overdue ? " overdue" : "");
+  const strom = t.strom ? `<span class="strom">${esc(t.strom)}</span>` : "";
+  const due = t.due ? `<span class="due">📅 ${fmtDate(t.due)}${overdue ? "!" : ""}</span>` : "";
+  el.innerHTML =
+    `<span class="box" title="Marker ferdig / gjenåpne">✓</span>` +
+    `<span class="txt">${esc(t.txt)}<br>` +
+    `<span class="who" style="color:${OWNER_COLOR[t.owner] || "var(--ink-muted)"}" title="Klikk for å bytte ansvarlig">👤 ${esc(t.owner)}</span>${strom}${due}</span>`;
+  if (live) {
+    el.draggable = true;
+    el.querySelector(".box").onclick = () => toggleDone(t.id, el);
+    el.querySelector(".who").onclick = () => cycleOwner(t.id);
+    el.addEventListener("dragstart", e => {
+      e.dataTransfer.setData("text/plain", t.id);
+      e.dataTransfer.effectAllowed = "move";
+      el.classList.add("dragging");
+    });
+    el.addEventListener("dragend", () => el.classList.remove("dragging"));
+  }
+  return el;
+}
+
+function renderRoles() {
+  const el = document.getElementById("roles");
+  el.innerHTML = "";
+  const roles = tasks.filter(isRole);
+  if (!roles.length) { el.innerHTML = `<div class="empty">Ingen roller (Kategori = Rolle på boardet).</div>`; return; }
+  for (const r of roles) {
+    const d = document.createElement("div");
+    d.className = "role";
+    d.innerHTML = `${esc(r.txt)}<br><span class="who" style="color:${OWNER_COLOR[r.owner] || "var(--ink-muted)"}" title="Klikk for å bytte ansvarlig">👤 ${esc(r.owner)}</span>`;
+    if (live) d.querySelector(".who").onclick = () => cycleOwner(r.id);
+    el.appendChild(d);
+  }
+}
+
+function renderHero() {
+  const q = quests(), n = doneCount(), total = q.length || 1;
+  const frac = n / total;
+  document.getElementById("pct").textContent = Math.round(100 * frac) + "%";
+  const C = 351.86; // 2π · r(56)
+  document.getElementById("ring").style.strokeDashoffset = C * (1 - frac);
+  const by = s => q.filter(t => t.sec === s).length;
+  document.getElementById("sum-title").textContent = `${n} av ${q.length} oppgaver ferdig`;
+  document.getElementById("sum-sub").textContent = `${by("Pågår")} pågår · ${by("Neste")} neste · ${by("Venter")} venter · ${by("Innboks")} i innboks`;
+  const overdue = q.filter(t => t.due && !isDone(t) && t.due < new Date().toISOString().slice(0, 10)).length;
+  document.getElementById("sum-meta").textContent = overdue ? `${overdue} over frist` : "Ingen over frist";
+}
+
+function setMode(mode, msg) {
+  const pill = document.getElementById("mode-pill");
+  live = mode === "live";
+  document.body.classList.toggle("live", live);
+  document.getElementById("setup").hidden = live;
+  pill.className = "live-pill " + (live ? "on" : "off");
+  pill.textContent = live ? "🟢 LIVE — endringer lagres på boardet" : (msg || "🔒 skrivebeskyttet visning");
+  document.getElementById("token-clear").hidden = !live;
+}
+document.getElementById("token-clear").onclick = () => {
+  localStorage.removeItem(TOKEN_KEY);
+  tasks = SNAPSHOT.slice();
+  setMode("off", "🔒 koblet fra");
+  render();
+};
+// advarsel hvis tallene er gamle
+(function () {
+  if (!META.shopify_at) return;
+  const age = (Date.now() - new Date(META.shopify_at)) / 36e5;
+  const el = document.getElementById("stale");
+  if (age > 3) { el.hidden = false; el.textContent = `Tallene er ${Math.round(age)} timer gamle (siste vellykkede henting ${META.shopify_label}). Automatisk synk kan ha feilet.`; }
+})();
+
+/* ============================================================
+   OPPSTART
+   ============================================================ */
+async function connect() {
+  if (!localStorage.getItem(TOKEN_KEY)) { setMode("off"); return; }
+  try {
+    await loadBoard();
+    setMode("live");
+  } catch (e) {
+    // slett token kun ved auth-feil, ikke ved nettverksglipp
+    if (/scope|401|Bad credentials/i.test(e.message)) {
+      localStorage.removeItem(TOKEN_KEY);
+      setMode("off", "⚠️ token avvist — lim inn på nytt");
+    } else {
+      setMode("off", "⚠️ mistet kontakt med GitHub — last siden på nytt");
+    }
+    toast("GitHub-tilkobling feilet: " + e.message + " ⚠️", true);
+  }
+  render();
+}
+
+document.getElementById("token-save").onclick = () => {
+  const v = document.getElementById("token-input").value.trim();
+  if (!v) return;
+  localStorage.setItem(TOKEN_KEY, v);
+  document.getElementById("token-input").value = "";
+  connect();
+};
+
+const newTaskInput = document.getElementById("new-task");
+document.getElementById("add-task").onclick = () => { addTask(newTaskInput.value); newTaskInput.value = ""; };
+newTaskInput.addEventListener("keydown", e => {
+  if (e.key === "Enter") { addTask(newTaskInput.value); newTaskInput.value = ""; }
+});
+
+// auto-oppdatering: hent boardet hvert 60. sekund (hopper over midt i en drag)
+let dragging = false;
+document.addEventListener("dragstart", () => dragging = true);
+document.addEventListener("dragend", () => dragging = false);
+setInterval(async () => {
+  if (!live || dragging) return;
+  try { await loadBoard(); render(); } catch {}
+}, 60000);
+
+render();
+connect();
+
+/* ============================================================
+   EFFEKTER
+   ============================================================ */
+function celebrate(el) {
+  toast("Ferdig ✅");
+}
+
+let toastTimer;
+function toast(msg, err) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.toggle("err", !!err);
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), err ? 3200 : 1600);
+}
+
+</script>
+</body>
+</html>

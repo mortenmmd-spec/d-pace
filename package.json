@@ -1,0 +1,7 @@
+{
+  "name": "d-pace",
+  "private": true,
+  "type": "module",
+  "scripts": { "build:quest": "node scripts/build-pace-quest.mjs" },
+  "devDependencies": { "staticrypt": "3.5.4" }
+}

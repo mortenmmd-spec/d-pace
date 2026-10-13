@@ -7,3 +7,8 @@ encrypted/
 staticrypt_swap.js
 *.bak*
 alex-selvstendig.html
+
+# npm
+node_modules/
+pace-template.html
+pq.html
