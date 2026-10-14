@@ -177,7 +177,8 @@ const T = parseKasse();
 const series = DAYS.map(d => { const x = shop.daily[d]; const covered = meta && d <= meta.coveredThrough; return { d, ordre: x.ordre, oms: Math.round(x.oms * 100) / 100, nye: x.nye, u1: x.u1, u2: x.u2, meta: covered ? Math.round((meta.daily[d] || 0) * 100) / 100 : null }; });
 const win = n => series.slice(-n);
 const sum = (a, k) => a.reduce((x, r) => x + (r[k] || 0), 0);
-const cac = n => { const w = win(n).filter(r => r.meta !== null); const s = sum(w, "meta"), ny = sum(w, "nye"); return { spend: s, nye: ny, days: w.length, cac: ny ? s / ny : null }; };
+// bare dager med annonsekostnad teller (kost og nye kunder); dager uten annonser gir organiske kunder som ellers trekker CAC kunstig ned
+const cac = n => { const w = win(n).filter(r => r.meta !== null && r.meta > 0); const s = sum(w, "meta"), ny = sum(w, "nye"); return { spend: s, nye: ny, days: w.length, cac: ny ? s / ny : null }; };
 // kort: kort undertekst (én linje), detaljer i title-tooltip
 const card = (k, v, s, cls, tip) => `<div class="stat ${cls}" title="${esc(tip || "")}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
 const salgCard = (n) => { const w = win(n); return card(`Salg ${n} d`, nf(sum(w, "oms")) + " kr", `${sum(w, "ordre")} ordre · ${sum(w, "nye")} nye`, "c-salg", `Ordreverdi inkl. mva siste ${n} kalenderdager, ${sum(w, "nye")} nye kunder`); };

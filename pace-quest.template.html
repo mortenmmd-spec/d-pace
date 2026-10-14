@@ -647,7 +647,8 @@ function charts() {
   }
   // 2) CAC-trend (7-dagers rullerende), bare dager med Meta-dekning
   { const el = document.getElementById("chart-cac");
-    const pts = D.map((d, i) => { if (i < 6) return null; const w = D.slice(i - 6, i + 1); if (w.some(r => r.meta === null)) return null; const s = w.reduce((x, r) => x + r.meta, 0), n = w.reduce((x, r) => x + r.nye, 0); if (s <= 0) return null; /* ingen annonser i vinduet: ikke 0, men tomt */ return { s, n, cac: n ? s / n : null }; });
+    // 7-dagersvindu, men bare dager MED annonsekostnad teller (kost og nye kunder), minst 4 slike dager. Ellers blandes organiske kunder fra annonsefrie dager inn og CAC ser kunstig lav ut.
+    const pts = D.map((d, i) => { if (i < 6 || d.meta === null) return null; const w = D.slice(i - 6, i + 1).filter(r => r.meta !== null && r.meta > 0); if (w.length < 4) return null; const s = w.reduce((x, r) => x + r.meta, 0), n = w.reduce((x, r) => x + r.nye, 0); return { s, n, days: w.length, cac: n ? s / n : null }; });
     const vals = pts.filter(p => p && p.cac !== null).map(p => p.cac);
     if (!vals.length) { el.innerHTML = `<div class="k">CAC-trend</div><div class="empty">Ingen Meta-data i perioden.</div>`; return; }
     const max = Math.max(...vals) * 1.15, y = v => T + ih - ih * v / max;
@@ -660,7 +661,7 @@ function charts() {
     const uncovered = META.meta_through ? D.filter(d => d.d > META.meta_through).length : 0;
     const shade = uncovered ? `<rect x="${xOf(D.length - uncovered) - iw / D.length / 2}" y="${T}" width="${uncovered * iw / D.length}" height="${ih}" fill="var(--grid)" opacity="0.5"/>` : "";
     el.innerHTML = `<div class="k">CAC-trend, 7 d rullerende <b>${nf(last.cac)} kr per ny kunde</b></div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="CAC-trend">${axis(max, v => nf(v))}${shade}${line}${dots}${xlabels()}</svg><div class="legend"><span><i style="background:var(--magenta)"></i>Meta-kost / nye kunder, siste 7 dager</span>${uncovered ? `<span><i style="background:var(--grid)"></i>ikke fakturert ennå</span>` : ""}</div>`;
-    el.querySelectorAll("circle[data-i]").forEach(c => { c.onmousemove = e => { const i = +c.dataset.i, p = pts[i]; showTip(e, `<b>${lbl(D[i])}</b> (7 d til og med)<br>CAC ${nf(p.cac)} kr · Meta ${nf(p.s)} kr · ${p.n} nye kunder`); }; c.onmouseleave = hideTip; });
+    el.querySelectorAll("circle[data-i]").forEach(c => { c.onmousemove = e => { const i = +c.dataset.i, p = pts[i]; showTip(e, `<b>${lbl(D[i])}</b> (${p.days} annonsedager til og med)<br>CAC ${nf(p.cac)} kr · Meta ${nf(p.s)} kr · ${p.n} nye kunder`); }; c.onmouseleave = hideTip; });
   }
 }
 
