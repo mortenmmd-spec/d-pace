@@ -26,6 +26,9 @@ jobs:
           SHOPIFY_CLIENT_ID: ${{ secrets.SHOPIFY_CLIENT_ID }}
           SHOPIFY_CLIENT_SECRET: ${{ secrets.SHOPIFY_CLIENT_SECRET }}
           STATICRYPT_PASSWORD: ${{ secrets.PACE_QUEST_PASSWORD }}
+          GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
           PACE_KASSE: ${{ vars.PACE_KASSE }}
         run: node scripts/build-pace-quest.mjs
       - name: Commit hvis endret
