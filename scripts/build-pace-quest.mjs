@@ -82,19 +82,25 @@ async function fetchShopify() {
   if (!tok) throw new Error("Shopify: fikk ikke token");
   const H = { "X-Shopify-Access-Token": tok };
   const getAll = async (url, key) => { let out = []; while (url) { const r = await fetch(url, { headers: H }); if (!r.ok) throw new Error(`Shopify ${key} ${r.status}`); const j = await r.json(); out = out.concat(j[key] || []); const l = r.headers.get("link"); const m = l && l.match(/<([^>]+)>;\s*rel="next"/); url = m ? m[1] : null; } return out; };
-  const since = new Date(new Date(DAYS[0] + "T00:00:00Z").getTime() - 36e5 * 26).toISOString(); // litt før første Oslo-dag
+  const since = new Date(new Date(DAYS[0] + "T00:00:00Z").getTime() - 36e5 * 26 - 30 * 864e5).toISOString(); // 30 dager før første Oslo-dag (for aktive abonnenter)
   const all = await getAll(`https://${SHOP}/admin/api/${API}/orders.json?status=any&limit=250&created_at_min=${since}&fields=id,created_at,current_total_price,total_price,cancelled_at,financial_status,test,tags,line_items,customer`, "orders");
   const tags = o => (o.tags || "").split(",").map(s => s.trim().toLowerCase());
   const ok = o => !o.test && !o.cancelled_at && ["paid", "partially_refunded", "partially_paid"].includes(o.financial_status) && !tags(o).includes("seeding");
   const amt = o => +(o.current_total_price ?? o.total_price);
-  const orders = all.filter(ok).filter(o => amt(o) > 0).map(o => ({ ...o, day: osloDay(new Date(o.created_at)) })).filter(o => o.day >= DAYS[0]);
+  const allOk = all.filter(ok).filter(o => amt(o) > 0).map(o => ({ ...o, day: osloDay(new Date(o.created_at)) }));
+  const orders = allOk.filter(o => o.day >= DAYS[0]);
+  const isSubNew = o => tags(o).includes("subscription first order"), isSubRen = o => tags(o).includes("subscription recurring order"), isSub = o => isSubNew(o) || isSubRen(o);
   // per Oslo-dag
-  const daily = Object.fromEntries(DAYS.map(d => [d, { d, ordre: 0, oms: 0, nye: 0, u1: 0, u2: 0 }]));
+  const daily = Object.fromEntries(DAYS.map(d => [d, { d, ordre: 0, oms: 0, nye: 0, u1: 0, u2: 0, subNew: 0, subRen: 0, subAct: 0 }]));
   for (const o of orders) {
     const x = daily[o.day]; if (!x) continue;
     x.ordre++; x.oms += amt(o);
+    if (isSubNew(o)) x.subNew++; if (isSubRen(o)) x.subRen++;
     for (const li of o.line_items || []) { const q = li.current_quantity ?? li.quantity; if (li.sku === "PACE01") x.u1 += q; if (li.sku === "PACE02") x.u2 += q; }
   }
+  // aktive abonnenter per dag = unike kunder med abonnementsordre (ny eller fornyelse) siste 30 dager t.o.m. dagen
+  const subOrders = allOk.filter(o => isSub(o) && o.customer?.id);
+  for (const d of DAYS) { const from = addDays(d, -29); daily[d].subAct = new Set(subOrders.filter(o => o.day >= from && o.day <= d).map(o => o.customer.id)).size; }
   // ny kunde = kundeprofil opprettet i vinduet (Shopify lager profilen ved første ordre); telles én gang, på dagen for kundens TIDLIGSTE betalte ordre
   const firstOrder = {};
   for (const o of orders) { const c = o.customer; if (!c?.id || !c.created_at || osloDay(new Date(c.created_at)) < DAYS[0]) continue; if (!firstOrder[c.id] || o.day < firstOrder[c.id]) firstOrder[c.id] = o.day; }
@@ -174,7 +180,7 @@ try { meta = await fetchMetaSpend(); } catch (e) { metaErr = e.message; console.
 const T = parseKasse();
 
 // ---------- 6. Tall ----------
-const series = DAYS.map(d => { const x = shop.daily[d]; const covered = meta && d <= meta.coveredThrough; return { d, ordre: x.ordre, oms: Math.round(x.oms * 100) / 100, nye: x.nye, u1: x.u1, u2: x.u2, meta: covered ? Math.round((meta.daily[d] || 0) * 100) / 100 : null }; });
+const series = DAYS.map(d => { const x = shop.daily[d]; const covered = meta && d <= meta.coveredThrough; return { d, ordre: x.ordre, oms: Math.round(x.oms * 100) / 100, nye: x.nye, u1: x.u1, u2: x.u2, subNew: x.subNew, subRen: x.subRen, subAct: x.subAct, meta: covered ? Math.round((meta.daily[d] || 0) * 100) / 100 : null }; });
 const win = n => series.slice(-n);
 const sum = (a, k) => a.reduce((x, r) => x + (r[k] || 0), 0);
 // bare dager med annonsekostnad teller (kost og nye kunder); dager uten annonser gir organiske kunder som ellers trekker CAC kunstig ned
@@ -195,7 +201,9 @@ const lagerCard = (navn, sku, key, bestfor) => {
   }
   return card(`Lager ${navn}`, nf(qty) + " stk", s, "c-lager", tip);
 };
+const subNow = series[series.length - 1].subAct, subNew30 = sum(series, "subNew"), subRen30 = sum(series, "subRen");
 const cards = salgCard(7) + salgCard(30) + cacCard(7) + cacCard(30)
+  + card("Abonnenter", nf(subNow), `+${subNew30} nye · ${subRen30} forny.`, "c-sub", `Aktive abonnenter = unike kunder med abonnementsordre siste 30 dager. ${subNew30} nye abonnement og ${subRen30} fornyelser siste 30 d`)
   + card("Kasse", nf(T.kasse) + " kr", (T.gjeld ? "gjeld ~" + nf(T.gjeld) : "ingen kjent gjeld"), "c-kasse", `Bankbalanse ${T.kasse_dato}${T.gjeld_note ? ". Gjeld: " + T.gjeld_note : ""}`)
   + lagerCard("sitron", "PACE01", "u1", T.sitron_bestfor) + lagerCard("bringebær", "PACE02", "u2", "");
 const fmtD = ymd => ymd.slice(8, 10) + "." + ymd.slice(5, 7);
