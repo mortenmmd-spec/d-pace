@@ -70,10 +70,17 @@
   /* ---------- tall ---------- */
   .sec-h { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-2); margin: 22px 0 10px; display: flex; align-items: center; gap: 10px; }
   .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0 0 12px; }
-  .stat { background: var(--surface); border: 1px solid var(--hairline); border-radius: 14px; padding: 14px 16px; }
-  .stat .k { font-size: 0.72rem; color: var(--ink-muted); text-transform: uppercase; letter-spacing: .04em; }
-  .stat .v { font-size: 1.5rem; font-weight: 700; color: var(--ink); margin: 2px 0; font-variant-numeric: tabular-nums; }
-  .stat .s { font-size: 0.78rem; color: var(--ink-2); }
+  .stat { background: var(--surface); border: 1px solid var(--hairline); border-radius: 14px; padding: 14px 16px 12px; position: relative; overflow: hidden; }
+  .stat::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--acc, var(--ink-muted)); opacity: .9; }
+  .stat.c-salg { --acc: var(--blue); } .stat.c-cac { --acc: var(--magenta); } .stat.c-kasse { --acc: var(--good); } .stat.c-lager { --acc: var(--orange); }
+  .stat .k { font-size: 0.68rem; color: var(--ink-muted); text-transform: uppercase; letter-spacing: .06em; }
+  .stat .v { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.02em; color: var(--ink); margin: 2px 0 0; font-variant-numeric: tabular-nums; line-height: 1.15; white-space: nowrap; }
+  .stat .s { font-size: 0.76rem; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 3px; }
+  details.about { font-size: 0.72rem; color: var(--ink-muted); margin: 0 0 18px; }
+  details.about summary { cursor: pointer; list-style: none; display: inline-block; color: var(--ink-muted); }
+  details.about summary::-webkit-details-marker { display: none; }
+  details.about summary:hover { color: var(--ink-2); }
+  details.about[open] summary { margin-bottom: 4px; }
   .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 0 10px; }
   @media (max-width: 760px) { .charts { grid-template-columns: 1fr; } }
   .chart { background: var(--surface); border: 1px solid var(--hairline); border-radius: 14px; padding: 12px 14px 8px; position: relative; }
@@ -214,7 +221,7 @@
     <div class="chart" id="chart-sales"></div>
     <div class="chart" id="chart-cac"></div>
   </section>
-  <div class="stats-note" id="stats-note"><!--STATSNOTE--><!--/STATSNOTE--></div>
+  <details class="about"><summary>Om tallene ▾</summary><div id="stats-note"><!--STATSNOTE--><!--/STATSNOTE--></div></details>
   <div class="stale" id="stale" hidden></div>
 
   <section class="hero">

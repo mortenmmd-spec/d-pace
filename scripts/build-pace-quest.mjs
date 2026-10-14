@@ -178,22 +178,24 @@ const series = DAYS.map(d => { const x = shop.daily[d]; const covered = meta && 
 const win = n => series.slice(-n);
 const sum = (a, k) => a.reduce((x, r) => x + (r[k] || 0), 0);
 const cac = n => { const w = win(n).filter(r => r.meta !== null); const s = sum(w, "meta"), ny = sum(w, "nye"); return { spend: s, nye: ny, days: w.length, cac: ny ? s / ny : null }; };
-const card = (k, v, s, cls = "") => `<div class="stat${cls}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
-const salgCard = (n) => { const w = win(n); return card(`Salg ${n} dager`, nf(sum(w, "oms")) + " kr", `${sum(w, "ordre")} ordre · ${sum(w, "nye")} nye kunder`); };
-const cacCard = (n) => { if (!meta) return card(`CAC ${n} dager`, "–", "Meta-kvitteringer utilgjengelig"); const c = cac(n); return card(`CAC ${n} dager`, c.cac ? nf(c.cac) + " kr" : "–", `Meta ${nf(c.spend)} kr / ${c.nye} nye${c.days < n ? ` (${c.days} av ${n} dager dekket)` : ""}`); };
+// kort: kort undertekst (én linje), detaljer i title-tooltip
+const card = (k, v, s, cls, tip) => `<div class="stat ${cls}" title="${esc(tip || "")}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+const salgCard = (n) => { const w = win(n); return card(`Salg ${n} d`, nf(sum(w, "oms")) + " kr", `${sum(w, "ordre")} ordre · ${sum(w, "nye")} nye`, "c-salg", `Ordreverdi inkl. mva siste ${n} kalenderdager, ${sum(w, "nye")} nye kunder`); };
+const cacCard = (n) => { if (!meta) return card(`CAC ${n} d`, "–", "Meta-data mangler", "c-cac", metaErr); const c = cac(n); return card(`CAC ${n} d`, c.cac ? nf(c.cac) + " kr" : "–", `${nf(c.spend)} / ${c.nye} nye${c.days < n ? ` · ${c.days} d` : ""}`, "c-cac", `Meta ${nf(c.spend)} kr delt på ${c.nye} nye kunder${c.days < n ? ` (${c.days} av ${n} dager har Meta-data)` : ""}`); };
 const lagerCard = (navn, sku, key, bestfor) => {
   const qty = shop.lager[sku], perUke = sum(win(30), key) / 30 * 7;
-  let s = perUke > 0 ? `${nf(perUke)} per uke · ${nf(qty / perUke)} uker igjen` : "ingen målbar takt siste 30 d";
+  let s = perUke > 0 ? `${nf(qty / perUke)} uker` : "ingen takt", tip = perUke > 0 ? `${nf(perUke)} sjaktler per uke siste 30 d` : "ingen målbar takt siste 30 d";
   if (bestfor && perUke > 0) {
     const [d, m, y] = bestfor.split(".").map(Number);
     const uker = (Date.UTC(y, m - 1, d) - NOW.getTime()) / (7 * 864e5);
     const rest = Math.max(0, qty - perUke * uker);
-    s += ` · best før ${esc(bestfor)}${rest > 0 ? `, ~${nf(rest)} går ut ved dagens takt` : ""}`;
+    if (rest > 0) s += ` · ~${nf(rest)} utgår`;
+    tip += ` · best før ${bestfor}${rest > 0 ? `, ~${nf(rest)} går ut ved dagens takt` : ""}`;
   }
-  return card(`Lager ${navn}`, nf(qty) + " stk", s);
+  return card(`Lager ${navn}`, nf(qty) + " stk", s, "c-lager", tip);
 };
 const cards = salgCard(7) + salgCard(30) + cacCard(7) + cacCard(30)
-  + card("Kasse", nf(T.kasse) + " kr", "oppdatert " + esc(T.kasse_dato) + (T.gjeld ? " · gjeld ~" + nf(T.gjeld) : ""))
+  + card("Kasse", nf(T.kasse) + " kr", (T.gjeld ? "gjeld ~" + nf(T.gjeld) : "ingen kjent gjeld"), "c-kasse", `Bankbalanse ${T.kasse_dato}${T.gjeld_note ? ". Gjeld: " + T.gjeld_note : ""}`)
   + lagerCard("sitron", "PACE01", "u1", T.sitron_bestfor) + lagerCard("bringebær", "PACE02", "u2", "");
 const fmtD = ymd => ymd.slice(8, 10) + "." + ymd.slice(5, 7);
 const note = `Perioder = Oslo-kalenderdager t.o.m. i dag (i dag er ufullstendig). Salg = ordreverdi inkl. mva for ordre opprettet i perioden, etter refusjon, uten test- og seeding-ordre (Shopify ${stamp}). Nye kunder = kundeprofiler opprettet i perioden med betalt ordre. `
