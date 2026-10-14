@@ -647,7 +647,7 @@ function charts() {
   }
   // 2) CAC-trend (7-dagers rullerende), bare dager med Meta-dekning
   { const el = document.getElementById("chart-cac");
-    const pts = D.map((d, i) => { if (i < 6) return null; const w = D.slice(i - 6, i + 1); if (w.some(r => r.meta === null)) return null; const s = w.reduce((x, r) => x + r.meta, 0), n = w.reduce((x, r) => x + r.nye, 0); return { s, n, cac: n ? s / n : null }; });
+    const pts = D.map((d, i) => { if (i < 6) return null; const w = D.slice(i - 6, i + 1); if (w.some(r => r.meta === null)) return null; const s = w.reduce((x, r) => x + r.meta, 0), n = w.reduce((x, r) => x + r.nye, 0); if (s <= 0) return null; /* ingen annonser i vinduet: ikke 0, men tomt */ return { s, n, cac: n ? s / n : null }; });
     const vals = pts.filter(p => p && p.cac !== null).map(p => p.cac);
     if (!vals.length) { el.innerHTML = `<div class="k">CAC-trend</div><div class="empty">Ingen Meta-data i perioden.</div>`; return; }
     const max = Math.max(...vals) * 1.15, y = v => T + ih - ih * v / max;
