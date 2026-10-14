@@ -21,6 +21,7 @@ jobs:
       - name: Bygg pace-quest.html
         env:
           PACE_BOARD_TOKEN: ${{ secrets.PACE_BOARD_TOKEN }}
+          PACE_PAGE_TOKEN: ${{ secrets.PACE_PAGE_TOKEN }}
           SHOPIFY_SHOP: ${{ secrets.SHOPIFY_SHOP }}
           SHOPIFY_CLIENT_ID: ${{ secrets.SHOPIFY_CLIENT_ID }}
           SHOPIFY_CLIENT_SECRET: ${{ secrets.SHOPIFY_CLIENT_SECRET }}

@@ -117,6 +117,7 @@ let html = readFileSync(TEMPLATE, "utf8");
 const js = s => JSON.stringify(s, null, 1).replace(/</g, "\\u003c");
 html = html.replace(/\/\*__TASKS__\*\/[\s\S]*?\/\*__TASKS_END__\*\//, () => `/*__TASKS__*/ const SNAPSHOT = ${js(tasks)}; /*__TASKS_END__*/`);
 html = html.replace(/\/\*__META__\*\/[\s\S]*?\/\*__META_END__\*\//, () => `/*__META__*/ const META = ${js(meta)}; /*__META_END__*/`);
+html = html.replace(/\/\*__PAGE_TOKEN__\*\/[\s\S]*?\/\*__PAGE_TOKEN_END__\*\//, () => `/*__PAGE_TOKEN__*/ const PAGE_TOKEN = ${JSON.stringify(process.env.PACE_PAGE_TOKEN || "")}; /*__PAGE_TOKEN_END__*/`);
 html = html.replace(/<!--STATS-->[\s\S]*?<!--\/STATS-->/, () => `<!--STATS-->${cards}<!--/STATS-->`);
 html = html.replace(/<!--STATSNOTE-->[\s\S]*?<!--\/STATSNOTE-->/, () => `<!--STATSNOTE-->${note}<!--/STATSNOTE-->`);
 html = html.replace(/<!--SYNC-->.*?<!--\/SYNC-->/, () => `<!--SYNC-->${stamp}<!--/SYNC-->`);

@@ -334,7 +334,7 @@
 
   <footer>
     Med token tilkoblet lagres drag &amp; drop, avhuking og 👤-bytte direkte på GitHub-boardet. Uten token er siden en
-    skrivebeskyttet visning. Siden bygges automatisk hver time 06–23 (GitHub Actions); sist bygget <b><!--SYNC--><!--/SYNC--></b>.
+    skrivebeskyttet visning. Med innebygd token kan alle med sidepassordet redigere. Siden bygges automatisk hver time 06–23 (GitHub Actions); sist bygget <b><!--SYNC--><!--/SYNC--></b>.
   </footer>
 </div>
 
@@ -347,6 +347,9 @@
 const ORG = "Tempelbois";
 const PROJECT_NUMBER = 2;
 const TOKEN_KEY = "pace-gh-token";
+// Innebygd token (kun project-scope, settes av build-scriptet). Tom streng = brukeren må lime inn egen.
+/*__PAGE_TOKEN__*/ const PAGE_TOKEN = ""; /*__PAGE_TOKEN_END__*/
+const getToken = () => PAGE_TOKEN || localStorage.getItem(TOKEN_KEY);
 const PREV_KEY  = "pace-prev-sec";
 
 // Fallback-snapshot uten token. Skrives av scripts/build-pace-quest.mjs — ikke rediger for hånd.
@@ -389,7 +392,7 @@ async function gql(query, variables) {
   const res = await fetch("https://api.github.com/graphql", {
     method: "POST",
     headers: {
-      "Authorization": "Bearer " + localStorage.getItem(TOKEN_KEY),
+      "Authorization": "Bearer " + getToken(),
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ query, variables }),
@@ -630,10 +633,10 @@ function setMode(mode, msg) {
   const pill = document.getElementById("mode-pill");
   live = mode === "live";
   document.body.classList.toggle("live", live);
-  document.getElementById("setup").hidden = live;
+  document.getElementById("setup").hidden = live || !!PAGE_TOKEN;
   pill.className = "live-pill " + (live ? "on" : "off");
   pill.textContent = live ? "🟢 LIVE — endringer lagres på boardet" : (msg || "🔒 skrivebeskyttet visning");
-  document.getElementById("token-clear").hidden = !live;
+  document.getElementById("token-clear").hidden = !live || !!PAGE_TOKEN;
 }
 document.getElementById("token-clear").onclick = () => {
   localStorage.removeItem(TOKEN_KEY);
@@ -653,14 +656,14 @@ document.getElementById("token-clear").onclick = () => {
    OPPSTART
    ============================================================ */
 async function connect() {
-  if (!localStorage.getItem(TOKEN_KEY)) { setMode("off"); return; }
+  if (!getToken()) { setMode("off"); return; }
   try {
     await loadBoard();
     setMode("live");
   } catch (e) {
     // slett token kun ved auth-feil, ikke ved nettverksglipp
     if (/scope|401|Bad credentials/i.test(e.message)) {
-      localStorage.removeItem(TOKEN_KEY);
+      if (!PAGE_TOKEN) localStorage.removeItem(TOKEN_KEY);
       setMode("off", "⚠️ token avvist — lim inn på nytt");
     } else {
       setMode("off", "⚠️ mistet kontakt med GitHub — last siden på nytt");
