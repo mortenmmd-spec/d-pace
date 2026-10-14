@@ -1,18 +1,20 @@
 // Bygger pace-quest.html (kryptert) fra pace-quest.template.html.
-// Kilder: GitHub Projects-board Tempelbois/2, Shopify (salg 7/30 d + lager), kasse fra env PACE_KASSE.
-// Kjøres av GitHub Actions (.github/workflows/pace-quest.yml) og lokalt via ~/sync-pace-quest.mjs.
+// Kilder: GitHub Projects-board Tempelbois/2, Shopify (salg/nye kunder/lager per dag), Meta-kvitteringer i Gmail (CAC),
+// kasse fra env PACE_KASSE. Kjøres av GitHub Actions (.github/workflows/pace-quest.yml) og lokalt via ~/sync-pace-quest.mjs.
 //
 // Env:
-//   PACE_BOARD_TOKEN         GitHub-token med project-scope (lokalt: `gh auth token`)
+//   PACE_BOARD_TOKEN         GitHub-token med KUN project-scope (lokalt: ~/konfig/pace_dashboard_token.txt)
+//   PACE_PAGE_TOKEN          samme token; bakes inn i siden så alle med sidepassordet kan redigere (tom = krever egen token)
 //   SHOPIFY_SHOP, SHOPIFY_CLIENT_ID, SHOPIFY_CLIENT_SECRET
+//   GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN   hei@getpace.no (readonly) for Meta-kvitteringer. Valgfri: feiler → CAC vises som «–»
 //   PACE_KASSE               "kasse|kasse_dato|gjeld|gjeld_note|sitron_bestfor" (pipe-separert, bestfor som DD.MM.YYYY)
-//   GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN   hei@getpace.no (readonly), for Meta-kvitteringer → CAC
-//   STATICRYPT_PASSWORD      sidepassord
+//   STATICRYPT_PASSWORD      sidepassord (påkrevd med mindre SKIP_ENCRYPT)
 //   STATICRYPT_SALT          fast salt (default 843e94067e2339f1a3b9073a407ddde1)
 //   SKIP_ENCRYPT=1           skriv bare pace-quest-plain.html (lokal test)
-// Feiler hardt hvis en kilde feiler: publiserer aldri nuller.
+//   FORCE=1                  bygg også utenfor 06–23 Oslo
+// Board og Shopify er harde krav: feiler de, publiseres ingenting (aldri nuller).
 
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, copyFileSync, rmSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -24,28 +26,51 @@ const PLAIN = path.join(DIR, "pace-quest-plain.html");
 const env = (k, fallback) => { const v = process.env[k]; if (v === undefined || v === "") { if (fallback !== undefined) return fallback; throw new Error("mangler env " + k); } return v; };
 
 const ORG = "Tempelbois", PROJECT_NUMBER = 2, LOCATION_ID = 76905513134; // 360 Logistics - 3PL
+const API = "2025-10";
 const OSLO = "Europe/Oslo";
-const nowOslo = () => new Date().toLocaleString("no-NO", { timeZone: OSLO, day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).replace(",", " kl.");
+const NOW = new Date();
+const osloDay = d => new Intl.DateTimeFormat("sv-SE", { timeZone: OSLO, year: "numeric", month: "2-digit", day: "2-digit" }).format(d); // YYYY-MM-DD
+const osloHour = d => +new Intl.DateTimeFormat("en-GB", { timeZone: OSLO, hour: "2-digit", hour12: false }).format(d);
+const osloOffsetMin = d => { // minutter øst for UTC på gitt tidspunkt
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: OSLO, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(d).map(x => [x.type, x.value]));
+  const asUtc = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute);
+  return Math.round((asUtc - d.getTime()) / 6e4);
+};
+const addDays = (ymd, n) => { const [y, m, d] = ymd.split("-").map(Number); const t = new Date(Date.UTC(y, m - 1, d + n)); return t.toISOString().slice(0, 10); };
+const TODAY = osloDay(NOW);
+const DAYS = Array.from({ length: 30 }, (_, i) => addDays(TODAY, i - 29)); // 30 Oslo-dager t.o.m. i dag
+const stamp = NOW.toLocaleString("no-NO", { timeZone: OSLO, day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).replace(",", " kl.");
 const nf = n => Math.round(n).toLocaleString("no-NO");
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+if (!process.env.FORCE && !process.env.SKIP_ENCRYPT) { const h = osloHour(NOW); if (h < 6 || h > 23) { console.log("utenfor 06–23 Oslo, hopper over"); process.exit(0); } }
 
 // ---------- 1. Board ----------
 async function fetchBoard() {
   const token = env("PACE_BOARD_TOKEN");
-  const q = `query { organization(login: "${ORG}") { projectV2(number: ${PROJECT_NUMBER}) {
-    items(first: 100) { nodes { id
-      content { ... on DraftIssue { title } ... on Issue { title } ... on PullRequest { title } }
-      fieldValues(first: 20) { nodes {
-        ... on ProjectV2ItemFieldSingleSelectValue { name field { ... on ProjectV2SingleSelectField { name } } }
-        ... on ProjectV2ItemFieldDateValue { date field { ... on ProjectV2Field { name } } }
-      } } } } } } }`;
-  const r = await fetch("https://api.github.com/graphql", { method: "POST", headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" }, body: JSON.stringify({ query: q }) });
-  const j = await r.json();
-  if (!r.ok || j.errors) throw new Error("GitHub: " + (j.errors?.[0]?.message || r.status));
-  const items = j.data.organization.projectV2.items.nodes;
+  const items = []; let after = null;
+  for (let page = 0; page < 20; page++) {
+    const q = `query($after: String) { organization(login: "${ORG}") { projectV2(number: ${PROJECT_NUMBER}) {
+      items(first: 100, after: $after) { pageInfo { hasNextPage endCursor } nodes { id
+        content { __typename ... on DraftIssue { id title body } ... on Issue { title } ... on PullRequest { title } }
+        fieldValues(first: 20) { nodes {
+          ... on ProjectV2ItemFieldSingleSelectValue { name field { ... on ProjectV2SingleSelectField { name } } }
+          ... on ProjectV2ItemFieldDateValue { date field { ... on ProjectV2Field { name } } }
+        } } } } } } }`;
+    const r = await fetch("https://api.github.com/graphql", { method: "POST", headers: { Authorization: "Bearer " + token, "Content-Type": "application/json", "User-Agent": "pace-quest" }, body: JSON.stringify({ query: q, variables: { after } }) });
+    const j = await r.json();
+    if (!r.ok || j.errors) throw new Error("GitHub: " + (j.errors?.[0]?.message || r.status));
+    const p = j.data?.organization?.projectV2;
+    if (!p) throw new Error("GitHub: fant ikke prosjektet (token mangler project-scope?)");
+    items.push(...p.items.nodes);
+    if (!p.items.pageInfo.hasNextPage) break;
+    after = p.items.pageInfo.endCursor;
+  }
   if (!items.length) throw new Error("GitHub: tomt board, avbryter");
   return items.map(n => {
     const fv = Object.fromEntries(n.fieldValues.nodes.filter(v => v.field).map(v => [v.field.name, v.name ?? v.date]));
-    return { id: n.id, sec: fv["Status"] || "Innboks", owner: fv["Ansvarlig"] || "Ikke fordelt", strom: fv["Arbeidsstrøm"] || "", kat: fv["Kategori"] || "Oppgave", due: fv["Måldato"] || "", txt: n.content?.title || "(uten tittel)" };
+    const c = n.content || {};
+    return { id: n.id, draft: c.__typename === "DraftIssue" ? c.id : "", body: c.body || "", sec: fv["Status"] || "Innboks", owner: fv["Ansvarlig"] || "Ikke fordelt", strom: fv["Arbeidsstrøm"] || "", kat: fv["Kategori"] || "Oppgave", due: fv["Måldato"] || "", txt: c.title || "(uten tittel)" };
   });
 }
 
@@ -56,38 +81,38 @@ async function fetchShopify() {
   const tok = (await r0.json()).access_token;
   if (!tok) throw new Error("Shopify: fikk ikke token");
   const H = { "X-Shopify-Access-Token": tok };
-  const since = new Date(Date.now() - 31 * 864e5).toISOString();
-  let url = `https://${SHOP}/admin/api/2024-10/orders.json?status=any&limit=250&created_at_min=${since}&fields=id,created_at,current_total_price,total_price,cancelled_at,financial_status,test,tags,line_items,customer`;
-  let out = [];
-  while (url) {
-    const r = await fetch(url, { headers: H });
-    if (!r.ok) throw new Error("Shopify orders " + r.status);
-    const j = await r.json(); out = out.concat(j.orders || []);
-    const l = r.headers.get("link"); const m = l && l.match(/<([^>]+)>;\s*rel="next"/); url = m ? m[1] : null;
-  }
+  const getAll = async (url, key) => { let out = []; while (url) { const r = await fetch(url, { headers: H }); if (!r.ok) throw new Error(`Shopify ${key} ${r.status}`); const j = await r.json(); out = out.concat(j[key] || []); const l = r.headers.get("link"); const m = l && l.match(/<([^>]+)>;\s*rel="next"/); url = m ? m[1] : null; } return out; };
+  const since = new Date(new Date(DAYS[0] + "T00:00:00Z").getTime() - 36e5 * 26).toISOString(); // litt før første Oslo-dag
+  const all = await getAll(`https://${SHOP}/admin/api/${API}/orders.json?status=any&limit=250&created_at_min=${since}&fields=id,created_at,current_total_price,total_price,cancelled_at,financial_status,test,tags,line_items,customer`, "orders");
   const tags = o => (o.tags || "").split(",").map(s => s.trim().toLowerCase());
   const ok = o => !o.test && !o.cancelled_at && ["paid", "partially_refunded", "partially_paid"].includes(o.financial_status) && !tags(o).includes("seeding");
-  const orders = out.filter(ok).filter(o => +(o.current_total_price ?? o.total_price) > 0);
-  const win = d => orders.filter(o => Date.now() - new Date(o.created_at) < d * 864e5);
-  const sum = a => a.reduce((x, o) => x + +(o.current_total_price ?? o.total_price), 0);
-  const units = (a, sku) => a.reduce((x, o) => x + o.line_items.filter(li => li.sku === sku).reduce((y, li) => y + li.quantity, 0), 0);
+  const amt = o => +(o.current_total_price ?? o.total_price);
+  const orders = all.filter(ok).filter(o => amt(o) > 0).map(o => ({ ...o, day: osloDay(new Date(o.created_at)) })).filter(o => o.day >= DAYS[0]);
+  // per Oslo-dag
+  const daily = Object.fromEntries(DAYS.map(d => [d, { d, ordre: 0, oms: 0, nye: 0, u1: 0, u2: 0 }]));
+  for (const o of orders) {
+    const x = daily[o.day]; if (!x) continue;
+    x.ordre++; x.oms += amt(o);
+    for (const li of o.line_items || []) { const q = li.current_quantity ?? li.quantity; if (li.sku === "PACE01") x.u1 += q; if (li.sku === "PACE02") x.u2 += q; }
+  }
+  // ny kunde = kundeprofil opprettet i vinduet (Shopify lager profilen ved første ordre); telles én gang, på dagen for kundens TIDLIGSTE betalte ordre
+  const firstOrder = {};
+  for (const o of orders) { const c = o.customer; if (!c?.id || !c.created_at || osloDay(new Date(c.created_at)) < DAYS[0]) continue; if (!firstOrder[c.id] || o.day < firstOrder[c.id]) firstOrder[c.id] = o.day; }
+  for (const d of Object.values(firstOrder)) if (daily[d]) daily[d].nye++;
   // lager per lokasjon (360 Logistics), ikke aggregatet
-  const p = await (await fetch(`https://${SHOP}/admin/api/2024-10/products.json?limit=50&fields=title,variants`, { headers: H })).json();
+  const products = await getAll(`https://${SHOP}/admin/api/${API}/products.json?limit=250&fields=id,title,variants`, "products");
   const items = {};
-  for (const pr of p.products) for (const v of pr.variants) if (v.sku === "PACE01" || v.sku === "PACE02") items[v.sku] = v.inventory_item_id;
+  for (const pr of products) for (const v of pr.variants) if (v.sku === "PACE01" || v.sku === "PACE02") items[v.sku] = v.inventory_item_id;
   if (!items.PACE01 || !items.PACE02) throw new Error("Shopify: fant ikke PACE01/PACE02");
-  const lv = await (await fetch(`https://${SHOP}/admin/api/2024-10/inventory_levels.json?inventory_item_ids=${items.PACE01},${items.PACE02}&location_ids=${LOCATION_ID}`, { headers: H })).json();
+  const lv = await getAll(`https://${SHOP}/admin/api/${API}/inventory_levels.json?inventory_item_ids=${items.PACE01},${items.PACE02}&location_ids=${LOCATION_ID}`, "inventory_levels");
   const lager = {};
-  for (const [sku, iid] of Object.entries(items)) { const l = (lv.inventory_levels || []).find(x => x.inventory_item_id === iid); if (!l) throw new Error("Shopify: ingen inventory_level for " + sku); lager[sku] = l.available; }
-  const d7 = win(7), d30 = win(30);
-  // ny kunde = kundeprofil opprettet i vinduet (Shopify lager kunden ved første ordre); telles én gang per kunde
-  const nye = (a, d) => new Set(a.filter(o => o.customer?.created_at && Date.now() - new Date(o.customer.created_at) < d * 864e5).map(o => o.customer.id)).size;
-  return { d7: { n: d7.length, sum: sum(d7), nye: nye(d7, 7) }, d30: { n: d30.length, sum: sum(d30), nye: nye(d30, 30) }, units30: { PACE01: units(d30, "PACE01"), PACE02: units(d30, "PACE02") }, lager, at: new Date().toISOString() };
+  for (const [sku, iid] of Object.entries(items)) { const l = lv.find(x => x.inventory_item_id === iid); if (!l || typeof l.available !== "number") throw new Error("Shopify: ingen gyldig inventory_level for " + sku); lager[sku] = l.available; }
+  return { daily, lager, at: NOW.toISOString() };
 }
 
-// ---------- 2b. Meta-annonsekostnad fra kvitteringsmailer (hei@getpace.no) ----------
-// Hver kvittering har "Amount billed: NOKx Date range: <fra> - <til>". Beløpet fordeles likt per dag i perioden,
-// så summeres dagene som faller i siste 7/30 d. Forbruk etter siste kvittering er ikke fakturert ennå og mangler.
+// ---------- 3. Meta-annonsekostnad fra kvitteringsmailer (hei@getpace.no), valgfri ----------
+// "Amount billed: NOKx Date range: <fra> - <til>" fordeles på Oslo-kalenderdager i perioden (sum = kvitteringen).
+// Dager etter siste kvittering er ikke fakturert ennå → null (ukjent), ikke 0.
 async function fetchMetaSpend() {
   const tr = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ client_id: env("GMAIL_CLIENT_ID"), client_secret: env("GMAIL_CLIENT_SECRET"), refresh_token: env("GMAIL_REFRESH_TOKEN"), grant_type: "refresh_token" }) });
@@ -95,80 +120,109 @@ async function fetchMetaSpend() {
   if (!tj.access_token) throw new Error("Gmail: token-feil " + (tj.error || tr.status));
   const G = { Authorization: "Bearer " + tj.access_token };
   const q = encodeURIComponent('from:noreply@business-updates.facebook.com subject:"Meta ads receipt" newer_than:45d');
-  const list = await (await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${q}&maxResults=50`, { headers: G })).json();
-  const ids = (list.messages || []).map(m => m.id);
+  const ids = []; let pageToken = "";
+  for (let i = 0; i < 10; i++) {
+    const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${q}&maxResults=100${pageToken ? "&pageToken=" + pageToken : ""}`, { headers: G });
+    if (!r.ok) throw new Error("Gmail list " + r.status);
+    const j = await r.json(); ids.push(...(j.messages || []).map(m => m.id)); pageToken = j.nextPageToken || ""; if (!pageToken) break;
+  }
   const b64 = s => Buffer.from(s.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
   const textOf = p => { if (!p) return ""; let t = ""; if (p.body?.data && /text\/(plain|html)/.test(p.mimeType || "")) t += b64(p.body.data) + "\n"; for (const c of p.parts || []) t += textOf(c); return t; };
   const MON = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
-  const parseD = s => { const m = /([A-Z][a-z]{2}) (\d{1,2}), (\d{4}), (\d{1,2}):(\d{2}) (AM|PM)/.exec(s); if (!m) return null; let h = +m[4] % 12; if (m[6] === "PM") h += 12; return new Date(Date.UTC(+m[3], MON[m[1]], +m[2], h - 2, +m[5])); }; // kvitteringstid ≈ Oslo
-  const daily = {}; let last = null, nRec = 0;
+  const parseD = s => { // kvitteringstid i Oslo-tid → Date (UTC), DST-riktig
+    const m = /([A-Z][a-z]{2}) (\d{1,2}), (\d{4}), (\d{1,2}):(\d{2}) (AM|PM)/.exec(s); if (!m) return null;
+    let h = +m[4] % 12; if (m[6] === "PM") h += 12;
+    const guess = new Date(Date.UTC(+m[3], MON[m[1]], +m[2], h, +m[5]));
+    return new Date(guess.getTime() - osloOffsetMin(guess) * 6e4);
+  };
+  const daily = {}; const seen = new Set(); let last = null, nRec = 0;
   for (const id of ids) {
-    const msg = await (await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`, { headers: G })).json();
+    const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`, { headers: G });
+    if (!r.ok) throw new Error("Gmail get " + r.status);
+    const msg = await r.json();
     const t = textOf(msg.payload).replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ");
-    const m = /Amount billed:\s*NOK\s?([\d,]+\.\d{2})\s*Date range:\s*(.+?)\s*-\s*(.+?)\s*Product type/.exec(t);
+    const m = /Amount billed:\s*NOK\s?([\d,. ]+?\.\d{2})\s*Date range:\s*(.+?)\s*-\s*(.+?)\s*Product type/.exec(t);
     if (!m) continue;
-    const amt = +m[1].replace(/,/g, ""), a = parseD(m[2]), b = parseD(m[3]);
-    if (!a || !b || b <= a) continue;
+    const ref = (/Reference number:\s*([A-Z0-9]+)/.exec(t) || [])[1] || id;
+    if (seen.has(ref)) continue; seen.add(ref);
+    const amount = +m[1].replace(/[ ,]/g, ""), a = parseD(m[2]), b = parseD(m[3]);
+    if (!a || !b || b <= a || !(amount > 0)) continue;
     nRec++; if (!last || b > last) last = b;
-    const days = (b - a) / 864e5, perDay = amt / days;
-    for (let d = new Date(a); d < b; d = new Date(d.getTime() + 864e5)) { const k = d.toISOString().slice(0, 10); const frac = Math.min(1, (b - d) / 864e5); daily[k] = (daily[k] || 0) + perDay * frac; }
+    // fordel på Oslo-kalenderdager etter antall timer av perioden som faller på hver dag
+    const dayStartUtc = ymd => { const g = new Date(ymd + "T00:00:00Z"); return new Date(g.getTime() - osloOffsetMin(g) * 6e4); };
+    const parts = []; let d = osloDay(a); let total = 0;
+    while (true) { const s0 = Math.max(dayStartUtc(d).getTime(), a.getTime()), s1 = Math.min(dayStartUtc(addDays(d, 1)).getTime(), b.getTime()); const w = Math.max(0, s1 - s0); parts.push([d, w]); total += w; if (dayStartUtc(addDays(d, 1)).getTime() >= b.getTime()) break; d = addDays(d, 1); }
+    for (const [k, w] of parts) daily[k] = (daily[k] || 0) + amount * (w / total);
   }
   if (!nRec) throw new Error("Gmail: ingen Meta-kvitteringer funnet");
-  const spend = d => { const lim = Date.now() - d * 864e5; return Object.entries(daily).filter(([k]) => new Date(k + "T12:00:00Z") >= lim).reduce((x, [, v]) => x + v, 0); };
-  return { s7: spend(7), s30: spend(30), last, nRec };
+  // siste kvittering slutter ofte midt på dagen: den dagen er bare delvis dekket og regnes ikke som dekket
+  const coveredThrough = osloHour(last) >= 23 ? osloDay(last) : addDays(osloDay(last), -1);
+  return { daily, coveredThrough, nRec, last };
 }
 
-// ---------- 3. Kasse (manuell) ----------
+// ---------- 4. Kasse (manuell) ----------
 function parseKasse() {
   const [kasse, kasse_dato, gjeld, gjeld_note, sitron_bestfor] = env("PACE_KASSE").split("|").map(s => s.trim());
-  if (!+kasse || !kasse_dato) throw new Error("PACE_KASSE: ugyldig format");
+  if (!Number.isFinite(+kasse) || !kasse_dato) throw new Error("PACE_KASSE: ugyldig format");
   return { kasse: +kasse, kasse_dato, gjeld: +gjeld || 0, gjeld_note: gjeld_note || "", sitron_bestfor: sitron_bestfor || "" };
 }
 
-// ---------- 4. Bygg ----------
-const [tasks, shop, meta] = await Promise.all([fetchBoard(), fetchShopify(), fetchMetaSpend()]);
+// ---------- 5. Hent ----------
+const [tasks, shop] = await Promise.all([fetchBoard(), fetchShopify()]);
+let meta = null, metaErr = "";
+try { meta = await fetchMetaSpend(); } catch (e) { metaErr = e.message; console.error("Meta/CAC utilgjengelig:", e.message); }
 const T = parseKasse();
-const stamp = nowOslo();
-const card = (k, v, s) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
-const lagerCard = (navn, sku, bestfor) => {
-  const qty = shop.lager[sku], perUke = shop.units30[sku] / 30 * 7;
+
+// ---------- 6. Tall ----------
+const series = DAYS.map(d => { const x = shop.daily[d]; const covered = meta && d <= meta.coveredThrough; return { d, ordre: x.ordre, oms: Math.round(x.oms * 100) / 100, nye: x.nye, u1: x.u1, u2: x.u2, meta: covered ? Math.round((meta.daily[d] || 0) * 100) / 100 : null }; });
+const win = n => series.slice(-n);
+const sum = (a, k) => a.reduce((x, r) => x + (r[k] || 0), 0);
+const cac = n => { const w = win(n).filter(r => r.meta !== null); const s = sum(w, "meta"), ny = sum(w, "nye"); return { spend: s, nye: ny, days: w.length, cac: ny ? s / ny : null }; };
+const card = (k, v, s, cls = "") => `<div class="stat${cls}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+const salgCard = (n) => { const w = win(n); return card(`Salg ${n} dager`, nf(sum(w, "oms")) + " kr", `${sum(w, "ordre")} ordre · ${sum(w, "nye")} nye kunder`); };
+const cacCard = (n) => { if (!meta) return card(`CAC ${n} dager`, "–", "Meta-kvitteringer utilgjengelig"); const c = cac(n); return card(`CAC ${n} dager`, c.cac ? nf(c.cac) + " kr" : "–", `Meta ${nf(c.spend)} kr / ${c.nye} nye${c.days < n ? ` (${c.days} av ${n} dager dekket)` : ""}`); };
+const lagerCard = (navn, sku, key, bestfor) => {
+  const qty = shop.lager[sku], perUke = sum(win(30), key) / 30 * 7;
   let s = perUke > 0 ? `${nf(perUke)} per uke · ${nf(qty / perUke)} uker igjen` : "ingen målbar takt siste 30 d";
   if (bestfor && perUke > 0) {
     const [d, m, y] = bestfor.split(".").map(Number);
-    const uker = (new Date(y, m - 1, d) - Date.now()) / (7 * 864e5);
+    const uker = (Date.UTC(y, m - 1, d) - NOW.getTime()) / (7 * 864e5);
     const rest = Math.max(0, qty - perUke * uker);
-    s += ` · best før ${bestfor}${rest > 0 ? `, ~${nf(rest)} går ut ved dagens takt` : ""}`;
+    s += ` · best før ${esc(bestfor)}${rest > 0 ? `, ~${nf(rest)} går ut ved dagens takt` : ""}`;
   }
   return card(`Lager ${navn}`, nf(qty) + " stk", s);
 };
-const cacCard = (navn, w, s) => card(`CAC ${navn}`, w.nye ? nf(s / w.nye) + " kr" : "–", `Meta ${nf(s)} kr / ${w.nye} nye kunder`);
-const lastRec = meta.last.toLocaleDateString("no-NO", { timeZone: OSLO, day: "2-digit", month: "2-digit" });
-const cards = card("Salg 7 dager", nf(shop.d7.sum) + " kr", shop.d7.n + " ordre")
-  + card("Salg 30 dager", nf(shop.d30.sum) + " kr", shop.d30.n + " ordre")
-  + cacCard("7 dager", shop.d7, meta.s7)
-  + cacCard("30 dager", shop.d30, meta.s30)
-  + card("Kasse", nf(T.kasse) + " kr", "oppdatert " + T.kasse_dato + (T.gjeld ? " · gjeld ~" + nf(T.gjeld) : ""))
-  + lagerCard("sitron", "PACE01", T.sitron_bestfor)
-  + lagerCard("bringebær", "PACE02", "");
-const note = `Salg = ordreverdi inkl. mva for ordre opprettet i perioden (etter refusjon, uten test- og seeding-ordre), hentet fra Shopify ${stamp}. CAC = Meta-annonsekostnad fra kvitteringene (fordelt per dag, siste kvittering dekker til ${lastRec}, forbruk etter det er ikke med) delt på nye kunder (første ordre) i samme periode. Lager = tilgjengelig hos 360 Logistics. Kasse er bankbalanse lagt inn manuelt${T.gjeld_note ? ", gjeld: " + T.gjeld_note : ""}.`;
-const metaInfo = { built_at: new Date().toISOString(), shopify_at: shop.at, shopify_label: stamp };
+const cards = salgCard(7) + salgCard(30) + cacCard(7) + cacCard(30)
+  + card("Kasse", nf(T.kasse) + " kr", "oppdatert " + esc(T.kasse_dato) + (T.gjeld ? " · gjeld ~" + nf(T.gjeld) : ""))
+  + lagerCard("sitron", "PACE01", "u1", T.sitron_bestfor) + lagerCard("bringebær", "PACE02", "u2", "");
+const fmtD = ymd => ymd.slice(8, 10) + "." + ymd.slice(5, 7);
+const note = `Perioder = Oslo-kalenderdager t.o.m. i dag (i dag er ufullstendig). Salg = ordreverdi inkl. mva for ordre opprettet i perioden, etter refusjon, uten test- og seeding-ordre (Shopify ${stamp}). Nye kunder = kundeprofiler opprettet i perioden med betalt ordre. `
+  + (meta ? `CAC = Meta-annonsekostnad fra kvitteringene i hei@getpace.no, fordelt per dag (dekket t.o.m. ${fmtD(meta.coveredThrough)}; forbruk etter det er ikke fakturert ennå og holdes utenfor), delt på nye kunder samme dager. ` : `CAC mangler: ${esc(metaErr)}. `)
+  + `Lager = tilgjengelig hos 360 Logistics. Kasse er bankbalanse lagt inn manuelt${T.gjeld_note ? ", gjeld: " + esc(T.gjeld_note) : ""}.`;
+const metaInfo = { built_at: NOW.toISOString(), shopify_at: shop.at, label: stamp, today: TODAY, meta_through: meta ? meta.coveredThrough : null, daily: series };
 
+// ---------- 7. Bygg HTML ----------
 let html = readFileSync(TEMPLATE, "utf8");
-const js = s => JSON.stringify(s, null, 1).replace(/</g, "\\u003c");
-html = html.replace(/\/\*__TASKS__\*\/[\s\S]*?\/\*__TASKS_END__\*\//, () => `/*__TASKS__*/ const SNAPSHOT = ${js(tasks)}; /*__TASKS_END__*/`);
-html = html.replace(/\/\*__META__\*\/[\s\S]*?\/\*__META_END__\*\//, () => `/*__META__*/ const META = ${js(metaInfo)}; /*__META_END__*/`);
-html = html.replace(/\/\*__PAGE_TOKEN__\*\/[\s\S]*?\/\*__PAGE_TOKEN_END__\*\//, () => `/*__PAGE_TOKEN__*/ const PAGE_TOKEN = ${JSON.stringify(process.env.PACE_PAGE_TOKEN || "")}; /*__PAGE_TOKEN_END__*/`);
-html = html.replace(/<!--STATS-->[\s\S]*?<!--\/STATS-->/, () => `<!--STATS-->${cards}<!--/STATS-->`);
-html = html.replace(/<!--STATSNOTE-->[\s\S]*?<!--\/STATSNOTE-->/, () => `<!--STATSNOTE-->${note}<!--/STATSNOTE-->`);
-html = html.replace(/<!--SYNC-->.*?<!--\/SYNC-->/, () => `<!--SYNC-->${stamp}<!--/SYNC-->`);
+const js = s => JSON.stringify(s).replace(/</g, "\\u003c").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
+const put = (re, val, label) => { if (!re.test(html)) throw new Error("template mangler " + label); html = html.replace(re, () => val); };
+put(/\/\*__TASKS__\*\/[\s\S]*?\/\*__TASKS_END__\*\//, `/*__TASKS__*/ const SNAPSHOT = ${js(tasks)}; /*__TASKS_END__*/`, "TASKS");
+put(/\/\*__META__\*\/[\s\S]*?\/\*__META_END__\*\//, `/*__META__*/ const META = ${js(metaInfo)}; /*__META_END__*/`, "META");
+put(/\/\*__PAGE_TOKEN__\*\/[\s\S]*?\/\*__PAGE_TOKEN_END__\*\//, `/*__PAGE_TOKEN__*/ const PAGE_TOKEN = ${js(process.env.PACE_PAGE_TOKEN || "")}; /*__PAGE_TOKEN_END__*/`, "PAGE_TOKEN");
+put(/<!--STATS-->[\s\S]*?<!--\/STATS-->/, `<!--STATS-->${cards}<!--/STATS-->`, "STATS");
+put(/<!--STATSNOTE-->[\s\S]*?<!--\/STATSNOTE-->/, `<!--STATSNOTE-->${note}<!--/STATSNOTE-->`, "STATSNOTE");
+put(/<!--SYNC-->.*?<!--\/SYNC-->/, `<!--SYNC-->${stamp}<!--/SYNC-->`, "SYNC");
+// syntakssjekk av sidens script før publisering
+for (const m of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) { try { new Function(m[1]); } catch (e) { throw new Error("template-JS har syntaksfeil: " + e.message); } }
 writeFileSync(PLAIN, html);
-console.log(`bygget: ${tasks.length} kort | 7d ${shop.d7.n}/${nf(shop.d7.sum)} | 30d ${shop.d30.n}/${nf(shop.d30.sum)} | lager ${JSON.stringify(shop.lager)} | ${stamp}`);
+const w7 = win(7);
+console.log(`bygget: ${tasks.length} kort | 7d ${sum(w7, "ordre")}/${nf(sum(w7, "oms"))} nye ${sum(w7, "nye")} | 30d ${sum(series, "ordre")}/${nf(sum(series, "oms"))} | CAC30 ${meta ? nf(cac(30).cac || 0) : "–"} | lager ${JSON.stringify(shop.lager)} | ${stamp}`);
 if (process.env.SKIP_ENCRYPT) process.exit(0);
 
-// ---------- 5. Krypter (custom dark template) ----------
+// ---------- 8. Krypter (custom dark template) ----------
 const pw = env("STATICRYPT_PASSWORD");
 const salt = env("STATICRYPT_SALT", "843e94067e2339f1a3b9073a407ddde1");
-const tplSrc = execSync("node -e \"console.log(require.resolve('staticrypt/lib/password_template.html'))\"", { cwd: DIR, encoding: "utf8" }).trim();
+if (!/^[0-9a-f]{32}$/.test(salt)) throw new Error("ugyldig salt");
+const tplSrc = path.join(DIR, "node_modules", "staticrypt", "lib", "password_template.html");
 let t = readFileSync(tplSrc, "utf8")
   .replace(/(\.staticrypt-form \{[^}]*?)background: #ffffff;/, "$1background: #161b22; border: 1px solid #2a313c; border-radius: 8px;")
   .replace(/(\.staticrypt-password-container \{[^}]*?)background: #f2f2f2;/, "$1background: #0e1116; color: #e6edf3;")
@@ -177,7 +231,8 @@ let t = readFileSync(tplSrc, "utf8")
   .replace(/(\.staticrypt-instructions \{)/, "$1color:#8b949e;");
 writeFileSync(path.join(DIR, "pace-template.html"), t);
 copyFileSync(PLAIN, path.join(DIR, "pq.html"));
-execSync(`npx --no-install staticrypt pq.html --short --salt ${salt} --template pace-template.html --template-color-primary "#58a6ff" --template-color-secondary "#0e1116" --template-title "Pace — Beskyttet" --template-button "ÅPNE" --template-instructions "Skriv inn passord" --template-placeholder "Passord" --remember 0 -d encrypted`,
+const bin = path.join(DIR, "node_modules", "staticrypt", "cli", "index.js");
+execFileSync(process.execPath, [bin, "pq.html", "--short", "--salt", salt, "--template", "pace-template.html", "--template-color-primary", "#58a6ff", "--template-color-secondary", "#0e1116", "--template-title", "Pace — Beskyttet", "--template-button", "ÅPNE", "--template-instructions", "Skriv inn passord", "--template-placeholder", "Passord", "--remember", "0", "-d", "encrypted"],
   { cwd: DIR, stdio: "inherit", env: { ...process.env, STATICRYPT_PASSWORD: pw } });
 copyFileSync(path.join(DIR, "encrypted", "pq.html"), OUT);
 for (const f of ["encrypted", ".staticrypt.json", "pace-template.html", "pq.html"]) if (existsSync(path.join(DIR, f))) rmSync(path.join(DIR, f), { recursive: true });

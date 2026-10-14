@@ -1,11 +1,11 @@
 name: pace-quest
 on:
   schedule:
-    - cron: "0 4-21 * * *"   # hver hele time 06-23 Oslo (sommertid; 05-22 vintertid)
+    - cron: "0 4-22 * * *"   # hver hele time; scriptet hopper selv over utenfor 06-23 Oslo
   workflow_dispatch:
 concurrency:
   group: pace-quest
-  cancel-in-progress: false
+  cancel-in-progress: true
 permissions:
   contents: write
 jobs:
@@ -13,12 +13,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - name: Bygg pace-quest.html
+      - name: Bygg og publiser (gjentar hele bygget ved push-kollisjon)
         env:
           PACE_BOARD_TOKEN: ${{ secrets.PACE_BOARD_TOKEN }}
           PACE_PAGE_TOKEN: ${{ secrets.PACE_PAGE_TOKEN }}
@@ -30,18 +32,19 @@ jobs:
           GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
           GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
           PACE_KASSE: ${{ vars.PACE_KASSE }}
-        run: node scripts/build-pace-quest.mjs
-      - name: Commit hvis endret
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
         run: |
           set +x
-          rm -f pace-quest-plain.html
           git config user.name "pace-quest-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add pace-quest.html
-          if git diff --cached --quiet; then echo "ingen endring"; exit 0; fi
-          git commit -m "pace-quest: auto-synk $(TZ=Europe/Oslo date '+%d.%m.%Y %H:%M')"
           for i in 1 2 3; do
-            git pull --rebase origin main && git push && exit 0
-            sleep 10
+            git fetch origin main && git reset --hard origin/main
+            node scripts/build-pace-quest.mjs
+            rm -f pace-quest-plain.html
+            git add pace-quest.html
+            if git diff --cached --quiet; then echo "ingen endring"; exit 0; fi
+            git commit -m "pace-quest: auto-synk $(TZ=Europe/Oslo date '+%d.%m.%Y %H:%M')"
+            if git push origin HEAD:main; then exit 0; fi
+            echo "push avvist, bygger på nytt ($i)"; sleep 15
           done
           exit 1
