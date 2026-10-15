@@ -204,12 +204,12 @@ const lagerCard = (navn, sku, key, bestfor) => {
 const subNow = series[series.length - 1].subAct, subNew30 = sum(series, "subNew"), subRen30 = sum(series, "subRen");
 const cards = salgCard(7) + salgCard(30) + cacCard(7) + cacCard(30)
   + card("Abonnenter", nf(subNow), `+${subNew30} nye · ${subRen30} forny.`, "c-sub", `Aktive abonnenter = unike kunder med abonnementsordre siste 30 dager. ${subNew30} nye abonnement og ${subRen30} fornyelser siste 30 d`)
-  + card("Kasse", nf(T.kasse) + " kr", (T.gjeld ? "gjeld ~" + nf(T.gjeld) : "ingen kjent gjeld"), "c-kasse", `Bankbalanse ${T.kasse_dato}${T.gjeld_note ? ". Gjeld: " + T.gjeld_note : ""}`)
+  + card("Kasse", nf(T.kasse) + " kr", "oppdatert manuelt " + T.kasse_dato + (T.gjeld ? " · gjeld ~" + nf(T.gjeld) : " · ingen kjent gjeld"), "c-kasse", `Bankbalanse lagt inn ${T.kasse_dato}${T.gjeld_note ? ". Gjeld: " + T.gjeld_note : ""}`)
   + lagerCard("sitron", "PACE01", "u1", T.sitron_bestfor) + lagerCard("bringebær", "PACE02", "u2", "");
 const fmtD = ymd => ymd.slice(8, 10) + "." + ymd.slice(5, 7);
 const note = `Perioder = Oslo-kalenderdager t.o.m. i dag (i dag er ufullstendig). Salg = ordreverdi inkl. mva for ordre opprettet i perioden, etter refusjon, uten test- og seeding-ordre (Shopify ${stamp}). Nye kunder = kundeprofiler opprettet i perioden med betalt ordre. `
   + (meta ? `CAC = Meta-annonsekostnad fra kvitteringene i hei@getpace.no, fordelt per dag (dekket t.o.m. ${fmtD(meta.coveredThrough)}; forbruk etter det er ikke fakturert ennå og holdes utenfor), delt på nye kunder samme dager. ` : `CAC mangler: ${esc(metaErr)}. `)
-  + `Lager = tilgjengelig hos 360 Logistics. Kasse er bankbalanse lagt inn manuelt${T.gjeld_note ? ", gjeld: " + esc(T.gjeld_note) : ""}.`;
+  + `Lager = tilgjengelig hos 360 Logistics. Kasse er bankbalanse lagt inn manuelt (sist ${T.kasse_dato})${T.gjeld_note ? ", gjeld: " + esc(T.gjeld_note) : ""}.`;
 const metaInfo = { built_at: NOW.toISOString(), shopify_at: shop.at, label: stamp, today: TODAY, meta_through: meta ? meta.coveredThrough : null, daily: series };
 
 // ---------- 7. Bygg HTML ----------
