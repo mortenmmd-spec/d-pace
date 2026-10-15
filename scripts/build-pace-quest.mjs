@@ -243,7 +243,7 @@ let t = readFileSync(tplSrc, "utf8")
 writeFileSync(path.join(DIR, "pace-template.html"), t);
 copyFileSync(PLAIN, path.join(DIR, "pq.html"));
 const bin = path.join(DIR, "node_modules", "staticrypt", "cli", "index.js");
-execFileSync(process.execPath, [bin, "pq.html", "--short", "--salt", salt, "--template", "pace-template.html", "--template-color-primary", "#58a6ff", "--template-color-secondary", "#0e1116", "--template-title", "Pace — Beskyttet", "--template-button", "ÅPNE", "--template-instructions", "Skriv inn passord", "--template-placeholder", "Passord", "--remember", "0", "-d", "encrypted"],
+execFileSync(process.execPath, [bin, "pq.html", "--short", "--salt", salt, "--template", "pace-template.html", "--template-color-primary", "#58a6ff", "--template-color-secondary", "#0e1116", "--template-title", "Pace-dashboard", "--template-button", "ÅPNE", "--template-instructions", "Skriv inn passord", "--template-placeholder", "Passord", "--remember", "0", "-d", "encrypted"],
   { cwd: DIR, stdio: "inherit", env: { ...process.env, STATICRYPT_PASSWORD: pw } });
 copyFileSync(path.join(DIR, "encrypted", "pq.html"), OUT);
 for (const f of ["encrypted", ".staticrypt.json", "pace-template.html", "pq.html"]) if (existsSync(path.join(DIR, f))) rmSync(path.join(DIR, f), { recursive: true });
