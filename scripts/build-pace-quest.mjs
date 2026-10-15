@@ -240,6 +240,7 @@ let t = readFileSync(tplSrc, "utf8")
   .replace(/(\.staticrypt-content \{[^}]*?)font-family:[^;]+;/, "$1font-family:-apple-system,\"Segoe UI\",Roboto,sans-serif;")
   .replace(/(\.staticrypt-title \{)/, "$1color:#e6edf3;font-weight:600;")
   .replace(/(\.staticrypt-instructions \{)/, "$1color:#8b949e;");
+t = t.replace("</style>", ".staticrypt-form input[type=\"password\"], .staticrypt-form input[type=\"text\"] { color:#ffffff !important; -webkit-text-fill-color:#ffffff; caret-color:#ffffff; font-size:18px !important; letter-spacing:3px; } .staticrypt-form input::placeholder { color:#8b949e; -webkit-text-fill-color:#8b949e; letter-spacing:0; font-size:14px; }</style>");
 writeFileSync(path.join(DIR, "pace-template.html"), t);
 copyFileSync(PLAIN, path.join(DIR, "pq.html"));
 const bin = path.join(DIR, "node_modules", "staticrypt", "cli", "index.js");
