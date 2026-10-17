@@ -89,6 +89,11 @@
   details.about[open] summary { margin-bottom: 4px; }
   .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; margin: 0 0 10px; }
   .stat.c-sub { --acc: var(--aqua); }
+  .b2b { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 8px; }
+  .b2b th { text-align: left; font-weight: 500; color: var(--ink-muted); font-size: 0.72rem; padding: 4px 10px 6px 0; border-bottom: 1px solid var(--hairline); }
+  .b2b td { padding: 7px 10px 7px 0; border-bottom: 1px solid var(--hairline); vertical-align: top; color: var(--ink-2); }
+  .b2b td:first-child { color: var(--ink); font-weight: 600; white-space: nowrap; }
+  @media (max-width: 640px) { .b2b tr { display: grid; grid-template-columns: 1fr; padding: 6px 0; border-bottom: 1px solid var(--hairline); } .b2b th { display: none; } .b2b td { border: 0; padding: 1px 0; } }
   .geo { display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 560px); gap: 28px; align-items: start; }
   @media (max-width: 700px) { .geo { grid-template-columns: 1fr; } .geo svg { max-width: 320px; margin: 0 auto; display: block; } }
   .geo-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -255,6 +260,7 @@
     <div class="chart" id="chart-sub"></div>
   </section>
   <section class="chart" id="chart-geo" style="margin-bottom:10px"></section>
+  <section class="chart" id="b2b" style="margin-bottom:10px"></section>
   <details class="about"><summary>Om tallene ▾</summary><div id="stats-note"><!--STATSNOTE--><!--/STATSNOTE--></div></details>
   <div class="stale" id="stale" hidden></div>
 
@@ -350,7 +356,8 @@ const todayOslo = () => new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Osl
 const isDone = t => t.sec === "Ferdig";
 const isMile = t => t.kat === "Milepæl";
 const isRole = t => t.kat === "Rolle";
-const quests = () => tasks.filter(t => !isMile(t) && !isRole(t));
+const isB2B = t => /^b2b-kunder$/i.test((t.txt || "").trim());
+const quests = () => tasks.filter(t => !isMile(t) && !isRole(t) && !isB2B(t));
 const isOver = t => !!t.due && !isDone(t) && t.due < todayOslo();
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const owners = () => project?.ansvarligField?.options.map(o => o.name) || OWNERS_FALLBACK;
@@ -516,7 +523,7 @@ function render() {
   // ukjente statuser (nye kolonner på boardet) vises sist
   const unknown = q.filter(t => !SECTIONS.includes(t.sec) && passes(t));
   for (const sec of [...new Set(unknown.map(t => t.sec))]) { const items = unknown.filter(t => t.sec === sec); const col = document.createElement("div"); col.className = "col"; col.innerHTML = `<h2>${esc(sec)}<span class="count">${items.length}</span></h2>`; for (const t of items) col.appendChild(taskCard(t)); board.appendChild(col); }
-  renderMiles(); renderRoles(); renderHero(); renderAgenda(); renderOwnerSelect();
+  renderMiles(); renderRoles(); renderB2B(); renderHero(); renderAgenda(); renderOwnerSelect();
 }
 
 function renderFilters() {
@@ -605,6 +612,18 @@ function renderMiles() {
       el.appendChild(d);
     }
   }
+}
+
+/* ============================================================
+   B2B-KUNDER (fra kortet «B2B-kunder» på boardet, én kunde per linje: Kunde | Status | Kontakt)
+   ============================================================ */
+function renderB2B() {
+  const el = document.getElementById("b2b"); if (!el) return;
+  const card = tasks.find(isB2B);
+  if (!card) { el.innerHTML = `<div class="k">B2B-kunder</div><div class="empty">Lag et kort som heter «B2B-kunder» på boardet.</div>`; return; }
+  const rows = (card.body || "").split(/\r?\n/).map(l => l.split("|").map(s => s.trim())).filter(c => c.length >= 2 && c[0] && !/^én kunde per linje/i.test(c[0]));
+  el.innerHTML = `<div class="k">B2B-kunder <b>${rows.length}</b><span class="sec-sub" style="margin-left:auto">rediger kortet «B2B-kunder» på boardet</span></div>`
+    + (rows.length ? `<table class="b2b"><tr><th>Kunde</th><th>Status</th><th>Kontakt</th></tr>${rows.map(c => `<tr><td>${esc(c[0])}</td><td>${esc(c[1] || "")}</td><td>${esc(c[2] || "")}</td></tr>`).join("")}</table>` : `<div class="empty">Ingen kunder i kortet ennå.</div>`);
 }
 
 function renderRoles() {
