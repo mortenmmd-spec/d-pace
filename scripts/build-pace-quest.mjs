@@ -134,6 +134,9 @@ async function fetchShopify() {
     }
   }
   for (const g of Object.values(geo)) for (const x of Object.values(g.fy)) x.kr = Math.round(x.kr);
+  // 1 MNOK-milepæl: samlet ordreverdi inkl. mva (samme filter som salg), dagen summen passerte 1 000 000 kr
+  let life = 0, mnokDay = null;
+  for (const o of hist.filter(ok).filter(o => amt(o) > 0).sort((a, b) => a.created_at.localeCompare(b.created_at))) { life += amt(o); if (!mnokDay && life >= 1e6) mnokDay = osloDay(new Date(o.created_at)); }
   // aktive abonnement fra Subscriptions-appen (ShopifyQL); valgfri
   let subActive = null;
   try {
@@ -141,7 +144,7 @@ async function fetchShopify() {
     const v = (await r.json()).data?.shopifyqlQuery?.tableData?.rows?.[0]?.active_subscriptions;
     if (v !== undefined && Number.isFinite(+v)) subActive = +v;
   } catch (e) { console.error("ShopifyQL utilgjengelig:", e.message); }
-  return { daily, lager, geo, subActive, at: NOW.toISOString() };
+  return { daily, lager, geo, life, mnokDay, subActive, at: NOW.toISOString() };
 }
 
 // ---------- 3. Meta-annonsekostnad fra kvitteringsmailer (hei@getpace.no), valgfri ----------
@@ -253,6 +256,11 @@ const cards = todayCard() + salgCard(7) + salgCard(30) + subCard
   + card("Kasse", nf(T.kasse) + " kr", "bankbalanse lagt inn " + T.kasse_dato, "c-kasse", `Bankbalanse lagt inn manuelt ${T.kasse_dato}`)
   + lagerCard("sitron", "PACE01", "u1", T.sitron_bestfor, "Sitron & Lime") + lagerCard("bringebær", "PACE02", "u2", "", "Bringebær");
 
+// 1 MNOK-milepæl, står fast når den er nådd
+const mileHtml = shop.mnokDay
+  ? `<div class="mnok done"><span class="mnok-ic">✓</span><div><b>1 MNOK i salg</b><span>nådd ${fmtD(shop.mnokDay)}.${shop.mnokDay.slice(0, 4)} · totalt ${nf(shop.life)} kr inkl. mva</span></div></div>`
+  : `<div class="mnok"><span class="mnok-ic">◎</span><div><b>Mot 1 MNOK i salg</b><span>${nf(shop.life)} kr av 1 000 000 kr inkl. mva (${nf(shop.life / 1e4)} %)</span></div></div>`;
+
 // datastatus: hvor ferske tallene er per kilde
 const datastatus = [`Shopify ${stamp}`, meta ? `Meta-kvitteringer t.o.m. ${fmtD(meta.coveredThrough)}` : "Meta mangler", `bankbalanse ${T.kasse_dato}`, plan ? `Pace 2.0-plan ${fmtD(plan.built)}` : "plan mangler"].join(" · ");
 
@@ -269,6 +277,7 @@ const put = (re, val, label) => { if (!re.test(html)) throw new Error("template 
 put(/\/\*__TASKS__\*\/[\s\S]*?\/\*__TASKS_END__\*\//, `/*__TASKS__*/ const SNAPSHOT = ${js(tasks)}; /*__TASKS_END__*/`, "TASKS");
 put(/\/\*__META__\*\/[\s\S]*?\/\*__META_END__\*\//, `/*__META__*/ const META = ${js(metaInfo)}; /*__META_END__*/`, "META");
 put(/\/\*__PAGE_TOKEN__\*\/[\s\S]*?\/\*__PAGE_TOKEN_END__\*\//, `/*__PAGE_TOKEN__*/ const PAGE_TOKEN = ${js(process.env.PACE_PAGE_TOKEN || "")}; /*__PAGE_TOKEN_END__*/`, "PAGE_TOKEN");
+put(/<!--MILE-->[\s\S]*?<!--\/MILE-->/, `<!--MILE-->${mileHtml}<!--/MILE-->`, "MILE");
 put(/<!--STATS-->[\s\S]*?<!--\/STATS-->/, `<!--STATS-->${cards}<!--/STATS-->`, "STATS");
 put(/<!--DATASTATUS-->[\s\S]*?<!--\/DATASTATUS-->/, `<!--DATASTATUS-->${esc(datastatus)}<!--/DATASTATUS-->`, "DATASTATUS");
 put(/<!--STATSNOTE-->[\s\S]*?<!--\/STATSNOTE-->/, `<!--STATSNOTE-->${note}<!--/STATSNOTE-->`, "STATSNOTE");
