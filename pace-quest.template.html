@@ -292,10 +292,8 @@
 
   <section class="board" id="board"></section>
 
-  <div class="sec-h miles-h">Milepæler — Eierskifte</div>
-  <section class="miles" id="miles-eierskifte"></section>
-  <div class="sec-h miles-h">Milepæler — Drift</div>
-  <section class="miles" id="miles-drift"></section>
+  <div class="sec-h miles-h">Milepæler</div>
+  <section class="miles" id="miles"></section>
 
   <div class="sec-h" id="roles-h">Roller (løpende ansvar)</div>
   <section class="roles" id="roles"></section>
@@ -601,7 +599,8 @@ function closePop() { const pop = document.getElementById("pop"); pop.style.disp
 
 function renderMiles() {
   const all = tasks.filter(isMile);
-  const groups = { "miles-drift": all.filter(m => m.strom === "Drift"), "miles-eierskifte": all.filter(m => m.strom !== "Drift") };
+  const ordered = [...all.filter(m => m.strom !== "Drift"), ...all.filter(m => m.strom === "Drift")];
+  const groups = { miles: [...ordered.filter(isDone), ...ordered.filter(m => !isDone(m))] }; // én rad: nådde først, så eierskifte, så drift
   for (const [elId, miles] of Object.entries(groups)) {
     const el = document.getElementById(elId); el.innerHTML = "";
     if (!miles.length) { el.innerHTML = `<div class="empty">Ingen milepæler (Kategori = Milepæl på boardet).</div>`; continue; }
