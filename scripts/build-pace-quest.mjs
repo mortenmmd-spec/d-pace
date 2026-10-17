@@ -22,6 +22,7 @@ import path from "node:path";
 
 const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const TEMPLATE = path.join(DIR, "pace-quest.template.html");
+const KART = JSON.parse(readFileSync(path.join(DIR, "scripts", "norge-fylker.json"), "utf8")); // fylkesgrenser + postnummer->fylke, lages av gen-norge-kart.mjs
 const OUT = path.join(DIR, "pace-quest.html");
 const PLAIN = path.join(DIR, "pace-quest-plain.html");
 const env = (k, fallback) => { const v = process.env[k]; if (v === undefined || v === "") { if (fallback !== undefined) return fallback; throw new Error("mangler env " + k); } return v; };
@@ -115,10 +116,27 @@ async function fetchShopify() {
   const lager = {};
   for (const [sku, iid] of Object.entries(items)) { const l = lv.find(x => x.inventory_item_id === iid); if (!l || typeof l.available !== "number") throw new Error("Shopify: ingen gyldig inventory_level for " + sku); lager[sku] = l.available; }
   // gjenkjøp: hele ordrehistorikken (read_all_orders), per kunde: dato for første og senere betalte ordre
-  const hist = await getAll(`https://${SHOP}/admin/api/${API}/orders.json?status=any&limit=250&created_at_min=2024-01-01T00:00:00Z&fields=id,created_at,current_total_price,total_price,cancelled_at,financial_status,test,tags,customer`, "orders");
+  const hist = await getAll(`https://${SHOP}/admin/api/${API}/orders.json?status=any&limit=250&created_at_min=2024-01-01T00:00:00Z&fields=id,created_at,current_total_price,total_price,cancelled_at,financial_status,test,tags,customer,shipping_address`, "orders");
   const byCust = {};
   for (const o of hist.filter(ok).filter(o => amt(o) > 0)) { const id = o.customer?.id; if (id) (byCust[id] ||= []).push(osloDay(new Date(o.created_at))); }
   const buyers = Object.values(byCust).map(a => a.sort());
+  // salg per fylke fra leveringsadressens postnummer; bare aggregater forlater bygget (ingen adresser i HTML)
+  const fylkeOf = zip => { const z = +zip; const r = KART.pn.find(([a, b]) => z >= a && z <= b); return r ? r[2] : null; };
+  const geoWin = { alt: "2000-01-01", d90: addDays(TODAY, -89), d30: addDays(TODAY, -29) };
+  const geo = Object.fromEntries(Object.keys(geoWin).map(k => [k, { fy: {}, utland: 0, ukjent: 0 }]));
+  for (const o of hist.filter(ok).filter(o => amt(o) > 0)) {
+    const a = o.shipping_address, day = osloDay(new Date(o.created_at));
+    const zip = (a?.zip || "").replace(/\s/g, "");
+    const fy = a && (a.country_code || "NO") === "NO" && /^\d{4}$/.test(zip) ? fylkeOf(zip) : null;
+    for (const [k, from] of Object.entries(geoWin)) {
+      if (day < from) continue;
+      const g = geo[k];
+      if (fy) { const x = (g.fy[fy] ||= { o: 0, kr: 0 }); x.o++; x.kr += amt(o); }
+      else if (a && a.country_code && a.country_code !== "NO") g.utland++;
+      else g.ukjent++;
+    }
+  }
+  for (const g of Object.values(geo)) for (const x of Object.values(g.fy)) x.kr = Math.round(x.kr);
   // Shopify Payments-utbetalinger (likviditet) og aktive abonnement fra Subscriptions-appen (ShopifyQL); begge valgfrie
   let payouts = null, subActive = null;
   try { payouts = (await getAll(`https://${SHOP}/admin/api/${API}/shopify_payments/payouts.json?limit=100&date_min=${addDays(TODAY, -45)}`, "payouts")).map(p => ({ date: p.date, status: p.status, amount: +p.amount })); }
@@ -128,7 +146,7 @@ async function fetchShopify() {
     const v = (await r.json()).data?.shopifyqlQuery?.tableData?.rows?.[0]?.active_subscriptions;
     if (v !== undefined && Number.isFinite(+v)) subActive = +v;
   } catch (e) { console.error("ShopifyQL utilgjengelig:", e.message); }
-  return { daily, lager, buyers, payouts, subActive, at: NOW.toISOString() };
+  return { daily, lager, buyers, geo, payouts, subActive, at: NOW.toISOString() };
 }
 
 // ---------- 3. Meta-annonsekostnad fra kvitteringsmailer (hei@getpace.no), valgfri ----------
@@ -324,7 +342,7 @@ const note = `7 og 30 d = hele Oslo-dager t.o.m. i går; «Salg i dag» er dagen
   + (meta ? `CAC = Meta-annonsekostnad fra kvitteringene i hei@getpace.no, fordelt per dag (dekket t.o.m. ${fmtD(meta.coveredThrough)}; forbruk etter det er ikke fakturert ennå og holdes utenfor), delt på nye kunder samme dager. ` : `CAC mangler: ${esc(metaErr)}. `)
   + (shop.subActive !== null ? `Aktive abonnement = Shopify Subscriptions via Shopify-analyse. ` : "")
   + `Lager = tilgjengelig hos 360 Logistics; tomdato ved takten siste 30 d. Kasse er bankbalanse lagt inn manuelt (sist ${T.kasse_dato}).`;
-const metaInfo = { built_at: NOW.toISOString(), shopify_at: shop.at, label: stamp, today: TODAY, meta_through: meta ? meta.coveredThrough : null, daily: series.slice(-30) };
+const metaInfo = { built_at: NOW.toISOString(), shopify_at: shop.at, label: stamp, today: TODAY, meta_through: meta ? meta.coveredThrough : null, daily: series.slice(-30), geo: shop.geo, kart: { w: KART.w, h: KART.h, fylker: KART.fylker } };
 
 // ---------- 7. Bygg HTML ----------
 let html = readFileSync(TEMPLATE, "utf8");

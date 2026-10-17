@@ -104,6 +104,24 @@
   details.about[open] summary { margin-bottom: 4px; }
   .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; margin: 0 0 10px; }
   .stat.c-sub { --acc: var(--aqua); }
+  .geo { display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 560px); gap: 28px; align-items: start; }
+  @media (max-width: 700px) { .geo { grid-template-columns: 1fr; } .geo svg { max-width: 320px; margin: 0 auto; display: block; } }
+  .geo-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .geo-seg { display: inline-flex; gap: 4px; margin-left: auto; }
+  .geo-seg button { background: none; border: 1px solid var(--hairline); color: var(--ink-2); border-radius: 999px; padding: 2px 10px; font: inherit; font-size: 0.72rem; cursor: pointer; white-space: nowrap; }
+  .geo-seg button[aria-pressed="true"] { background: var(--surface-2); color: var(--ink); }
+  .geo path { stroke: var(--surface); stroke-width: 0.7; cursor: default; }
+  .geo path.on { stroke: var(--ink); stroke-width: 1.4; }
+  .geo-list { display: grid; gap: 2px; font-size: 0.8rem; }
+  .geo-row { display: grid; grid-template-columns: 1.4em minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 4px 6px; border-radius: 6px; }
+  .geo-row.on { background: var(--surface-2); }
+  .geo-row .n { color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+  .geo-row .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .geo-row .bar { height: 4px; border-radius: 2px; background: var(--blue); margin-top: 3px; }
+  .geo-row .kr { font-variant-numeric: tabular-nums; text-align: right; }
+  .geo-row .pc { color: var(--ink-muted); font-variant-numeric: tabular-nums; text-align: right; min-width: 3.2em; }
+  .geo-key { display: flex; align-items: center; gap: 6px; font-size: 0.7rem; color: var(--ink-muted); margin-top: 8px; }
+  .geo-key i { width: 18px; height: 8px; border-radius: 2px; display: inline-block; }
   .chart { background: var(--surface); border: 1px solid var(--hairline); border-radius: 14px; padding: 12px 14px 8px; position: relative; }
   .chart .k { font-size: 0.72rem; color: var(--ink-muted); text-transform: uppercase; letter-spacing: .04em; display: flex; gap: 10px; align-items: baseline; }
   .chart .k b { color: var(--ink); font-size: 0.95rem; text-transform: none; letter-spacing: 0; }
@@ -243,6 +261,7 @@
     <div class="chart" id="chart-cac"></div>
     <div class="chart" id="chart-sub"></div>
   </section>
+  <section class="chart" id="chart-geo" style="margin-bottom:10px"></section>
   <!--PLAN--><!--/PLAN-->
   <section class="two"><!--LIKVID--><!--/LIKVID--></section>
   <details class="about"><summary>Om tallene ▾</summary><div id="stats-note"><!--STATSNOTE--><!--/STATSNOTE--></div></details>
@@ -643,6 +662,41 @@ function renderOwnerSelect() {
 }
 
 /* ============================================================
+   SALG PER FYLKE (leveringsadresse, inline SVG)
+   ============================================================ */
+let geoWin = (() => { try { return localStorage.getItem("pace-geo-win") || "alt"; } catch { return "alt"; } })();
+function geoMap() {
+  const el = document.getElementById("chart-geo"), G = META.geo, K = META.kart;
+  if (!G || !K) { el.innerHTML = `<div class="k">Salg per fylke</div><div class="empty">Ingen data ennå.</div>`; return; }
+  const g = G[geoWin] || G.alt, tip = document.getElementById("tip");
+  const rows = K.fylker.map(f => ({ ...f, o: g.fy[f.id]?.o || 0, kr: g.fy[f.id]?.kr || 0 })).sort((a, b) => b.kr - a.kr);
+  const tot = rows.reduce((x, r) => x + r.kr, 0), max = Math.max(1, rows[0].kr);
+  // sekvensiell: én blåtone fra flaten mot full blå; 5 trinn etter rangering (3 fylker per trinn), så forskjellene under Oslo synes
+  const STEPS = [0.18, 0.36, 0.56, 0.78, 1], mix = p => `color-mix(in oklab, var(--blue) ${Math.round(p * 100)}%, var(--surface-2))`;
+  const sold = rows.filter(r => r.kr > 0), step = {};
+  sold.forEach((r, i) => step[r.id] = STEPS[STEPS.length - 1 - Math.floor(i * STEPS.length / sold.length)]);
+  const fill = r => r.kr > 0 ? mix(step[r.id]) : "var(--surface-2)";
+  const pc = kr => tot ? (kr / tot * 100).toFixed(kr / tot < 0.1 ? 1 : 0).replace(".", ",") + " %" : "–";
+  const tipHtml = r => `<b>${esc(r.navn)}</b><br>${nf(r.kr)} kr · ${r.o} ordre · ${pc(r.kr)}`;
+  const L = { alt: "Alt", d90: "90 d", d30: "30 d" };
+  const seg = Object.entries(L).map(([k, v]) => `<button data-w="${k}" aria-pressed="${k === geoWin}">${v}</button>`).join("");
+  const svg = `<svg viewBox="0 0 ${K.w} ${K.h}" role="img" aria-label="Kart over salg per fylke">${rows.map(r => `<path data-id="${r.id}" d="${r.d}" fill="${fill(r)}"/>`).join("")}</svg>`;
+  const list = rows.map((r, i) => `<div class="geo-row" data-id="${r.id}"><span class="n">${i + 1}</span><div class="nm">${esc(r.navn)}<div class="bar" style="width:${r.kr / max * 100}%"></div></div><span class="kr">${nf(r.kr)} kr</span><span class="pc">${pc(r.kr)}</span></div>`).join("");
+  const key = `<div class="geo-key">mindre${STEPS.map(t => `<i style="background:${mix(t)}"></i>`).join("")}mer · <i style="background:var(--surface-2);border:1px solid var(--hairline)"></i>ingen salg</div>`;
+  const extra = [g.utland ? `${g.utland} ordre til utlandet` : "", g.ukjent ? `${g.ukjent} uten norsk postnummer` : ""].filter(Boolean).join(" · ");
+  el.innerHTML = `<div class="k geo-head">Salg per fylke <b>${nf(tot)} kr</b><span class="geo-seg">${seg}</span></div>
+    <div class="geo"><div>${svg}${key}</div><div><div class="geo-list">${list}</div><div class="geo-key">Ordreverdi inkl. mva etter leveringsadressens postnummer${extra ? " · " + extra : ""}.</div></div></div>`;
+  const hl = (id, on) => el.querySelectorAll(`[data-id="${id}"]`).forEach(n => n.classList.toggle("on", on));
+  const byId = Object.fromEntries(rows.map(r => [r.id, r]));
+  el.querySelectorAll("[data-id]").forEach(n => {
+    const r = byId[n.dataset.id];
+    n.addEventListener("mousemove", e => { hl(r.id, true); tip.innerHTML = tipHtml(r); tip.style.display = "block"; tip.style.left = Math.min(e.clientX + 12, window.innerWidth - tip.offsetWidth - 8) + "px"; tip.style.top = (e.clientY - 36) + "px"; });
+    n.addEventListener("mouseleave", () => { hl(r.id, false); tip.style.display = "none"; });
+  });
+  el.querySelectorAll(".geo-seg button").forEach(b => b.addEventListener("click", () => { geoWin = b.dataset.w; try { localStorage.setItem("pace-geo-win", geoWin); } catch {} geoMap(); }));
+}
+
+/* ============================================================
    GRAFER (inline SVG, ingen bibliotek)
    ============================================================ */
 function charts() {
@@ -769,7 +823,7 @@ setInterval(async () => {
   catch (e) { pollFails++; if (pollFails >= 2) { pill.className = "live-pill off"; pill.textContent = "⚠️ mistet kontakt med GitHub — viser sist hentede data"; } }
 }, 60000);
 
-render(); charts(); connect();
+render(); charts(); geoMap(); connect();
 
 /* ============================================================
    TOAST (med angre)
