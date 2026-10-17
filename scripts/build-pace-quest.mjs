@@ -116,7 +116,7 @@ async function fetchShopify() {
   const lager = {};
   for (const [sku, iid] of Object.entries(items)) { const l = lv.find(x => x.inventory_item_id === iid); if (!l || typeof l.available !== "number") throw new Error("Shopify: ingen gyldig inventory_level for " + sku); lager[sku] = l.available; }
   // hele ordrehistorikken (read_all_orders) for salg per fylke
-  const hist = await getAll(`https://${SHOP}/admin/api/${API}/orders.json?status=any&limit=250&created_at_min=2024-01-01T00:00:00Z&fields=id,created_at,current_total_price,total_price,cancelled_at,financial_status,test,tags,customer,shipping_address`, "orders");
+  const hist = await getAll(`https://${SHOP}/admin/api/${API}/orders.json?status=any&limit=250&created_at_min=2024-01-01T00:00:00Z&fields=id,created_at,current_total_price,current_total_tax,total_price,cancelled_at,financial_status,test,tags,customer,shipping_address`, "orders");
   // salg per fylke fra leveringsadressens postnummer; bare aggregater forlater bygget (ingen adresser i HTML)
   const fylkeOf = zip => { const z = +zip; const r = KART.pn.find(([a, b]) => z >= a && z <= b); return r ? r[2] : null; };
   const geoWin = { alt: "2000-01-01", d90: addDays(TODAY, -89), d30: addDays(TODAY, -29) };
@@ -136,6 +136,17 @@ async function fetchShopify() {
   for (const g of Object.values(geo)) for (const x of Object.values(g.fy)) x.kr = Math.round(x.kr);
   // unike kunder = kundeprofiler med minst én betalt ordre i hele historikken
   const kunder = new Set(hist.filter(ok).filter(o => amt(o) > 0).map(o => o.customer?.id).filter(Boolean)).size;
+  // snitt per kunde = all ordreverdi fra kunder med profil delt på unike kunder (inkl. og eks mva)
+  const medKunde = hist.filter(ok).filter(o => amt(o) > 0 && o.customer?.id);
+  const perKunde = kunder ? medKunde.reduce((x, o) => x + amt(o), 0) / kunder : 0;
+  const perKundeEks = kunder ? medKunde.reduce((x, o) => x + amt(o) - (+o.current_total_tax || 0), 0) / kunder : 0;
+  // salg per ukedag: snitt per dag siste 90 hele Oslo-dager (t.o.m. i går)
+  const wdFrom = addDays(TODAY, -90), WD = ["søn", "man", "tir", "ons", "tor", "fre", "lør"];
+  const wdOf = ymd => new Date(ymd + "T12:00:00Z").getUTCDay();
+  const ukedag = WD.map(n => ({ n, dager: 0, kr: 0, o: 0 }));
+  for (let d = wdFrom; d < TODAY; d = addDays(d, 1)) ukedag[wdOf(d)].dager++;
+  for (const o of hist.filter(ok).filter(o => amt(o) > 0)) { const d = osloDay(new Date(o.created_at)); if (d < wdFrom || d >= TODAY) continue; const x = ukedag[wdOf(d)]; x.kr += amt(o); x.o++; }
+  const ukedagSnitt = [1, 2, 3, 4, 5, 6, 0].map(i => ({ n: ukedag[i].n, kr: Math.round(ukedag[i].kr / (ukedag[i].dager || 1)), o: Math.round(ukedag[i].o / (ukedag[i].dager || 1) * 10) / 10, dager: ukedag[i].dager }));
   // abonnement fra Subscriptions-appen (ShopifyQL): aktive = startet − avsluttet i hele historikken.
   // Dagsmålingen av active_subscriptions (175 per 17.10) stemmer ikke med Shopifys egne startet/avsluttet-tall og brukes ikke. Valgfri.
   let subActive = null, subStart = 0, subStop = 0, subAdd30 = 0, subCan30 = 0;
@@ -145,8 +156,13 @@ async function fetchShopify() {
     const d30 = await ql("FROM subscriptions SHOW subscriptions_added, subscriptions_canceled SINCE -30d UNTIL today");
     subStart = +all.subscriptions_added || 0; subStop = +all.subscriptions_canceled || 0; subAdd30 = +d30.subscriptions_added || 0; subCan30 = +d30.subscriptions_canceled || 0;
     if (subStart) subActive = subStart - subStop;
+    // per dag siste 30 d: nye og avsluttede; aktive per dag regnes bakover fra dagens tall
+    const r = await fetch(`https://${SHOP}/admin/api/${API}/graphql.json`, { method: "POST", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify({ query: "query($s: String!) { shopifyqlQuery(query: $s) { tableData { rows } parseErrors } }", variables: { s: `FROM subscriptions SHOW subscriptions_added, subscriptions_canceled TIMESERIES day SINCE ${DAYS[0]} UNTIL today` } }) });
+    const rows = (await r.json()).data?.shopifyqlQuery?.tableData?.rows || [];
+    for (const row of rows) { const x = daily[String(row.day).slice(0, 10)]; if (x) { x.subAdd = +row.subscriptions_added || 0; x.subCan = +row.subscriptions_canceled || 0; } }
+    if (subActive !== null) { let live = subActive; for (const d of [...DAYS].reverse()) { daily[d].subLive = live; live -= (daily[d].subAdd || 0) - (daily[d].subCan || 0); } }
   } catch (e) { console.error("ShopifyQL utilgjengelig:", e.message); }
-  return { daily, lager, geo, kunder, subActive, subStart, subStop, subAdd30, subCan30, at: NOW.toISOString() };
+  return { daily, lager, geo, kunder, perKunde, perKundeEks, ukedag: ukedagSnitt, subActive, subStart, subStop, subAdd30, subCan30, at: NOW.toISOString() };
 }
 
 // ---------- 3. Meta-annonsekostnad fra kvitteringsmailer (hei@getpace.no), valgfri ----------
@@ -216,7 +232,7 @@ let plan = null;
 try { plan = readPlan(env("STATICRYPT_PASSWORD", "")); } catch (e) { console.error("Pace 2.0-plan utilgjengelig:", e.message); }
 
 // ---------- 6. Tall ----------
-const series = DAYS.map(d => { const x = shop.daily[d]; const covered = meta && d <= meta.coveredThrough; return { d, ordre: x.ordre, oms: Math.round(x.oms * 100) / 100, eks: Math.round(x.eks * 100) / 100, nye: x.nye, u1: x.u1, u2: x.u2, subNew: x.subNew, subRen: x.subRen, subAct: x.subAct, meta: covered ? Math.round((meta.daily[d] || 0) * 100) / 100 : null }; });
+const series = DAYS.map(d => { const x = shop.daily[d]; const covered = meta && d <= meta.coveredThrough; return { d, ordre: x.ordre, oms: Math.round(x.oms * 100) / 100, eks: Math.round(x.eks * 100) / 100, nye: x.nye, u1: x.u1, u2: x.u2, subNew: x.subNew, subRen: x.subRen, subAct: x.subAct, subAdd: x.subAdd ?? null, subCan: x.subCan ?? null, subLive: x.subLive ?? null, meta: covered ? Math.round((meta.daily[d] || 0) * 100) / 100 : null }; });
 const today = series[series.length - 1];
 const win = n => series.slice(-n - 1, -1); // n hele dager t.o.m. i går
 const sum = (a, k) => a.reduce((x, r) => x + (r[k] || 0), 0);
@@ -251,13 +267,16 @@ const lagerCard = (navn, sku, key, bestfor, flavor) => {
 };
 const subNow = today.subAct, subNew30 = sum(win(30), "subNew"), subRen30 = sum(win(30), "subRen");
 const subCard = shop.subActive !== null
-  ? card("Aktive abonnement", nf(shop.subActive), `+${shop.subAdd30} nye · −${shop.subCan30} avsluttet (30 d)`, "c-sub", `${nf(shop.subStart)} abonnement startet og ${nf(shop.subStop)} avsluttet totalt ifølge Shopify Subscriptions (Shopify-analyse).. Siste 30 d: ${shop.subAdd30} nye, ${shop.subCan30} avsluttet; ${subNow} kunder fikk abonnementsordre`)
+  ? card("Aktive abonnement", nf(shop.subActive), `+${sum(series.slice(-30), "subAdd")} nye · −${sum(series.slice(-30), "subCan")} avsluttet (30 d)`, "c-sub", `${nf(shop.subStart)} abonnement startet og ${nf(shop.subStop)} avsluttet totalt ifølge Shopify Subscriptions (Shopify-analyse).. Siste 30 d: ${sum(series.slice(-30), "subAdd")} nye, ${sum(series.slice(-30), "subCan")} avsluttet; ${subNow} kunder fikk abonnementsordre`)
   : card("Kunder m/ abonnementsordre", nf(subNow), `+${subNew30} nye · ${subRen30} forny. (30 d)`, "c-sub", `Unike kunder med abonnementsordre siste 30 dager (ekte abonnementsstatus utilgjengelig)`);
+// snitt per kunde: hva en kunde legger igjen i snitt over hele historikken, sammenlignet med CAC 30 d
+const kundeCard = () => { const c = meta ? cac(30).cac : null; return card("Snitt per kunde", nf(shop.perKunde) + " kr", c ? `${(shop.perKunde / c).toFixed(1).replace(".", ",")}× CAC 30 d · ${nf(shop.perKundeEks)} eks mva` : `${nf(shop.perKundeEks)} kr eks mva`, "c-cac", `All ordreverdi inkl. mva delt på ${nf(shop.kunder)} unike kunder (hele historikken, etter refusjon). Eks mva ${nf(shop.perKundeEks)} kr${c ? `. CAC 30 d er ${nf(c)} kr` : ""}`); };
 const cards = todayCard() + salgCard(7) + salgCard(30) + subCard
   + adsCard(7) + adsCard(30) + cacCard(7) + cacCard(30)
+  + card("Unike kunder", nf(shop.kunder), `+${sum(win(30), "nye")} nye siste 30 d`, "c-salg", "Kundeprofiler med minst én betalt ordre i hele historikken (uten test- og seeding-ordre)")
+  + kundeCard()
   + card("Kasse", nf(T.kasse) + " kr", "bankbalanse lagt inn " + T.kasse_dato, "c-kasse", `Bankbalanse lagt inn manuelt ${T.kasse_dato}`)
-  + lagerCard("sitron", "PACE01", "u1", T.sitron_bestfor, "Sitron & Lime") + lagerCard("bringebær", "PACE02", "u2", "", "Bringebær")
-  + card("Unike kunder", nf(shop.kunder), `+${sum(win(30), "nye")} nye siste 30 d`, "c-salg", "Kundeprofiler med minst én betalt ordre i hele historikken (uten test- og seeding-ordre)");
+  + lagerCard("sitron", "PACE01", "u1", T.sitron_bestfor, "Sitron & Lime") + lagerCard("bringebær", "PACE02", "u2", "", "Bringebær");
 
 // datastatus: hvor ferske tallene er per kilde
 const datastatus = [`Shopify ${stamp}`, meta ? `Meta-kvitteringer t.o.m. ${fmtD(meta.coveredThrough)}` : "Meta mangler", `bankbalanse ${T.kasse_dato}`, plan ? `Pace 2.0-plan ${fmtD(plan.built)}` : "plan mangler"].join(" · ");
@@ -266,7 +285,7 @@ const note = `7 og 30 d = hele Oslo-dager t.o.m. i går; «Salg i dag» er dagen
   + (meta ? `CAC = Meta-annonsekostnad fra kvitteringene i hei@getpace.no, fordelt per dag (dekket t.o.m. ${fmtD(meta.coveredThrough)}; forbruk etter det er ikke fakturert ennå og holdes utenfor), delt på nye kunder samme dager. ` : `CAC mangler: ${esc(metaErr)}. `)
   + (shop.subActive !== null ? `Aktive abonnement = startet minus avsluttet i Shopify Subscriptions (Shopify-analyse). ` : "")
   + `Lager = tilgjengelig hos 360 Logistics; tomdato ved takten siste 30 d. Kasse er bankbalanse lagt inn manuelt (sist ${T.kasse_dato}).`;
-const metaInfo = { built_at: NOW.toISOString(), shopify_at: shop.at, label: stamp, today: TODAY, meta_through: meta ? meta.coveredThrough : null, daily: series.slice(-30), geo: shop.geo, kart: { w: KART.w, h: KART.h, fylker: KART.fylker } };
+const metaInfo = { built_at: NOW.toISOString(), shopify_at: shop.at, label: stamp, today: TODAY, meta_through: meta ? meta.coveredThrough : null, daily: series.slice(-30), ukedag: shop.ukedag, geo: shop.geo, kart: { w: KART.w, h: KART.h, fylker: KART.fylker } };
 
 // ---------- 7. Bygg HTML ----------
 let html = readFileSync(TEMPLATE, "utf8");

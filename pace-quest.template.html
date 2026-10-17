@@ -87,7 +87,7 @@
   details.about summary::-webkit-details-marker { display: none; }
   details.about summary:hover { color: var(--ink-2); }
   details.about[open] summary { margin-bottom: 4px; }
-  .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; margin: 0 0 10px; }
+  .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr)); gap: 12px; margin: 0 0 10px; }
   .stat.c-sub { --acc: var(--aqua); }
   .b2b { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 8px; }
   .b2b th { text-align: left; font-weight: 500; color: var(--ink-muted); font-size: 0.72rem; padding: 4px 10px 6px 0; border-bottom: 1px solid var(--hairline); }
@@ -258,6 +258,7 @@
     <div class="chart" id="chart-sales"></div>
     <div class="chart" id="chart-cac"></div>
     <div class="chart" id="chart-sub"></div>
+    <div class="chart" id="chart-wd"></div>
   </section>
   <section class="chart" id="chart-geo" style="margin-bottom:10px"></section>
   <section class="chart" id="b2b" style="margin-bottom:10px"></section>
@@ -778,21 +779,38 @@ function charts() {
     el.innerHTML = `<div class="k">CAC-trend, 7 d rullerende <b>${nf(last.cac)} kr per ny kunde</b></div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="CAC-trend">${axis(max, v => nf(v))}${shade}${line}${dots}${xlabels()}</svg><div class="legend"><span><i style="background:var(--magenta)"></i>Meta-kost / nye kunder, siste 7 dager</span>${uncovered ? `<span><i style="background:var(--grid)"></i>ikke fakturert ennå</span>` : ""}</div>`;
     el.querySelectorAll("circle[data-i]").forEach(c => { c.onmousemove = e => { const i = +c.dataset.i, p = pts[i]; showTip(e, `<b>${lbl(D[i])}</b> (${p.days} annonsedager til og med)<br>CAC ${nf(p.cac)} kr · Meta ${nf(p.s)} kr · ${p.n} nye kunder`); }; c.onmouseleave = hideTip; });
   }
-  // 3) abonnement: stolper = nye + fornyelser per dag, linje = aktive abonnenter (unike siste 30 d)
+  // 3) abonnement: stolper opp = nye, ned = avsluttet per dag; linje = aktive abonnement (samme tall som kortet)
   { const el = document.getElementById("chart-sub");
-    if (D[0].subAct === undefined) { el.innerHTML = `<div class="k">Abonnement</div><div class="empty">Ingen data ennå.</div>`; }
+    if (D[D.length - 1].subLive == null) { el.innerHTML = `<div class="k">Abonnement</div><div class="empty">Ingen abonnementsdata fra Shopify ennå.</div>`; }
     else {
-      const maxBar = Math.max(1, ...D.map(d => d.subNew + d.subRen)) * 1.25, maxAct = Math.max(1, ...D.map(d => d.subAct)) * 1.15;
-      const yb = v => T + ih - ih * v / maxBar, ya = v => T + ih - ih * v / maxAct;
+      const up = Math.max(1, ...D.map(d => d.subAdd || 0)), dn = Math.max(1, ...D.map(d => d.subCan || 0));
+      const mid = T + ih * up / (up + dn) , sc = (ih * 0.9) / (up + dn);
+      const lv = D.map(d => d.subLive), lo = Math.min(...lv), hi = Math.max(...lv), pad = Math.max(2, (hi - lo) * 0.25);
+      const ya = v => T + ih - ih * (v - (lo - pad)) / ((hi + pad) - (lo - pad));
       const bw = iw / D.length * 0.68;
       const bars = D.map((d, i) => `<rect data-i="${i}" x="${xOf(i) - bw / 2}" y="${T}" width="${bw}" height="${ih}" fill="transparent"/>`
-        + `<rect x="${xOf(i) - bw / 2}" y="${yb(d.subRen)}" width="${bw}" height="${Math.max(0, yb(0) - yb(d.subRen))}" rx="2" pointer-events="none" fill="var(--aqua)" opacity=".55"/>`
-        + `<rect x="${xOf(i) - bw / 2}" y="${yb(d.subNew + d.subRen)}" width="${bw}" height="${Math.max(0, yb(0) - yb(d.subNew))}" rx="2" pointer-events="none" fill="var(--good)"/>`).join("");
-      const line = `<polyline fill="none" stroke="var(--ink-2)" stroke-width="2" stroke-linejoin="round" points="${D.map((d, i) => `${xOf(i)},${ya(d.subAct)}`).join(" ")}"/>`;
-      const last = D[D.length - 1];
-      const axisR = (() => { let s = ""; for (let k = 0; k <= 4; k++) { const v = maxAct * k / 4, y = T + ih - ih * k / 4; s += `<text x="${W - R + 2}" y="${y + 4}" text-anchor="start" font-size="10" fill="var(--ink-muted)">${Math.round(v)}</text>`; } return s; })();
-      el.innerHTML = `<div class="k">Abonnement, 30 d <b>${nf(last.subAct)} kunder m/ ordre 30 d</b></div><svg viewBox="0 0 ${W + 26} ${H}" role="img" aria-label="Abonnement siste 30 dager">${axis(maxBar, v => Math.round(v))}${bars}${line}${axisR}${xlabels()}</svg><div class="legend"><span><i style="background:var(--good)"></i>nye abonnement</span><span><i style="background:var(--aqua);opacity:.55"></i>fornyelser</span><span><i style="background:var(--ink-2)"></i>kunder m/ abonnementsordre 30 d (høyre akse)</span></div>`;
-      el.querySelectorAll("rect[data-i]").forEach(r => { r.onmousemove = e => { const d = D[+r.dataset.i]; showTip(e, `<b>${lbl(d)}</b><br>${d.subNew} nye · ${d.subRen} fornyelser<br>${d.subAct} kunder m/ abonnementsordre 30 d`); }; r.onmouseleave = hideTip; });
+        + (d.subAdd ? `<rect x="${xOf(i) - bw / 2}" y="${mid - d.subAdd * sc}" width="${bw}" height="${d.subAdd * sc}" rx="2" pointer-events="none" fill="var(--good)"/>` : "")
+        + (d.subCan ? `<rect x="${xOf(i) - bw / 2}" y="${mid + 1}" width="${bw}" height="${d.subCan * sc}" rx="2" pointer-events="none" fill="var(--orange)"/>` : "")).join("");
+      const base = `<line x1="${L}" x2="${W - R}" y1="${mid}" y2="${mid}" stroke="var(--grid)" stroke-width="1"/>`;
+      const line = `<polyline fill="none" stroke="var(--ink-2)" stroke-width="2" stroke-linejoin="round" points="${D.map((d, i) => `${xOf(i)},${ya(d.subLive)}`).join(" ")}"/>`;
+      const axisR = [lo, Math.round((lo + hi) / 2), hi].map(v => `<text x="${W - R + 2}" y="${ya(v) + 4}" text-anchor="start" font-size="10" fill="var(--ink-muted)">${v}</text>`).join("");
+      const last = D[D.length - 1], add = D.reduce((x, d) => x + (d.subAdd || 0), 0), can = D.reduce((x, d) => x + (d.subCan || 0), 0);
+      el.innerHTML = `<div class="k">Abonnement, 30 d <b>${nf(last.subLive)} aktive · +${add} / −${can}</b></div><svg viewBox="0 0 ${W + 26} ${H}" role="img" aria-label="Nye og avsluttede abonnement siste 30 dager">${base}${bars}${line}${axisR}${xlabels()}</svg><div class="legend"><span><i style="background:var(--good)"></i>nye</span><span><i style="background:var(--orange)"></i>avsluttet</span><span><i style="background:var(--ink-2)"></i>aktive abonnement (høyre akse)</span></div>`;
+      el.querySelectorAll("rect[data-i]").forEach(r => { r.onmousemove = e => { const d = D[+r.dataset.i]; showTip(e, `<b>${lbl(d)}</b><br>+${d.subAdd || 0} nye · −${d.subCan || 0} avsluttet<br>${d.subLive} aktive ved dagens slutt`); }; r.onmouseleave = hideTip; });
+    }
+  }
+  // 4) salg per ukedag: snitt per dag siste 90 dager, beste dag uthevet
+  { const el = document.getElementById("chart-wd"), U = META.ukedag || [];
+    if (!U.length) { el.innerHTML = `<div class="k">Salg per ukedag</div><div class="empty">Ingen data ennå.</div>`; }
+    else {
+      const max = Math.max(1, ...U.map(u => u.kr)) * 1.15, best = U.reduce((a, b) => b.kr > a.kr ? b : a);
+      const y = v => T + ih - ih * v / max, slot = iw / U.length, bw = slot * 0.6, x = i => L + (i + 0.5) * slot;
+      const bars = U.map((u, i) => `<rect data-i="${i}" x="${x(i) - slot / 2}" y="${T}" width="${slot}" height="${ih}" fill="transparent"/>`
+        + `<rect x="${x(i) - bw / 2}" y="${y(u.kr)}" width="${bw}" height="${Math.max(0, T + ih - y(u.kr))}" rx="3" pointer-events="none" fill="${u === best ? "var(--blue)" : "color-mix(in oklab, var(--blue) 45%, var(--surface-2))"}"/>`
+        + (u === best ? `<text x="${x(i)}" y="${y(u.kr) - 5}" text-anchor="middle" font-size="10" fill="var(--ink)">${nf(u.kr)}</text>` : "")
+        + `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="var(--ink-muted)">${u.n}</text>`).join("");
+      el.innerHTML = `<div class="k">Salg per ukedag, snitt 90 d <b>${best.n[0].toUpperCase() + best.n.slice(1)}dag er best</b></div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Snittsalg per ukedag siste 90 dager">${axis(max, v => nf(v / 1000) + "k")}${bars}</svg><div class="legend"><span><i style="background:var(--blue)"></i>snitt ordreverdi per dag inkl. mva, beste dag mørkest</span></div>`;
+      el.querySelectorAll("rect[data-i]").forEach(r => { r.onmousemove = e => { const u = U[+r.dataset.i]; showTip(e, `<b>${u.n}</b><br>${nf(u.kr)} kr per dag i snitt · ${String(u.o).replace(".", ",")} ordre<br>${u.dager} dager i perioden`); }; r.onmouseleave = hideTip; });
     }
   }
 }
