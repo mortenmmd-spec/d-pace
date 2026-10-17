@@ -281,16 +281,28 @@ if (curRow) {
     const total = (Date.parse(end) - Date.parse(start)) / 864e5 + 1;
     const gone = Math.min(1, (pd.length - 1 + osloHour(NOW) / 24) / total);
     const metaDays = pd.filter(r => r.meta !== null);
-    const sub = shop.subActive ?? subNow;
+    // planens «sub» = abonnementsordre per måned (estimat.mjs: oms = (o − subX)·aov + subX·subAov), sammenlignes med abonnementsordre i perioden
     const rows = [
-      { k: "Omsetning eks mva", a: sum(pd, "eks"), p: curRow.inn, u: " kr", mark: true },
-      { k: "Ordre", a: sum(pd, "ordre"), p: curRow.o, u: "", mark: true },
-      { k: "Nye kunder", a: sum(pd, "nye"), p: curRow.ny, u: "", mark: true },
-      { k: `Annonser (Meta${meta ? " t.o.m. " + fmtD(meta.coveredThrough) : ""})`, a: sum(metaDays, "meta"), p: curRow.ann, u: " kr", mark: true },
-      { k: shop.subActive !== null ? "Aktive abonnement" : "Abonnementskunder 30 d", a: sub, p: curRow.sub, u: "", mark: false },
+      { k: "Omsetning eks mva", a: sum(pd, "eks"), p: curRow.inn, u: " kr", g: gone },
+      { k: "Ordre", a: sum(pd, "ordre"), p: curRow.o, u: "", g: gone },
+      { k: "Nye kunder", a: sum(pd, "nye"), p: curRow.ny, u: "", g: gone },
+      { k: "Abonnementsordre", a: sum(pd, "subNew") + sum(pd, "subRen"), p: curRow.sub, u: "", g: gone },
+      { k: "Annonser (Meta)", a: sum(metaDays, "meta"), p: curRow.ann, u: " kr", g: metaDays.length / total, none: !metaDays.length, why: meta ? "fakturert t.o.m. " + fmtD(meta.coveredThrough) : "Meta-data mangler", cost: true },
     ];
-    const row = r => { const pct = r.p ? r.a / r.p * 100 : 0; return `<div class="pl-row" title="${esc(r.k)}: ${nf(r.a)}${r.u} av ${nf(r.p)}${r.u} i planen"><div class="pl-k">${esc(r.k)}</div><div class="pl-bar"><i style="width:${Math.min(100, pct).toFixed(1)}%"></i>${r.mark ? `<b style="left:${(gone * 100).toFixed(1)}%"></b>` : ""}</div><div class="pl-v">${nf(r.a)} / ${nf(r.p)}${r.u} <span>${nf(pct)} %</span></div></div>`; };
-    planHtml = `<div class="sec-h">Pace 2.0-plan · ${esc(curRow.m)} <span class="sec-sub">${nf(gone * 100)} % av perioden gått (strek) · plan per ${fmtD(plan.built)}</span></div><section class="plan">${rows.map(row).join("")}</section>`;
+    // tempo: forventet nå = plan × andel av perioden; prognose = faktisk ÷ andel (lineært)
+    const row = r => {
+      if (r.none || !r.p) return `<div class="pl-row none"><div class="pl-k">${esc(r.k)}</div><div class="pl-bar"></div><div class="pl-v"><span>${r.p ? "ingen fakturert kostnad i perioden ennå · " + esc(r.why || "") : "ikke i planen"}</span></div></div>`;
+      const exp = r.p * r.g, proj = r.g > 0 ? r.a / r.g : 0, d = exp ? r.a / exp - 1 : 0;
+      const max = Math.max(r.p, proj, r.a) * 1.04, X = v => (v / max * 100).toFixed(1) + "%";
+      const ahead = r.cost ? d <= 0 : d >= 0; // for kostnad er under tempo bra
+      const chip = `<em class="${ahead ? "up" : "dn"}">${d >= 0 ? "▲" : "▼"} ${nf(Math.abs(d) * 100)} % ${d >= 0 ? "over" : "under"} tempo</em>`;
+      const tip = `${r.k}: ${nf(r.a)}${r.u} nå, forventet ${nf(exp)}${r.u} ved dette punktet. Prognose ${nf(proj)}${r.u} mot plan ${nf(r.p)}${r.u} ved dagens tempo${r.why ? " (" + r.why + ")" : ""}`;
+      return `<div class="pl-row" title="${esc(tip)}"><div class="pl-k">${esc(r.k)}${r.why ? `<small>${esc(r.why)}</small>` : ""}</div>`
+        + `<div class="pl-bar"><s style="width:${X(proj)}"></s><i style="width:${X(r.a)}"></i><b class="now" style="left:${X(exp)}"></b><b class="goal" style="left:${X(r.p)}"></b></div>`
+        + `<div class="pl-v"><strong>${nf(r.a)}${r.u}</strong> ${chip}<span>prognose ${nf(proj)} av ${nf(r.p)}${r.u}</span></div></div>`;
+    };
+    const early = gone < 0.25 ? " · tidlig i perioden, prognosen er usikker" : "";
+    planHtml = `<div class="sec-h">Pace 2.0-plan · ${esc(curRow.m)} <span class="sec-sub">${nf(gone * 100)} % av perioden gått · plan per ${fmtD(plan.built)}${early}</span></div><section class="plan">${rows.map(row).join("")}<div class="pl-key"><span><i></i>faktisk</span><span><i class="pj"></i>prognose ved dagens tempo</span><span><b class="now"></b>forventet nå</span><span><b class="goal"></b>plan for perioden</span></div></section>`;
   }
 }
 
@@ -303,20 +315,24 @@ let likvidHtml = "";
   const metaAfter = meta && kDay ? meta.receipts.filter(r => osloDay(r.at) > kDay) : null;
   const sP = paid ? paid.reduce((x, p) => x + p.amount, 0) : 0, sW = way ? way.reduce((x, p) => x + p.amount, 0) : 0, sM = metaAfter ? metaAfter.reduce((x, r) => x + r.amount, 0) : 0;
   const naa = T.kasse + sP + sW - sM, fTot = F.reduce((x, f) => x + f.belop, 0);
-  const ln = (k, v, cls = "") => `<tr class="${cls}"><td>${k}</td><td>${v === null ? "–" : (v < 0 ? "−" : "") + nf(Math.abs(v)) + " kr"}</td></tr>`;
   const kap = plan?.rows?.filter(r => r.kap > 0) || [];
-  likvidHtml = `<div class="box"><div class="box-h">Likviditet, kjente poster</div><table class="lk">`
-    + ln(`Bankbalanse ${esc(T.kasse_dato.split(" ")[0])} (manuell)`, T.kasse)
-    + ln(`+ Shopify-utbetalinger etter ${kDay ? fmtD(kDay) : "?"}${paid ? ` (${paid.length})` : ""}`, paid ? sP : null)
-    + ln(`+ Utbetalinger på vei${way ? ` (${way.length})` : ""}`, way ? sW : null)
-    + ln(`− Meta fakturert etter ${kDay ? fmtD(kDay) : "?"}`, metaAfter ? -sM : null)
-    + ln("= Estimert nå", naa, "sum")
-    + F.map(f => ln(`− ${esc(f.navn)}${f.dato ? " (" + esc(f.dato) + ")" : ""}`, -f.belop)).join("")
-    + ln("= Etter kjente forfall", naa - fTot, "sum")
-    + `</table><div class="box-n">Andre utgifter etter ${kDay ? fmtD(kDay) : "?"} (3PL, leverandører, abonnementer) er ikke med. `
-    + (plan ? `Planen: laveste kasse ${nf(plan.key.kasseMin)} kr (${esc(plan.key.kasseMinMnd)}) før kapital, ${nf(plan.key.kasseMinEtterKap)} kr (${esc(plan.key.kasseMinEtterKapMnd)}) etter. ` : "")
-    + (kap.length ? `Kapital i planen: ${kap.map(r => `${nf(r.kap)} kr i ${esc(r.m)}`).join(", ")}, ikke regnet med over før den står i bankbalansen.` : "")
-    + `</div></div>`;
+  // fossefall: saldo-søyler fra 0, bevegelser som flytende søyler
+  const steps = [{ k: "Bank " + esc(T.kasse_dato.split(" ")[0]) + " (manuell)", v: T.kasse, t: "base" }];
+  if (paid) steps.push({ k: `Shopify-utbetalinger etter ${fmtD(kDay)} (${paid.length})`, v: sP, t: "in" });
+  if (way && sW) steps.push({ k: `Utbetalinger på vei (${way.length})`, v: sW, t: "in" });
+  if (metaAfter && sM) steps.push({ k: `Meta fakturert etter ${fmtD(kDay)}`, v: -sM, t: "out" });
+  steps.push({ k: "Estimert nå", v: naa, t: "sum" });
+  for (const f of F) steps.push({ k: esc(f.navn) + (f.dato ? ` <small>${esc(f.dato)}</small>` : ""), v: -f.belop, t: "out" });
+  steps.push({ k: "Etter kjente forfall", v: naa - fTot, t: "sum" });
+  let run = 0;
+  for (const st of steps) { if (st.t === "base" || st.t === "sum") { st.a = 0; st.b = st.v; run = st.v; } else { st.a = run; st.b = run + st.v; run = st.b; } }
+  const lo = Math.min(0, ...steps.map(x => Math.min(x.a, x.b))), hi = Math.max(...steps.map(x => Math.max(x.a, x.b)));
+  const X = v => (v - lo) / (hi - lo || 1) * 100;
+  const kr = v => (v < 0 ? "−" : "") + nf(Math.abs(v)) + " kr";
+  const wrow = st => `<div class="wf-row ${st.t}"><div class="wf-k">${st.t === "in" ? "+ " : st.t === "out" ? "− " : ""}${st.k}</div><div class="wf-bar">${lo < 0 ? `<u style="left:${X(0).toFixed(2)}%"></u>` : ""}<i style="left:${X(Math.min(st.a, st.b)).toFixed(2)}%;width:${Math.max(0.4, X(Math.max(st.a, st.b)) - X(Math.min(st.a, st.b))).toFixed(2)}%"></i></div><div class="wf-v">${st.t === "in" ? "+" : ""}${kr(st.v)}</div></div>`;
+  const warn = plan && plan.key.kasseMin < 0 ? `<div class="wf-warn">⚠ Planen går til ${nf(plan.key.kasseMin)} kr i ${esc(plan.key.kasseMinMnd)} uten ny kapital${kap.length ? ` (${kap.map(r => `${nf(r.kap)} kr i ${esc(r.m)}`).join(", ")})` : ""}. Med kapitalen er laveste punkt ${nf(plan.key.kasseMinEtterKap)} kr (${esc(plan.key.kasseMinEtterKapMnd)}).</div>` : "";
+  likvidHtml = `<div class="box"><div class="box-h">Likviditet, kjente poster <b>${kr(naa - fTot)} etter forfall</b></div>${warn}<div class="wf">${steps.map(wrow).join("")}</div>`
+    + `<div class="box-n">Andre utgifter etter ${kDay ? fmtD(kDay) : "?"} (3PL, leverandører, abonnementer) er ikke med. Kapital regnes ikke med før den står i bankbalansen.</div></div>`;
 }
 
 // gjenkjøp per kohort (måned for første betalte ordre): andel som kjøper igjen innen 30/60/90 dager; bare kunder som har rukket vinduet teller
@@ -329,13 +345,15 @@ let kohortHtml = "";
     for (const N of W) { const lim = addDays(f, N); if (lim > TODAY) continue; c.w[N][0]++; if (a.some(d => d > f && d <= lim)) c.w[N][1]++; }
   }
   const months = Object.keys(C).sort().slice(-9);
-  const cell = (c, N) => { const [m, r] = c.w[N]; if (!m) return `<td class="na">–</td>`; return `<td class="${m < c.n ? "part" : ""}" title="${r} av ${m} kunder${m < c.n ? ` (${c.n - m} har ikke rukket ${N} d)` : ""}">${nf(r / m * 100)} %</td>`; };
+  // varmekart: blå intensitet etter andel (full farge ved 40 %), stiplet ramme = ikke alle har rukket perioden
+  const cell = (c, N) => { const [m, r] = c.w[N]; if (!m) return `<td class="na">–</td>`; const p = r / m; return `<td class="${m < c.n ? "part" : ""}" title="${r} av ${m} kunder${m < c.n ? ` (${c.n - m} har ikke rukket ${N} d)` : ""}"><span style="background:color-mix(in oklab, var(--blue) ${Math.round(Math.min(1, p / 0.4) * 85)}%, var(--surface-2))">${nf(p * 100)} %</span></td>`; };
   const tot = { n: 0, w: Object.fromEntries(W.map(N => [N, [0, 0]])) };
   for (const c of Object.values(C)) { tot.n += c.n; for (const N of W) { tot.w[N][0] += c.w[N][0]; tot.w[N][1] += c.w[N][1]; } }
-  kohortHtml = `<div class="box"><div class="box-h">Gjenkjøp</div><table class="kh"><tr><th>Første kjøp</th><th>Nye</th><th>30 d</th><th>60 d</th><th>90 d</th></tr>`
+  const t90 = tot.w[90][0] ? tot.w[90][1] / tot.w[90][0] : null;
+  kohortHtml = `<div class="box"><div class="box-h">Gjenkjøp${t90 !== null ? ` <b>${nf(t90 * 100)} % kjøper igjen innen 90 d</b>` : ""}</div><table class="kh"><tr><th>Første kjøp</th><th>Nye</th><th>30 d</th><th>60 d</th><th>90 d</th></tr>`
     + months.map(m => `<tr><td>${monLabel(m + "-01")}</td><td>${C[m].n}</td>${W.map(N => cell(C[m], N)).join("")}</tr>`).join("")
     + `<tr class="sum"><td>Alle</td><td>${tot.n}</td>${W.map(N => cell(tot, N)).join("")}</tr></table>`
-    + `<div class="box-n">Andel nye kunder som har kjøpt igjen innen 30/60/90 dager (abonnementsfornyelser teller). Grå = ikke alle i måneden har rukket perioden.</div></div>`;
+    + `<div class="box-n">Andel nye kunder som har kjøpt igjen innen 30/60/90 dager (abonnementsfornyelser teller). Stiplet = ikke alle i måneden har rukket perioden ennå.</div></div>`;
 }
 
 const note = `7 og 30 d = hele Oslo-dager t.o.m. i går; «Salg i dag» er dagen så langt. Salg = ordreverdi inkl. mva for ordre opprettet i perioden, etter refusjon, uten test- og seeding-ordre (Shopify ${stamp}). Planraden sammenlignes eks mva. Nye kunder = kundeprofiler opprettet i perioden med betalt ordre. `
