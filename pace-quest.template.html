@@ -192,8 +192,16 @@
   .mile.done .lbl { color: var(--good); font-weight: 700; }
 
   /* ---------- roller ---------- */
-  .roles { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
-  .role { background: var(--surface); border: 1px solid var(--hairline); border-radius: 12px; padding: 10px 12px; font-size: 0.82rem; }
+  .roles { display: grid; gap: 10px; }
+  .rp { display: grid; grid-template-columns: 170px 1fr; gap: 14px; background: var(--surface); border: 1px solid var(--hairline); border-radius: 12px; padding: 10px 14px; }
+  .rp.gap { border-color: color-mix(in oklab, var(--warning) 45%, transparent); }
+  .rp-who b { display: block; font-size: 0.95rem; } .rp-who span { color: var(--ink-muted); font-size: 0.75rem; }
+  .rp-list { display: grid; gap: 2px; }
+  .role { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; font-size: 0.82rem; padding: 4px 6px; border-radius: 6px; }
+  .role:hover { background: var(--surface-2); }
+  .ro-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ro-n span { color: var(--ink-muted); margin-left: 8px; font-size: 0.75rem; }
+  .ro-m { color: var(--ink-2); font-size: 0.75rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  @media (max-width: 640px) { .rp { grid-template-columns: 1fr; gap: 6px; } .ro-n { white-space: normal; } .ro-n span { display: block; margin-left: 0; } }
   body.live .role .tag.act { cursor: pointer; }
 
   /* ---------- møtemodus ---------- */
@@ -603,12 +611,39 @@ function renderRoles() {
   const el = document.getElementById("roles"); el.innerHTML = "";
   const roles = tasks.filter(isRole);
   if (!roles.length) { el.innerHTML = `<div class="empty">Ingen roller (Kategori = Rolle på boardet).</div>`; return; }
-  for (const r of roles) {
-    const d = document.createElement("div");
-    d.className = "role" + (busy.has(r.id) ? " busy" : "");
-    d.innerHTML = `${esc(r.txt)}<br><button class="tag act who" style="color:${OWNER_COLOR[r.owner] || "var(--ink-muted)"}" title="Bytt ansvarlig">👤 ${esc(r.owner)}</button>`;
-    if (live) d.querySelector(".who").onclick = e => ownerMenu(e.currentTarget, r);
-    el.appendChild(d);
+  // «Navn: detaljer (1–2 t/uke)» -> navn, detaljer, timer
+  const parse = r => {
+    const m = /^(.*?):\s+(.*)$/.exec(r.txt) || [null, r.txt, ""]; // krever mellomrom etter kolon, så «20:00» ikke deler
+    const h = /\((\d+(?:[.,]\d+)?)(?:\s*[–-]\s*(\d+(?:[.,]\d+)?))?\s*t\/uke\)/.exec(r.txt);
+    const lo = h ? +h[1].replace(",", ".") : 0, hi = h ? +(h[2] || h[1]).replace(",", ".") : 0;
+    const note = h ? "" : ((/\(([^)]*)\)\s*$/.exec(r.txt) || [])[1] || "");
+    return { r, navn: m[1].replace(/\s*\([^)]*\)\s*$/, "").trim(), det: m[2].replace(/\s*\([^)]*\)\s*$/, "").trim(), lo, hi, note };
+  };
+  const items = roles.map(parse);
+  // én rad per person; delte roller vises hos hver av dem, «Alle» hos alle
+  const people = ["Morten", "Victoria", "Martin", "Anders"];
+  const who = o => o === "Alle" ? people : o.split("&").map(s => s.trim()).filter(p => people.includes(p));
+  const rowsBy = {};
+  for (const it of items) { const ps = who(it.r.owner); for (const p of (ps.length ? ps : ["Ikke fordelt"])) (rowsBy[p] ||= []).push(it); }
+  const hrs = list => { const lo = list.reduce((x, i) => x + i.lo, 0), hi = list.reduce((x, i) => x + i.hi, 0); return hi ? (lo === hi ? `${lo}` : `${lo}–${hi}`) + " t/uke" : "–"; };
+  const order = ["Ikke fordelt", ...people].filter(p => rowsBy[p]);
+  for (const p of order) {
+    const list = rowsBy[p], gap = p === "Ikke fordelt";
+    const row = document.createElement("div");
+    row.className = "rp" + (gap ? " gap" : "");
+    row.innerHTML = `<div class="rp-who"><b style="color:${gap ? "var(--warning)" : OWNER_COLOR[p] || "var(--ink)"}">${gap ? "⚠ " : ""}${esc(p)}</b><span>${list.length} ${list.length === 1 ? "rolle" : "roller"} · ${hrs(list)}</span></div><div class="rp-list"></div>`;
+    const ul = row.querySelector(".rp-list");
+    for (const it of list) {
+      const shared = it.r.owner !== p && !gap ? (it.r.owner === "Alle" ? "alle" : "delt med " + it.r.owner.split("&").map(s => s.trim()).filter(x => x !== p).join(" & ")) : "";
+      const d = document.createElement("div");
+      d.className = "role" + (busy.has(it.r.id) ? " busy" : "");
+      d.title = it.det;
+      d.innerHTML = `<div class="ro-n">${esc(it.navn)}<span>${esc(it.det)}</span></div><div class="ro-m">${it.hi ? (it.lo === it.hi ? it.lo : it.lo + "–" + it.hi) + " t" : esc(it.note)}${shared ? ` · ${esc(shared)}` : ""}</div><button class="tag act who" title="Bytt ansvarlig">👤</button>`;
+      if (live) d.querySelector(".who").onclick = e => ownerMenu(e.currentTarget, it.r);
+      else d.querySelector(".who").remove();
+      ul.appendChild(d);
+    }
+    el.appendChild(row);
   }
 }
 
