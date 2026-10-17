@@ -89,11 +89,6 @@
   details.about[open] summary { margin-bottom: 4px; }
   .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; margin: 0 0 10px; }
   .stat.c-sub { --acc: var(--aqua); }
-  .mnok { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--hairline); border-radius: 14px; padding: 12px 16px; margin: 0 0 12px; }
-  .mnok.done { border-color: color-mix(in oklab, var(--good) 55%, transparent); background: color-mix(in oklab, var(--good) 10%, var(--surface)); }
-  .mnok-ic { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; background: var(--surface-2); color: var(--ink-2); flex: none; }
-  .mnok.done .mnok-ic { background: var(--good); color: #fff; }
-  .mnok b { display: block; font-size: 1.05rem; } .mnok span { color: var(--ink-2); font-size: 0.8rem; }
   .geo { display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 560px); gap: 28px; align-items: start; }
   @media (max-width: 700px) { .geo { grid-template-columns: 1fr; } .geo svg { max-width: 320px; margin: 0 auto; display: block; } }
   .geo-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -245,7 +240,6 @@
   </div>
 
   <div class="sec-h">Tall <span class="sec-sub" id="datastatus"><!--DATASTATUS--><!--/DATASTATUS--></span></div>
-  <!--MILE--><!--/MILE-->
   <section class="stats" id="stats"><!--STATS--><!--/STATS--></section>
   <section class="charts">
     <div class="chart" id="chart-sales"></div>
