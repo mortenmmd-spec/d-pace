@@ -77,6 +77,26 @@
   .stat .k { font-size: 0.68rem; color: var(--ink-muted); text-transform: uppercase; letter-spacing: .06em; }
   .stat .v { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.02em; color: var(--ink); margin: 2px 0 0; font-variant-numeric: tabular-nums; line-height: 1.15; white-space: nowrap; }
   .stat .s { font-size: 0.76rem; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 3px; }
+  .sec-sub { text-transform: none; letter-spacing: 0; font-size: 0.72rem; color: var(--ink-muted); font-weight: 400; }
+  .plan { background: var(--surface); border: 1px solid var(--hairline); border-radius: 14px; padding: 12px 16px; margin: 0 0 12px; display: grid; gap: 8px; }
+  .pl-row { display: grid; grid-template-columns: minmax(120px, 210px) 1fr minmax(150px, 210px); gap: 12px; align-items: center; font-size: 0.82rem; }
+  .pl-k { color: var(--ink-2); }
+  .pl-bar { position: relative; height: 10px; background: var(--grid); border-radius: 5px; }
+  .pl-bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--blue); border-radius: 5px; }
+  .pl-bar b { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--ink); opacity: .7; }
+  .pl-v { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+  .pl-v span { color: var(--ink-muted); margin-left: 6px; }
+  @media (max-width: 640px) { .pl-row { grid-template-columns: 1fr auto; } .pl-bar { grid-column: 1 / -1; grid-row: 2; } }
+  .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin: 0 0 12px; }
+  .box { background: var(--surface); border: 1px solid var(--hairline); border-radius: 14px; padding: 12px 16px; }
+  .box-h { font-size: 0.72rem; color: var(--ink-muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+  .box-n { font-size: 0.72rem; color: var(--ink-muted); margin-top: 8px; line-height: 1.4; }
+  .lk, .kh { width: 100%; border-collapse: collapse; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+  .lk td { padding: 3px 0; color: var(--ink-2); } .lk td:last-child { text-align: right; color: var(--ink); white-space: nowrap; }
+  .lk tr.sum td { border-top: 1px solid var(--hairline); font-weight: 700; color: var(--ink); padding-top: 5px; }
+  .kh th { text-align: right; font-weight: 500; color: var(--ink-muted); font-size: 0.72rem; padding: 2px 0 4px; } .kh th:first-child, .kh td:first-child { text-align: left; }
+  .kh td { text-align: right; padding: 3px 0; color: var(--ink); } .kh td.part { color: var(--ink-muted); } .kh td.na { color: var(--ink-muted); }
+  .kh tr.sum td { border-top: 1px solid var(--hairline); font-weight: 700; padding-top: 5px; }
   details.about { font-size: 0.72rem; color: var(--ink-muted); margin: 0 0 18px; }
   details.about summary { cursor: pointer; list-style: none; display: inline-block; color: var(--ink-muted); }
   details.about summary::-webkit-details-marker { display: none; }
@@ -216,13 +236,15 @@
     <button class="btn primary" id="token-save">Koble til</button>
   </div>
 
-  <div class="sec-h">Tall</div>
+  <div class="sec-h">Tall <span class="sec-sub" id="datastatus"><!--DATASTATUS--><!--/DATASTATUS--></span></div>
   <section class="stats" id="stats"><!--STATS--><!--/STATS--></section>
   <section class="charts">
     <div class="chart" id="chart-sales"></div>
     <div class="chart" id="chart-cac"></div>
     <div class="chart" id="chart-sub"></div>
   </section>
+  <!--PLAN--><!--/PLAN-->
+  <section class="two"><!--LIKVID--><!--/LIKVID--></section>
   <details class="about"><summary>Om tallene ▾</summary><div id="stats-note"><!--STATSNOTE--><!--/STATSNOTE--></div></details>
   <div class="stale" id="stale" hidden></div>
 
@@ -606,11 +628,11 @@ function renderAgenda() {
   const q = quests().filter(t => !isDone(t) && passes(t)); // følger samme filter som tavlen
   const li = t => `<li>${esc(t.txt)}<span class="who">${esc(t.owner)}${t.due ? " · " + fmtDate(t.due) : ""}${isOver(t) ? " · over frist" : ""}</span></li>`;
   const group = (title, arr) => arr.length ? `<h3>${title} (${arr.length})</h3><ul>${sortTasks(arr).map(li).join("")}</ul>` : "";
-  const d7 = (META.daily || []).slice(-7);
+  const d7 = (META.daily || []).slice(-8, -1); // 7 hele dager t.o.m. i går
   const s = k => d7.reduce((x, r) => x + (r[k] || 0), 0);
   const tall = d7.length ? `<h3>Siste 7 dager</h3><ul><li>${nf(s("oms"))} kr · ${s("ordre")} ordre · ${s("nye")} nye kunder</li></ul>` : "";
   const rest = q.filter(t => !isOver(t));
-  el.innerHTML = (filter !== "Alle" ? `<div class="sum-meta">Filter: ${esc(filter)}</div>` : "") + tall + group("Over frist", q.filter(isOver)) + group("Venter", rest.filter(t => t.sec === "Venter")) + group("Pågår", rest.filter(t => t.sec === "Pågår")) + group("Neste", rest.filter(t => t.sec === "Neste"));
+  el.innerHTML = (filter !== "Alle" ? `<div class="sum-meta">Filter: ${esc(filter)}</div>` : "") + tall + group("Over frist", q.filter(isOver)) + group("Uten ansvarlig", q.filter(t => !isOver(t) && t.owner === "Ikke fordelt")) + group("Venter", rest.filter(t => t.sec === "Venter")) + group("Pågår", rest.filter(t => t.sec === "Pågår")) + group("Neste", rest.filter(t => t.sec === "Neste"));
 }
 
 function renderOwnerSelect() {
@@ -642,7 +664,7 @@ function charts() {
     const y = v => T + ih - ih * v / max;
     const bars = D.map((d, i) => `<rect data-i="${i}" x="${xOf(i) - bw / 2}" y="${T}" width="${bw}" height="${ih}" fill="transparent"/><rect x="${xOf(i) - bw / 2}" y="${y(d.oms)}" width="${bw}" height="${Math.max(0, T + ih - y(d.oms))}" rx="2" pointer-events="none" fill="${i === D.length - 1 ? "color-mix(in oklab, var(--blue) 45%, transparent)" : "var(--blue)"}"/>`).join("");
     const line = `<polyline fill="none" stroke="var(--ink-2)" stroke-width="2" stroke-linejoin="round" points="${avg.map((v, i) => `${xOf(i)},${y(v)}`).join(" ")}"/>`;
-    const sum7 = D.slice(-7).reduce((x, r) => x + r.oms, 0);
+    const sum7 = D.slice(-8, -1).reduce((x, r) => x + r.oms, 0); // 7 hele dager t.o.m. i går
     const el = document.getElementById("chart-sales");
     el.innerHTML = `<div class="k">Salg per dag, 30 d <b>${nf(sum7)} kr siste 7 d</b></div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Salg per dag siste 30 dager">${axis(max, v => nf(v / 1000) + "k")}${bars}${line}${xlabels()}</svg><div class="legend"><span><i style="background:var(--blue)"></i>omsetning per dag (i dag ufullstendig)</span><span><i style="background:var(--ink-2)"></i>7-dagers snitt</span></div>`;
     el.querySelectorAll("rect[data-i]").forEach(r => { r.onmousemove = e => { const d = D[+r.dataset.i]; showTip(e, `<b>${lbl(d)}</b><br>${nf(d.oms)} kr · ${d.ordre} ordre · ${d.nye} nye kunder<br>sitron ${d.u1} · bringebær ${d.u2} sjaktler${d.meta !== null ? `<br>Meta ${nf(d.meta)} kr` : ""}`); }; r.onmouseleave = hideTip; });
@@ -678,8 +700,8 @@ function charts() {
       const line = `<polyline fill="none" stroke="var(--ink-2)" stroke-width="2" stroke-linejoin="round" points="${D.map((d, i) => `${xOf(i)},${ya(d.subAct)}`).join(" ")}"/>`;
       const last = D[D.length - 1];
       const axisR = (() => { let s = ""; for (let k = 0; k <= 4; k++) { const v = maxAct * k / 4, y = T + ih - ih * k / 4; s += `<text x="${W - R + 2}" y="${y + 4}" text-anchor="start" font-size="10" fill="var(--ink-muted)">${Math.round(v)}</text>`; } return s; })();
-      el.innerHTML = `<div class="k">Abonnement, 30 d <b>${nf(last.subAct)} aktive</b></div><svg viewBox="0 0 ${W + 26} ${H}" role="img" aria-label="Abonnement siste 30 dager">${axis(maxBar, v => Math.round(v))}${bars}${line}${axisR}${xlabels()}</svg><div class="legend"><span><i style="background:var(--good)"></i>nye abonnement</span><span><i style="background:var(--aqua);opacity:.55"></i>fornyelser</span><span><i style="background:var(--ink-2)"></i>aktive abonnenter (høyre akse)</span></div>`;
-      el.querySelectorAll("rect[data-i]").forEach(r => { r.onmousemove = e => { const d = D[+r.dataset.i]; showTip(e, `<b>${lbl(d)}</b><br>${d.subNew} nye · ${d.subRen} fornyelser<br>${d.subAct} aktive abonnenter`); }; r.onmouseleave = hideTip; });
+      el.innerHTML = `<div class="k">Abonnement, 30 d <b>${nf(last.subAct)} kunder m/ ordre 30 d</b></div><svg viewBox="0 0 ${W + 26} ${H}" role="img" aria-label="Abonnement siste 30 dager">${axis(maxBar, v => Math.round(v))}${bars}${line}${axisR}${xlabels()}</svg><div class="legend"><span><i style="background:var(--good)"></i>nye abonnement</span><span><i style="background:var(--aqua);opacity:.55"></i>fornyelser</span><span><i style="background:var(--ink-2)"></i>kunder m/ abonnementsordre 30 d (høyre akse)</span></div>`;
+      el.querySelectorAll("rect[data-i]").forEach(r => { r.onmousemove = e => { const d = D[+r.dataset.i]; showTip(e, `<b>${lbl(d)}</b><br>${d.subNew} nye · ${d.subRen} fornyelser<br>${d.subAct} kunder m/ abonnementsordre 30 d`); }; r.onmouseleave = hideTip; });
     }
   }
 }

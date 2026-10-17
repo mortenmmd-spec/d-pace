@@ -15,6 +15,7 @@
 // Board og Shopify er harde krav: feiler de, publiseres ingenting (aldri nuller).
 
 import { execFileSync } from "node:child_process";
+import { readPlan } from "./plan-crypt.mjs";
 import { readFileSync, writeFileSync, copyFileSync, rmSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -38,7 +39,7 @@ const osloOffsetMin = d => { // minutter øst for UTC på gitt tidspunkt
 };
 const addDays = (ymd, n) => { const [y, m, d] = ymd.split("-").map(Number); const t = new Date(Date.UTC(y, m - 1, d + n)); return t.toISOString().slice(0, 10); };
 const TODAY = osloDay(NOW);
-const DAYS = Array.from({ length: 30 }, (_, i) => addDays(TODAY, i - 29)); // 30 Oslo-dager t.o.m. i dag
+const DAYS = Array.from({ length: 31 }, (_, i) => addDays(TODAY, i - 30)); // 30 hele Oslo-dager + i dag
 const stamp = NOW.toLocaleString("no-NO", { timeZone: OSLO, day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).replace(",", " kl.");
 const nf = n => Math.round(n).toLocaleString("no-NO");
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -83,7 +84,7 @@ async function fetchShopify() {
   const H = { "X-Shopify-Access-Token": tok };
   const getAll = async (url, key) => { let out = []; while (url) { const r = await fetch(url, { headers: H }); if (!r.ok) throw new Error(`Shopify ${key} ${r.status}`); const j = await r.json(); out = out.concat(j[key] || []); const l = r.headers.get("link"); const m = l && l.match(/<([^>]+)>;\s*rel="next"/); url = m ? m[1] : null; } return out; };
   const since = new Date(new Date(DAYS[0] + "T00:00:00Z").getTime() - 36e5 * 26 - 30 * 864e5).toISOString(); // 30 dager før første Oslo-dag (for aktive abonnenter)
-  const all = await getAll(`https://${SHOP}/admin/api/${API}/orders.json?status=any&limit=250&created_at_min=${since}&fields=id,created_at,current_total_price,total_price,cancelled_at,financial_status,test,tags,line_items,customer`, "orders");
+  const all = await getAll(`https://${SHOP}/admin/api/${API}/orders.json?status=any&limit=250&created_at_min=${since}&fields=id,created_at,current_total_price,current_total_tax,total_price,cancelled_at,financial_status,test,tags,line_items,customer`, "orders");
   const tags = o => (o.tags || "").split(",").map(s => s.trim().toLowerCase());
   const ok = o => !o.test && !o.cancelled_at && ["paid", "partially_refunded", "partially_paid"].includes(o.financial_status) && !tags(o).includes("seeding");
   const amt = o => +(o.current_total_price ?? o.total_price);
@@ -91,10 +92,10 @@ async function fetchShopify() {
   const orders = allOk.filter(o => o.day >= DAYS[0]);
   const isSubNew = o => tags(o).includes("subscription first order"), isSubRen = o => tags(o).includes("subscription recurring order"), isSub = o => isSubNew(o) || isSubRen(o);
   // per Oslo-dag
-  const daily = Object.fromEntries(DAYS.map(d => [d, { d, ordre: 0, oms: 0, nye: 0, u1: 0, u2: 0, subNew: 0, subRen: 0, subAct: 0 }]));
+  const daily = Object.fromEntries(DAYS.map(d => [d, { d, ordre: 0, oms: 0, eks: 0, nye: 0, u1: 0, u2: 0, subNew: 0, subRen: 0, subAct: 0 }]));
   for (const o of orders) {
     const x = daily[o.day]; if (!x) continue;
-    x.ordre++; x.oms += amt(o);
+    x.ordre++; x.oms += amt(o); x.eks += amt(o) - (+o.current_total_tax || 0);
     if (isSubNew(o)) x.subNew++; if (isSubRen(o)) x.subRen++;
     for (const li of o.line_items || []) { const q = li.current_quantity ?? li.quantity; if (li.sku === "PACE01") x.u1 += q; if (li.sku === "PACE02") x.u2 += q; }
   }
@@ -113,7 +114,21 @@ async function fetchShopify() {
   const lv = await getAll(`https://${SHOP}/admin/api/${API}/inventory_levels.json?inventory_item_ids=${items.PACE01},${items.PACE02}&location_ids=${LOCATION_ID}`, "inventory_levels");
   const lager = {};
   for (const [sku, iid] of Object.entries(items)) { const l = lv.find(x => x.inventory_item_id === iid); if (!l || typeof l.available !== "number") throw new Error("Shopify: ingen gyldig inventory_level for " + sku); lager[sku] = l.available; }
-  return { daily, lager, at: NOW.toISOString() };
+  // gjenkjøp: hele ordrehistorikken (read_all_orders), per kunde: dato for første og senere betalte ordre
+  const hist = await getAll(`https://${SHOP}/admin/api/${API}/orders.json?status=any&limit=250&created_at_min=2024-01-01T00:00:00Z&fields=id,created_at,current_total_price,total_price,cancelled_at,financial_status,test,tags,customer`, "orders");
+  const byCust = {};
+  for (const o of hist.filter(ok).filter(o => amt(o) > 0)) { const id = o.customer?.id; if (id) (byCust[id] ||= []).push(osloDay(new Date(o.created_at))); }
+  const buyers = Object.values(byCust).map(a => a.sort());
+  // Shopify Payments-utbetalinger (likviditet) og aktive abonnement fra Subscriptions-appen (ShopifyQL); begge valgfrie
+  let payouts = null, subActive = null;
+  try { payouts = (await getAll(`https://${SHOP}/admin/api/${API}/shopify_payments/payouts.json?limit=100&date_min=${addDays(TODAY, -45)}`, "payouts")).map(p => ({ date: p.date, status: p.status, amount: +p.amount })); }
+  catch (e) { console.error("utbetalinger utilgjengelig:", e.message); }
+  try {
+    const r = await fetch(`https://${SHOP}/admin/api/${API}/graphql.json`, { method: "POST", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify({ query: `{ shopifyqlQuery(query: "FROM subscriptions SHOW active_subscriptions SINCE -1d") { tableData { rows } parseErrors } }` }) });
+    const v = (await r.json()).data?.shopifyqlQuery?.tableData?.rows?.[0]?.active_subscriptions;
+    if (v !== undefined && Number.isFinite(+v)) subActive = +v;
+  } catch (e) { console.error("ShopifyQL utilgjengelig:", e.message); }
+  return { daily, lager, buyers, payouts, subActive, at: NOW.toISOString() };
 }
 
 // ---------- 3. Meta-annonsekostnad fra kvitteringsmailer (hei@getpace.no), valgfri ----------
@@ -141,7 +156,7 @@ async function fetchMetaSpend() {
     const guess = new Date(Date.UTC(+m[3], MON[m[1]], +m[2], h, +m[5]));
     return new Date(guess.getTime() - osloOffsetMin(guess) * 6e4);
   };
-  const daily = {}; const seen = new Set(); let last = null, nRec = 0;
+  const daily = {}; const seen = new Set(); const receipts = []; let last = null, nRec = 0;
   for (const id of ids) {
     const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`, { headers: G });
     if (!r.ok) throw new Error("Gmail get " + r.status);
@@ -153,7 +168,7 @@ async function fetchMetaSpend() {
     if (seen.has(ref)) continue; seen.add(ref);
     const amount = +m[1].replace(/[ ,]/g, ""), a = parseD(m[2]), b = parseD(m[3]);
     if (!a || !b || b <= a || !(amount > 0)) continue;
-    nRec++; if (!last || b > last) last = b;
+    nRec++; if (!last || b > last) last = b; receipts.push({ amount, at: b });
     // fordel på Oslo-kalenderdager etter antall timer av perioden som faller på hver dag
     const dayStartUtc = ymd => { const g = new Date(ymd + "T00:00:00Z"); return new Date(g.getTime() - osloOffsetMin(g) * 6e4); };
     const parts = []; let d = osloDay(a); let total = 0;
@@ -163,56 +178,153 @@ async function fetchMetaSpend() {
   if (!nRec) throw new Error("Gmail: ingen Meta-kvitteringer funnet");
   // siste kvittering slutter ofte midt på dagen: den dagen er bare delvis dekket og regnes ikke som dekket
   const coveredThrough = osloHour(last) >= 23 ? osloDay(last) : addDays(osloDay(last), -1);
-  return { daily, coveredThrough, nRec, last };
+  return { daily, coveredThrough, nRec, last, receipts };
 }
 
-// ---------- 4. Kasse (manuell) ----------
+// ---------- 4. Kasse (manuell) og kjente forfall ----------
 function parseKasse() {
   const [kasse, kasse_dato, gjeld, gjeld_note, sitron_bestfor] = env("PACE_KASSE").split("|").map(s => s.trim());
   if (!Number.isFinite(+kasse) || !kasse_dato) throw new Error("PACE_KASSE: ugyldig format");
   return { kasse: +kasse, kasse_dato, gjeld: +gjeld || 0, gjeld_note: gjeld_note || "", sitron_bestfor: sitron_bestfor || "" };
 }
+// PACE_FORFALL = "navn|beløp|DD.MM.YYYY;…" (valgfri). Mangler den, brukes gjelden i PACE_KASSE som én post.
+function parseForfall(T) {
+  const list = (process.env.PACE_FORFALL || "").split(";").map(s => s.trim()).filter(Boolean)
+    .map(s => { const [navn, belop, dato] = s.split("|").map(x => x.trim()); return { navn: navn || "Ukjent", belop: +belop || 0, dato: dato || "" }; }).filter(f => f.belop > 0);
+  if (!list.length && T.gjeld) list.push({ navn: T.gjeld_note || "Kjent gjeld", belop: T.gjeld, dato: "" });
+  return list;
+}
+const dmy = s => { const m = /(\d{1,2})\.(\d{1,2})\.(\d{4})/.exec(s || ""); return m ? `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}` : null; };
 
 // ---------- 5. Hent ----------
 const [tasks, shop] = await Promise.all([fetchBoard(), fetchShopify()]);
 let meta = null, metaErr = "";
 try { meta = await fetchMetaSpend(); } catch (e) { metaErr = e.message; console.error("Meta/CAC utilgjengelig:", e.message); }
 const T = parseKasse();
+const F = parseForfall(T);
+let plan = null;
+try { plan = readPlan(env("STATICRYPT_PASSWORD", "")); } catch (e) { console.error("Pace 2.0-plan utilgjengelig:", e.message); }
 
 // ---------- 6. Tall ----------
-const series = DAYS.map(d => { const x = shop.daily[d]; const covered = meta && d <= meta.coveredThrough; return { d, ordre: x.ordre, oms: Math.round(x.oms * 100) / 100, nye: x.nye, u1: x.u1, u2: x.u2, subNew: x.subNew, subRen: x.subRen, subAct: x.subAct, meta: covered ? Math.round((meta.daily[d] || 0) * 100) / 100 : null }; });
-const win = n => series.slice(-n);
+const series = DAYS.map(d => { const x = shop.daily[d]; const covered = meta && d <= meta.coveredThrough; return { d, ordre: x.ordre, oms: Math.round(x.oms * 100) / 100, eks: Math.round(x.eks * 100) / 100, nye: x.nye, u1: x.u1, u2: x.u2, subNew: x.subNew, subRen: x.subRen, subAct: x.subAct, meta: covered ? Math.round((meta.daily[d] || 0) * 100) / 100 : null }; });
+const today = series[series.length - 1];
+const win = n => series.slice(-n - 1, -1); // n hele dager t.o.m. i går
 const sum = (a, k) => a.reduce((x, r) => x + (r[k] || 0), 0);
+const fmtD = ymd => ymd.slice(8, 10) + "." + ymd.slice(5, 7);
+const MON = ["jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "des"];
+const monLabel = ymd => MON[+ymd.slice(5, 7) - 1] + " " + ymd.slice(2, 4); // "okt 26", samme form som planen
 // bare dager med annonsekostnad teller (kost og nye kunder); dager uten annonser gir organiske kunder som ellers trekker CAC kunstig ned
 const cac = n => { const w = win(n).filter(r => r.meta !== null && r.meta > 0); const s = sum(w, "meta"), ny = sum(w, "nye"); return { spend: s, nye: ny, days: w.length, cac: ny ? s / ny : null }; };
 // kort: kort undertekst (én linje), detaljer i title-tooltip
 const card = (k, v, s, cls, tip) => `<div class="stat ${cls}" title="${esc(tip || "")}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
-const salgCard = (n) => { const w = win(n); return card(`Salg ${n} d`, nf(sum(w, "oms")) + " kr", `${sum(w, "ordre")} ordre · ${sum(w, "nye")} nye`, "c-salg", `Ordreverdi inkl. mva siste ${n} kalenderdager, ${sum(w, "nye")} nye kunder`); };
+const todayCard = () => card("Salg i dag", nf(today.oms) + " kr", `${today.ordre} ordre · ${today.nye} nye`, "c-salg", `Ordreverdi inkl. mva i dag t.o.m. ${stamp}`);
+const salgCard = (n) => { const w = win(n); return card(`Salg ${n} d`, nf(sum(w, "oms")) + " kr", `${sum(w, "ordre")} ordre · ${sum(w, "nye")} nye`, "c-salg", `Ordreverdi inkl. mva siste ${n} hele dager t.o.m. i går, ${sum(w, "nye")} nye kunder`); };
 const cacCard = (n) => { if (!meta) return card(`CAC ${n} d`, "–", "Meta-data mangler", "c-cac", metaErr); const c = cac(n); return card(`CAC ${n} d`, c.cac ? nf(c.cac) + " kr" : "–", `${nf(c.spend)} / ${c.nye} nye${c.days < n ? ` · ${c.days} d` : ""}`, "c-cac", `Meta ${nf(c.spend)} kr delt på ${c.nye} nye kunder${c.days < n ? ` (${c.days} av ${n} dager har Meta-data)` : ""}`); };
-const fmtD = ymd => ymd.slice(8, 10) + "." + ymd.slice(5, 7);
 // annonsekost: Meta-forbruk på fakturerte dager i vinduet; kr/dag over de samme dagene
 const adsCard = (n) => { if (!meta) return card(`Annonser ${n} d`, "–", "Meta-data mangler", "c-ads", metaErr); const w = win(n).filter(r => r.meta !== null); const s = sum(w, "meta"); return card(`Annonser ${n} d`, nf(s) + " kr", `~${nf(w.length ? s / w.length : 0)} kr/dag · t.o.m. ${fmtD(meta.coveredThrough)}`, "c-ads", `Meta-annonsekostnad ${w.length} av ${n} dager (fakturert t.o.m. ${fmtD(meta.coveredThrough)}; forbruk etter siste kvittering er ikke med)`); };
-const lagerCard = (navn, sku, key, bestfor) => {
-  const qty = shop.lager[sku], perUke = sum(win(30), key) / 30 * 7;
-  let s = perUke > 0 ? `${nf(qty / perUke)} uker` : "ingen takt", tip = perUke > 0 ? `${nf(perUke)} sjaktler per uke siste 30 d` : "ingen målbar takt siste 30 d";
-  if (bestfor && perUke > 0) {
-    const [d, m, y] = bestfor.split(".").map(Number);
-    const uker = (Date.UTC(y, m - 1, d) - NOW.getTime()) / (7 * 864e5);
-    const rest = Math.max(0, qty - perUke * uker);
-    if (rest > 0) s += ` · ~${nf(rest)} utgår`;
+// lager: tomdato ved takten siste 30 hele dager; neste batch for smaken fra Pace 2.0-planen
+const lagerCard = (navn, sku, key, bestfor, flavor) => {
+  const qty = shop.lager[sku], perDag = sum(win(30), key) / 30;
+  const batch = plan?.batches?.find(b => b.f === flavor);
+  const tom = perDag > 0 ? addDays(TODAY, Math.floor(qty / perDag)) : null;
+  let s = tom ? `tom ~${monLabel(tom)}` : "ingen takt";
+  let tip = perDag > 0 ? `${nf(perDag * 7)} sjaktler per uke siste 30 d, ${nf(qty / perDag / 7)} uker dekning, tom rundt ${fmtD(tom)}.${tom.slice(0, 4)}` : "ingen målbar takt siste 30 d";
+  if (batch) tip += ` · neste batch i planen: bestilles ${batch.bestilt}, levert ${batch.levert}`;
+  let rest = 0;
+  if (bestfor && perDag > 0) {
+    const bf = dmy(bestfor);
+    rest = Math.max(0, qty - perDag * (Date.parse(bf) - Date.parse(TODAY)) / 864e5);
     tip += ` · best før ${bestfor}${rest > 0 ? `, ~${nf(rest)} går ut ved dagens takt` : ""}`;
   }
+  s += rest > 0 ? ` · ~${nf(rest)} utgår` : batch ? ` · bestill ${batch.bestilt}` : "";
   return card(`Lager ${navn}`, nf(qty) + " stk", s, "c-lager", tip);
 };
-const subNow = series[series.length - 1].subAct, subNew30 = sum(series, "subNew"), subRen30 = sum(series, "subRen");
-const cards = salgCard(7) + salgCard(30) + adsCard(7) + adsCard(30) + cacCard(7) + cacCard(30)
-  + card("Abonnenter", nf(subNow), `+${subNew30} nye · ${subRen30} forny.`, "c-sub", `Aktive abonnenter = unike kunder med abonnementsordre siste 30 dager. ${subNew30} nye abonnement og ${subRen30} fornyelser siste 30 d`)
-  + card("Kasse", nf(T.kasse) + " kr", "oppdatert manuelt " + T.kasse_dato + (T.gjeld ? " · gjeld ~" + nf(T.gjeld) : " · ingen kjent gjeld"), "c-kasse", `Bankbalanse lagt inn ${T.kasse_dato}${T.gjeld_note ? ". Gjeld: " + T.gjeld_note : ""}`)
-  + lagerCard("sitron", "PACE01", "u1", T.sitron_bestfor) + lagerCard("bringebær", "PACE02", "u2", "");
-const note = `Perioder = Oslo-kalenderdager t.o.m. i dag (i dag er ufullstendig). Salg = ordreverdi inkl. mva for ordre opprettet i perioden, etter refusjon, uten test- og seeding-ordre (Shopify ${stamp}). Nye kunder = kundeprofiler opprettet i perioden med betalt ordre. `
+const subNow = today.subAct, subNew30 = sum(win(30), "subNew"), subRen30 = sum(win(30), "subRen");
+const subCard = shop.subActive !== null
+  ? card("Aktive abonnement", nf(shop.subActive), `${nf(subNow)} kunder m/ ordre 30 d`, "c-sub", `Aktive abonnement ifølge Shopify Subscriptions (Shopify-analyse). ${subNow} unike kunder har hatt abonnementsordre siste 30 d; ${subNew30} nye og ${subRen30} fornyelser`)
+  : card("Kunder m/ abonnementsordre", nf(subNow), `+${subNew30} nye · ${subRen30} forny. (30 d)`, "c-sub", `Unike kunder med abonnementsordre siste 30 dager (ekte abonnementsstatus utilgjengelig)`);
+const cards = todayCard() + salgCard(7) + salgCard(30) + subCard
+  + adsCard(7) + adsCard(30) + cacCard(7) + cacCard(30)
+  + card("Kasse", nf(T.kasse) + " kr", "bankbalanse lagt inn " + T.kasse_dato, "c-kasse", `Bankbalanse lagt inn manuelt ${T.kasse_dato}. Se Likviditet for kjente poster etterpå`)
+  + lagerCard("sitron", "PACE01", "u1", T.sitron_bestfor, "Sitron & Lime") + lagerCard("bringebær", "PACE02", "u2", "", "Bringebær");
+
+// datastatus: hvor ferske tallene er per kilde
+const datastatus = [`Shopify ${stamp}`, meta ? `Meta-kvitteringer t.o.m. ${fmtD(meta.coveredThrough)}` : "Meta mangler", `bankbalanse ${T.kasse_dato}`, plan ? `Pace 2.0-plan ${fmtD(plan.built)}` : "plan mangler"].join(" · ");
+
+// faktisk vs Pace 2.0-plan for inneværende måned (oktober-raden gjelder 15.–31.)
+let planHtml = "";
+const curRow = plan?.rows?.find(r => r.m.startsWith(monLabel(TODAY)));
+if (curRow) {
+  const startDay = +((/\((\d{1,2})\./.exec(curRow.m) || [])[1] || 1);
+  const start = TODAY.slice(0, 8) + String(startDay).padStart(2, "0");
+  const end = addDays(addDays(TODAY.slice(0, 8) + "01", 32).slice(0, 8) + "01", -1);
+  const pd = series.filter(r => r.d >= start);
+  if (pd.length) {
+    const total = (Date.parse(end) - Date.parse(start)) / 864e5 + 1;
+    const gone = Math.min(1, (pd.length - 1 + osloHour(NOW) / 24) / total);
+    const metaDays = pd.filter(r => r.meta !== null);
+    const sub = shop.subActive ?? subNow;
+    const rows = [
+      { k: "Omsetning eks mva", a: sum(pd, "eks"), p: curRow.inn, u: " kr", mark: true },
+      { k: "Ordre", a: sum(pd, "ordre"), p: curRow.o, u: "", mark: true },
+      { k: "Nye kunder", a: sum(pd, "nye"), p: curRow.ny, u: "", mark: true },
+      { k: `Annonser (Meta${meta ? " t.o.m. " + fmtD(meta.coveredThrough) : ""})`, a: sum(metaDays, "meta"), p: curRow.ann, u: " kr", mark: true },
+      { k: shop.subActive !== null ? "Aktive abonnement" : "Abonnementskunder 30 d", a: sub, p: curRow.sub, u: "", mark: false },
+    ];
+    const row = r => { const pct = r.p ? r.a / r.p * 100 : 0; return `<div class="pl-row" title="${esc(r.k)}: ${nf(r.a)}${r.u} av ${nf(r.p)}${r.u} i planen"><div class="pl-k">${esc(r.k)}</div><div class="pl-bar"><i style="width:${Math.min(100, pct).toFixed(1)}%"></i>${r.mark ? `<b style="left:${(gone * 100).toFixed(1)}%"></b>` : ""}</div><div class="pl-v">${nf(r.a)} / ${nf(r.p)}${r.u} <span>${nf(pct)} %</span></div></div>`; };
+    planHtml = `<div class="sec-h">Pace 2.0-plan · ${esc(curRow.m)} <span class="sec-sub">${nf(gone * 100)} % av perioden gått (strek) · plan per ${fmtD(plan.built)}</span></div><section class="plan">${rows.map(row).join("")}</section>`;
+  }
+}
+
+// likviditet: bankbalanse + kjente bevegelser etter den − kjente forfall; kapital i planen holdes utenfor
+let likvidHtml = "";
+{
+  const kDay = dmy(T.kasse_dato);
+  const paid = shop.payouts && kDay ? shop.payouts.filter(p => p.status === "paid" && p.date > kDay) : null;
+  const way = shop.payouts ? shop.payouts.filter(p => ["in_transit", "scheduled", "pending"].includes(p.status)) : null;
+  const metaAfter = meta && kDay ? meta.receipts.filter(r => osloDay(r.at) > kDay) : null;
+  const sP = paid ? paid.reduce((x, p) => x + p.amount, 0) : 0, sW = way ? way.reduce((x, p) => x + p.amount, 0) : 0, sM = metaAfter ? metaAfter.reduce((x, r) => x + r.amount, 0) : 0;
+  const naa = T.kasse + sP + sW - sM, fTot = F.reduce((x, f) => x + f.belop, 0);
+  const ln = (k, v, cls = "") => `<tr class="${cls}"><td>${k}</td><td>${v === null ? "–" : (v < 0 ? "−" : "") + nf(Math.abs(v)) + " kr"}</td></tr>`;
+  const kap = plan?.rows?.filter(r => r.kap > 0) || [];
+  likvidHtml = `<div class="box"><div class="box-h">Likviditet, kjente poster</div><table class="lk">`
+    + ln(`Bankbalanse ${esc(T.kasse_dato.split(" ")[0])} (manuell)`, T.kasse)
+    + ln(`+ Shopify-utbetalinger etter ${kDay ? fmtD(kDay) : "?"}${paid ? ` (${paid.length})` : ""}`, paid ? sP : null)
+    + ln(`+ Utbetalinger på vei${way ? ` (${way.length})` : ""}`, way ? sW : null)
+    + ln(`− Meta fakturert etter ${kDay ? fmtD(kDay) : "?"}`, metaAfter ? -sM : null)
+    + ln("= Estimert nå", naa, "sum")
+    + F.map(f => ln(`− ${esc(f.navn)}${f.dato ? " (" + esc(f.dato) + ")" : ""}`, -f.belop)).join("")
+    + ln("= Etter kjente forfall", naa - fTot, "sum")
+    + `</table><div class="box-n">Andre utgifter etter ${kDay ? fmtD(kDay) : "?"} (3PL, leverandører, abonnementer) er ikke med. `
+    + (plan ? `Planen: laveste kasse ${nf(plan.key.kasseMin)} kr (${esc(plan.key.kasseMinMnd)}) før kapital, ${nf(plan.key.kasseMinEtterKap)} kr (${esc(plan.key.kasseMinEtterKapMnd)}) etter. ` : "")
+    + (kap.length ? `Kapital i planen: ${kap.map(r => `${nf(r.kap)} kr i ${esc(r.m)}`).join(", ")}, ikke regnet med over før den står i bankbalansen.` : "")
+    + `</div></div>`;
+}
+
+// gjenkjøp per kohort (måned for første betalte ordre): andel som kjøper igjen innen 30/60/90 dager; bare kunder som har rukket vinduet teller
+let kohortHtml = "";
+{
+  const W = [30, 60, 90], C = {};
+  for (const a of shop.buyers) {
+    const f = a[0], c = C[f.slice(0, 7)] ||= { n: 0, w: Object.fromEntries(W.map(N => [N, [0, 0]])) };
+    c.n++;
+    for (const N of W) { const lim = addDays(f, N); if (lim > TODAY) continue; c.w[N][0]++; if (a.some(d => d > f && d <= lim)) c.w[N][1]++; }
+  }
+  const months = Object.keys(C).sort().slice(-9);
+  const cell = (c, N) => { const [m, r] = c.w[N]; if (!m) return `<td class="na">–</td>`; return `<td class="${m < c.n ? "part" : ""}" title="${r} av ${m} kunder${m < c.n ? ` (${c.n - m} har ikke rukket ${N} d)` : ""}">${nf(r / m * 100)} %</td>`; };
+  const tot = { n: 0, w: Object.fromEntries(W.map(N => [N, [0, 0]])) };
+  for (const c of Object.values(C)) { tot.n += c.n; for (const N of W) { tot.w[N][0] += c.w[N][0]; tot.w[N][1] += c.w[N][1]; } }
+  kohortHtml = `<div class="box"><div class="box-h">Gjenkjøp</div><table class="kh"><tr><th>Første kjøp</th><th>Nye</th><th>30 d</th><th>60 d</th><th>90 d</th></tr>`
+    + months.map(m => `<tr><td>${monLabel(m + "-01")}</td><td>${C[m].n}</td>${W.map(N => cell(C[m], N)).join("")}</tr>`).join("")
+    + `<tr class="sum"><td>Alle</td><td>${tot.n}</td>${W.map(N => cell(tot, N)).join("")}</tr></table>`
+    + `<div class="box-n">Andel nye kunder som har kjøpt igjen innen 30/60/90 dager (abonnementsfornyelser teller). Grå = ikke alle i måneden har rukket perioden.</div></div>`;
+}
+
+const note = `7 og 30 d = hele Oslo-dager t.o.m. i går; «Salg i dag» er dagen så langt. Salg = ordreverdi inkl. mva for ordre opprettet i perioden, etter refusjon, uten test- og seeding-ordre (Shopify ${stamp}). Planraden sammenlignes eks mva. Nye kunder = kundeprofiler opprettet i perioden med betalt ordre. `
   + (meta ? `CAC = Meta-annonsekostnad fra kvitteringene i hei@getpace.no, fordelt per dag (dekket t.o.m. ${fmtD(meta.coveredThrough)}; forbruk etter det er ikke fakturert ennå og holdes utenfor), delt på nye kunder samme dager. ` : `CAC mangler: ${esc(metaErr)}. `)
-  + `Lager = tilgjengelig hos 360 Logistics. Kasse er bankbalanse lagt inn manuelt (sist ${T.kasse_dato})${T.gjeld_note ? ", gjeld: " + esc(T.gjeld_note) : ""}.`;
-const metaInfo = { built_at: NOW.toISOString(), shopify_at: shop.at, label: stamp, today: TODAY, meta_through: meta ? meta.coveredThrough : null, daily: series };
+  + (shop.subActive !== null ? `Aktive abonnement = Shopify Subscriptions via Shopify-analyse. ` : "")
+  + `Lager = tilgjengelig hos 360 Logistics; tomdato ved takten siste 30 d. Kasse er bankbalanse lagt inn manuelt (sist ${T.kasse_dato}).`;
+const metaInfo = { built_at: NOW.toISOString(), shopify_at: shop.at, label: stamp, today: TODAY, meta_through: meta ? meta.coveredThrough : null, daily: series.slice(-30) };
 
 // ---------- 7. Bygg HTML ----------
 let html = readFileSync(TEMPLATE, "utf8");
@@ -222,6 +334,9 @@ put(/\/\*__TASKS__\*\/[\s\S]*?\/\*__TASKS_END__\*\//, `/*__TASKS__*/ const SNAPS
 put(/\/\*__META__\*\/[\s\S]*?\/\*__META_END__\*\//, `/*__META__*/ const META = ${js(metaInfo)}; /*__META_END__*/`, "META");
 put(/\/\*__PAGE_TOKEN__\*\/[\s\S]*?\/\*__PAGE_TOKEN_END__\*\//, `/*__PAGE_TOKEN__*/ const PAGE_TOKEN = ${js(process.env.PACE_PAGE_TOKEN || "")}; /*__PAGE_TOKEN_END__*/`, "PAGE_TOKEN");
 put(/<!--STATS-->[\s\S]*?<!--\/STATS-->/, `<!--STATS-->${cards}<!--/STATS-->`, "STATS");
+put(/<!--DATASTATUS-->[\s\S]*?<!--\/DATASTATUS-->/, `<!--DATASTATUS-->${esc(datastatus)}<!--/DATASTATUS-->`, "DATASTATUS");
+put(/<!--PLAN-->[\s\S]*?<!--\/PLAN-->/, `<!--PLAN-->${planHtml}<!--/PLAN-->`, "PLAN");
+put(/<!--LIKVID-->[\s\S]*?<!--\/LIKVID-->/, `<!--LIKVID-->${likvidHtml}${kohortHtml}<!--/LIKVID-->`, "LIKVID");
 put(/<!--STATSNOTE-->[\s\S]*?<!--\/STATSNOTE-->/, `<!--STATSNOTE-->${note}<!--/STATSNOTE-->`, "STATSNOTE");
 put(/<!--SYNC-->.*?<!--\/SYNC-->/, `<!--SYNC-->${stamp}<!--/SYNC-->`, "SYNC");
 // syntakssjekk av sidens script før publisering

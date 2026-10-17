@@ -32,6 +32,7 @@ jobs:
           GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
           GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
           PACE_KASSE: ${{ vars.PACE_KASSE }}
+          PACE_FORFALL: ${{ vars.PACE_FORFALL }}
           FORCE: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
         run: |
           set +x
