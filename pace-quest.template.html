@@ -378,7 +378,7 @@ async function loadBoard() {
       id
       fields(first: 30) { nodes { ... on ProjectV2SingleSelectField { id name options { id name } } ... on ProjectV2Field { id name dataType } } }
       items(first: 100, after: $after) { pageInfo { hasNextPage endCursor } nodes {
-        id
+        id isArchived
         content { __typename ... on DraftIssue { id title body } ... on Issue { title } ... on PullRequest { title } }
         fieldValues(first: 20) { nodes {
           ... on ProjectV2ItemFieldSingleSelectValue { name field { ... on ProjectV2SingleSelectField { name } } }
@@ -389,7 +389,7 @@ async function loadBoard() {
     const p = d.organization?.projectV2;
     if (!p) throw new Error("Fant ikke boardet (mangler tokenen project-scope?)");
     pid = p.id; fields = fields || p.fields.nodes.filter(f => f.name);
-    nodes.push(...p.items.nodes);
+    nodes.push(...p.items.nodes.filter(n => !n.isArchived)); // arkiverte kort vises ikke
     if (!p.items.pageInfo.hasNextPage) break;
     after = p.items.pageInfo.endCursor;
   }

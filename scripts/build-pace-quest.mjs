@@ -53,7 +53,7 @@ async function fetchBoard() {
   const items = []; let after = null;
   for (let page = 0; page < 20; page++) {
     const q = `query($after: String) { organization(login: "${ORG}") { projectV2(number: ${PROJECT_NUMBER}) {
-      items(first: 100, after: $after) { pageInfo { hasNextPage endCursor } nodes { id
+      items(first: 100, after: $after) { pageInfo { hasNextPage endCursor } nodes { id isArchived
         content { __typename ... on DraftIssue { id title body } ... on Issue { title } ... on PullRequest { title } }
         fieldValues(first: 20) { nodes {
           ... on ProjectV2ItemFieldSingleSelectValue { name field { ... on ProjectV2SingleSelectField { name } } }
@@ -64,7 +64,7 @@ async function fetchBoard() {
     if (!r.ok || j.errors) throw new Error("GitHub: " + (j.errors?.[0]?.message || r.status));
     const p = j.data?.organization?.projectV2;
     if (!p) throw new Error("GitHub: fant ikke prosjektet (token mangler project-scope?)");
-    items.push(...p.items.nodes);
+    items.push(...p.items.nodes.filter(n => !n.isArchived)); // arkiverte kort vises ikke
     if (!p.items.pageInfo.hasNextPage) break;
     after = p.items.pageInfo.endCursor;
   }
