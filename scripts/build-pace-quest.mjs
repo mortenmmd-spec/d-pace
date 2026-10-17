@@ -189,6 +189,9 @@ const cac = n => { const w = win(n).filter(r => r.meta !== null && r.meta > 0); 
 const card = (k, v, s, cls, tip) => `<div class="stat ${cls}" title="${esc(tip || "")}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
 const salgCard = (n) => { const w = win(n); return card(`Salg ${n} d`, nf(sum(w, "oms")) + " kr", `${sum(w, "ordre")} ordre · ${sum(w, "nye")} nye`, "c-salg", `Ordreverdi inkl. mva siste ${n} kalenderdager, ${sum(w, "nye")} nye kunder`); };
 const cacCard = (n) => { if (!meta) return card(`CAC ${n} d`, "–", "Meta-data mangler", "c-cac", metaErr); const c = cac(n); return card(`CAC ${n} d`, c.cac ? nf(c.cac) + " kr" : "–", `${nf(c.spend)} / ${c.nye} nye${c.days < n ? ` · ${c.days} d` : ""}`, "c-cac", `Meta ${nf(c.spend)} kr delt på ${c.nye} nye kunder${c.days < n ? ` (${c.days} av ${n} dager har Meta-data)` : ""}`); };
+const fmtD = ymd => ymd.slice(8, 10) + "." + ymd.slice(5, 7);
+// annonsekost: Meta-forbruk på fakturerte dager i vinduet; kr/dag over de samme dagene
+const adsCard = (n) => { if (!meta) return card(`Annonser ${n} d`, "–", "Meta-data mangler", "c-ads", metaErr); const w = win(n).filter(r => r.meta !== null); const s = sum(w, "meta"); return card(`Annonser ${n} d`, nf(s) + " kr", `~${nf(w.length ? s / w.length : 0)} kr/dag · t.o.m. ${fmtD(meta.coveredThrough)}`, "c-ads", `Meta-annonsekostnad ${w.length} av ${n} dager (fakturert t.o.m. ${fmtD(meta.coveredThrough)}; forbruk etter siste kvittering er ikke med)`); };
 const lagerCard = (navn, sku, key, bestfor) => {
   const qty = shop.lager[sku], perUke = sum(win(30), key) / 30 * 7;
   let s = perUke > 0 ? `${nf(qty / perUke)} uker` : "ingen takt", tip = perUke > 0 ? `${nf(perUke)} sjaktler per uke siste 30 d` : "ingen målbar takt siste 30 d";
@@ -202,11 +205,10 @@ const lagerCard = (navn, sku, key, bestfor) => {
   return card(`Lager ${navn}`, nf(qty) + " stk", s, "c-lager", tip);
 };
 const subNow = series[series.length - 1].subAct, subNew30 = sum(series, "subNew"), subRen30 = sum(series, "subRen");
-const cards = salgCard(7) + salgCard(30) + cacCard(7) + cacCard(30)
+const cards = salgCard(7) + salgCard(30) + adsCard(7) + adsCard(30) + cacCard(7) + cacCard(30)
   + card("Abonnenter", nf(subNow), `+${subNew30} nye · ${subRen30} forny.`, "c-sub", `Aktive abonnenter = unike kunder med abonnementsordre siste 30 dager. ${subNew30} nye abonnement og ${subRen30} fornyelser siste 30 d`)
   + card("Kasse", nf(T.kasse) + " kr", "oppdatert manuelt " + T.kasse_dato + (T.gjeld ? " · gjeld ~" + nf(T.gjeld) : " · ingen kjent gjeld"), "c-kasse", `Bankbalanse lagt inn ${T.kasse_dato}${T.gjeld_note ? ". Gjeld: " + T.gjeld_note : ""}`)
   + lagerCard("sitron", "PACE01", "u1", T.sitron_bestfor) + lagerCard("bringebær", "PACE02", "u2", "");
-const fmtD = ymd => ymd.slice(8, 10) + "." + ymd.slice(5, 7);
 const note = `Perioder = Oslo-kalenderdager t.o.m. i dag (i dag er ufullstendig). Salg = ordreverdi inkl. mva for ordre opprettet i perioden, etter refusjon, uten test- og seeding-ordre (Shopify ${stamp}). Nye kunder = kundeprofiler opprettet i perioden med betalt ordre. `
   + (meta ? `CAC = Meta-annonsekostnad fra kvitteringene i hei@getpace.no, fordelt per dag (dekket t.o.m. ${fmtD(meta.coveredThrough)}; forbruk etter det er ikke fakturert ennå og holdes utenfor), delt på nye kunder samme dager. ` : `CAC mangler: ${esc(metaErr)}. `)
   + `Lager = tilgjengelig hos 360 Logistics. Kasse er bankbalanse lagt inn manuelt (sist ${T.kasse_dato})${T.gjeld_note ? ", gjeld: " + esc(T.gjeld_note) : ""}.`;
