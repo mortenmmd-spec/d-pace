@@ -136,14 +136,17 @@ async function fetchShopify() {
   for (const g of Object.values(geo)) for (const x of Object.values(g.fy)) x.kr = Math.round(x.kr);
   // unike kunder = kundeprofiler med minst én betalt ordre i hele historikken
   const kunder = new Set(hist.filter(ok).filter(o => amt(o) > 0).map(o => o.customer?.id).filter(Boolean)).size;
-  // aktive abonnement fra Subscriptions-appen (ShopifyQL); valgfri
-  let subActive = null;
+  // abonnement fra Subscriptions-appen (ShopifyQL): aktive = startet − avsluttet i hele historikken.
+  // Dagsmålingen av active_subscriptions (175 per 17.10) stemmer ikke med Shopifys egne startet/avsluttet-tall og brukes ikke. Valgfri.
+  let subActive = null, subStart = 0, subStop = 0, subAdd30 = 0, subCan30 = 0;
   try {
-    const r = await fetch(`https://${SHOP}/admin/api/${API}/graphql.json`, { method: "POST", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify({ query: `{ shopifyqlQuery(query: "FROM subscriptions SHOW active_subscriptions SINCE -1d") { tableData { rows } parseErrors } }` }) });
-    const v = (await r.json()).data?.shopifyqlQuery?.tableData?.rows?.[0]?.active_subscriptions;
-    if (v !== undefined && Number.isFinite(+v)) subActive = +v;
+    const ql = async s => { const r = await fetch(`https://${SHOP}/admin/api/${API}/graphql.json`, { method: "POST", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify({ query: "query($s: String!) { shopifyqlQuery(query: $s) { tableData { rows } parseErrors } }", variables: { s } }) }); const d = (await r.json()).data?.shopifyqlQuery; if (!d || d.parseErrors?.length) throw new Error(d?.parseErrors?.[0] || "ShopifyQL-feil"); return d.tableData.rows[0] || {}; };
+    const all = await ql("FROM subscriptions SHOW subscriptions_added, subscriptions_canceled SINCE 2024-01-01 UNTIL today");
+    const d30 = await ql("FROM subscriptions SHOW subscriptions_added, subscriptions_canceled SINCE -30d UNTIL today");
+    subStart = +all.subscriptions_added || 0; subStop = +all.subscriptions_canceled || 0; subAdd30 = +d30.subscriptions_added || 0; subCan30 = +d30.subscriptions_canceled || 0;
+    if (subStart) subActive = subStart - subStop;
   } catch (e) { console.error("ShopifyQL utilgjengelig:", e.message); }
-  return { daily, lager, geo, kunder, subActive, at: NOW.toISOString() };
+  return { daily, lager, geo, kunder, subActive, subStart, subStop, subAdd30, subCan30, at: NOW.toISOString() };
 }
 
 // ---------- 3. Meta-annonsekostnad fra kvitteringsmailer (hei@getpace.no), valgfri ----------
@@ -248,7 +251,7 @@ const lagerCard = (navn, sku, key, bestfor, flavor) => {
 };
 const subNow = today.subAct, subNew30 = sum(win(30), "subNew"), subRen30 = sum(win(30), "subRen");
 const subCard = shop.subActive !== null
-  ? card("Aktive abonnement", nf(shop.subActive), `${nf(subNow)} kunder m/ ordre 30 d`, "c-sub", `Aktive abonnement ifølge Shopify Subscriptions (Shopify-analyse). ${subNow} unike kunder har hatt abonnementsordre siste 30 d; ${subNew30} nye og ${subRen30} fornyelser`)
+  ? card("Aktive abonnement", nf(shop.subActive), `+${shop.subAdd30} nye · −${shop.subCan30} avsluttet (30 d)`, "c-sub", `${nf(shop.subStart)} abonnement startet og ${nf(shop.subStop)} avsluttet totalt ifølge Shopify Subscriptions (Shopify-analyse).. Siste 30 d: ${shop.subAdd30} nye, ${shop.subCan30} avsluttet; ${subNow} kunder fikk abonnementsordre`)
   : card("Kunder m/ abonnementsordre", nf(subNow), `+${subNew30} nye · ${subRen30} forny. (30 d)`, "c-sub", `Unike kunder med abonnementsordre siste 30 dager (ekte abonnementsstatus utilgjengelig)`);
 const cards = todayCard() + salgCard(7) + salgCard(30) + subCard
   + adsCard(7) + adsCard(30) + cacCard(7) + cacCard(30)
@@ -261,7 +264,7 @@ const datastatus = [`Shopify ${stamp}`, meta ? `Meta-kvitteringer t.o.m. ${fmtD(
 
 const note = `7 og 30 d = hele Oslo-dager t.o.m. i går; «Salg i dag» er dagen så langt. Salg = ordreverdi inkl. mva for ordre opprettet i perioden, etter refusjon, uten test- og seeding-ordre (Shopify ${stamp}). Planraden sammenlignes eks mva. Nye kunder = kundeprofiler opprettet i perioden med betalt ordre. `
   + (meta ? `CAC = Meta-annonsekostnad fra kvitteringene i hei@getpace.no, fordelt per dag (dekket t.o.m. ${fmtD(meta.coveredThrough)}; forbruk etter det er ikke fakturert ennå og holdes utenfor), delt på nye kunder samme dager. ` : `CAC mangler: ${esc(metaErr)}. `)
-  + (shop.subActive !== null ? `Aktive abonnement = Shopify Subscriptions via Shopify-analyse. ` : "")
+  + (shop.subActive !== null ? `Aktive abonnement = startet minus avsluttet i Shopify Subscriptions (Shopify-analyse). ` : "")
   + `Lager = tilgjengelig hos 360 Logistics; tomdato ved takten siste 30 d. Kasse er bankbalanse lagt inn manuelt (sist ${T.kasse_dato}).`;
 const metaInfo = { built_at: NOW.toISOString(), shopify_at: shop.at, label: stamp, today: TODAY, meta_through: meta ? meta.coveredThrough : null, daily: series.slice(-30), geo: shop.geo, kart: { w: KART.w, h: KART.h, fylker: KART.fylker } };
 
