@@ -134,6 +134,8 @@ async function fetchShopify() {
     }
   }
   for (const g of Object.values(geo)) for (const x of Object.values(g.fy)) x.kr = Math.round(x.kr);
+  // unike kunder = kundeprofiler med minst én betalt ordre i hele historikken
+  const kunder = new Set(hist.filter(ok).filter(o => amt(o) > 0).map(o => o.customer?.id).filter(Boolean)).size;
   // aktive abonnement fra Subscriptions-appen (ShopifyQL); valgfri
   let subActive = null;
   try {
@@ -141,7 +143,7 @@ async function fetchShopify() {
     const v = (await r.json()).data?.shopifyqlQuery?.tableData?.rows?.[0]?.active_subscriptions;
     if (v !== undefined && Number.isFinite(+v)) subActive = +v;
   } catch (e) { console.error("ShopifyQL utilgjengelig:", e.message); }
-  return { daily, lager, geo, subActive, at: NOW.toISOString() };
+  return { daily, lager, geo, kunder, subActive, at: NOW.toISOString() };
 }
 
 // ---------- 3. Meta-annonsekostnad fra kvitteringsmailer (hei@getpace.no), valgfri ----------
@@ -251,7 +253,8 @@ const subCard = shop.subActive !== null
 const cards = todayCard() + salgCard(7) + salgCard(30) + subCard
   + adsCard(7) + adsCard(30) + cacCard(7) + cacCard(30)
   + card("Kasse", nf(T.kasse) + " kr", "bankbalanse lagt inn " + T.kasse_dato, "c-kasse", `Bankbalanse lagt inn manuelt ${T.kasse_dato}`)
-  + lagerCard("sitron", "PACE01", "u1", T.sitron_bestfor, "Sitron & Lime") + lagerCard("bringebær", "PACE02", "u2", "", "Bringebær");
+  + lagerCard("sitron", "PACE01", "u1", T.sitron_bestfor, "Sitron & Lime") + lagerCard("bringebær", "PACE02", "u2", "", "Bringebær")
+  + card("Unike kunder", nf(shop.kunder), `+${sum(win(30), "nye")} nye siste 30 d`, "c-salg", "Kundeprofiler med minst én betalt ordre i hele historikken (uten test- og seeding-ordre)");
 
 // datastatus: hvor ferske tallene er per kilde
 const datastatus = [`Shopify ${stamp}`, meta ? `Meta-kvitteringer t.o.m. ${fmtD(meta.coveredThrough)}` : "Meta mangler", `bankbalanse ${T.kasse_dato}`, plan ? `Pace 2.0-plan ${fmtD(plan.built)}` : "plan mangler"].join(" · ");
