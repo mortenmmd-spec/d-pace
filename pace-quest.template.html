@@ -135,6 +135,9 @@
   .sum-sub { color: var(--ink-2); font-size: 0.85rem; margin: 2px 0 6px; }
   .sum-meta { font-size: 0.78rem; color: var(--ink-muted); }
   .sum-meta b.bad { color: var(--critical); }
+  .goal { margin-top: 10px; font-size: 0.8rem; color: var(--ink-2); max-width: 560px; }
+  .goal .gbar { height: 4px; margin-top: 5px; border-radius: 2px; background: var(--grid); overflow: hidden; }
+  .goal .gbar i { display: block; height: 100%; background: var(--good); border-radius: 2px; }
 
   /* ---------- filter + ny oppgave ---------- */
   .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 12px; }
@@ -290,6 +293,7 @@
       <div class="sum-title" id="sum-title"></div>
       <div class="sum-sub" id="sum-sub"></div>
       <div class="sum-meta" id="sum-meta"></div>
+      <div class="goal" id="goal" hidden></div>
     </div>
   </section>
 
@@ -373,7 +377,8 @@ const isMile = t => t.kat === "Milepæl";
 const isRole = t => t.kat === "Rolle";
 const isB2B = t => /^b2b-kunder$/i.test((t.txt || "").trim());
 const isCoins = t => /^coins$/i.test((t.txt || "").trim());
-const quests = () => tasks.filter(t => !isMile(t) && !isRole(t) && !isB2B(t) && !isCoins(t));
+const isGoal = t => /^ukens mål$/i.test((t.txt || "").trim());
+const quests = () => tasks.filter(t => !isMile(t) && !isRole(t) && !isB2B(t) && !isCoins(t) && !isGoal(t));
 const isOver = t => !!t.due && !isDone(t) && t.due < todayOslo();
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const owners = () => project?.ansvarligField?.options.map(o => o.name) || OWNERS_FALLBACK;
@@ -754,6 +759,17 @@ function renderHero() {
   const over = q.filter(isOver).length;
   const built = META.label ? ` · tall bygget ${META.label}` : "";
   document.getElementById("sum-meta").innerHTML = (over ? `<b class="bad">${over} over frist</b>` : "Ingen over frist") + esc(built);
+  renderGoal();
+}
+// ukens fellesmål fra kortet «Ukens mål»: linje 1 = målet, linjen «strøm: X» = hvilke oppgaver som teller (Arbeidsstrøm)
+function renderGoal() {
+  const el = document.getElementById("goal"), card = tasks.find(isGoal);
+  const lines = (card?.body || "").split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  const txt = lines.find(l => !/^strøm:/i.test(l)), strom = (lines.find(l => /^strøm:/i.test(l)) || "").replace(/^strøm:\s*/i, "");
+  if (!txt) { el.hidden = true; return; }
+  const q = strom ? quests().filter(t => t.strom === strom) : [], n = q.filter(isDone).length;
+  el.hidden = false;
+  el.innerHTML = `🎯 Ukens fellesmål: <b>${esc(txt)}</b>${q.length ? ` · ${n} av ${q.length} ferdig<div class="gbar"><i style="width:${Math.max(2, n / q.length * 100).toFixed(1)}%"></i></div>` : ""}`;
 }
 
 function renderAgenda() {
