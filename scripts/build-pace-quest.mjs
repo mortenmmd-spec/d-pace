@@ -281,11 +281,11 @@ const subCard = shop.subActive !== null
   ? card("Aktive abonnement", nf(shop.subActive), `+${sum(series.slice(-30), "subAdd")} nye · −${sum(series.slice(-30), "subCan")} avsluttet (30 d)${shop.subRekke >= 2 ? ` · 🔥 ${shop.subRekke} uker på rad med vekst` : ""}`, "c-sub", `${nf(shop.subStart)} abonnement startet og ${nf(shop.subStop)} avsluttet totalt ifølge Shopify Subscriptions (Shopify-analyse).. Siste 30 d: ${sum(series.slice(-30), "subAdd")} nye, ${sum(series.slice(-30), "subCan")} avsluttet; ${subNow} kunder fikk abonnementsordre`)
   : card("Kunder m/ abonnementsordre", nf(subNow), `+${subNew30} nye · ${subRen30} forny. (30 d)`, "c-sub", `Unike kunder med abonnementsordre siste 30 dager (ekte abonnementsstatus utilgjengelig)`);
 // snitt per kunde: hva en kunde legger igjen i snitt over hele historikken, sammenlignet med CAC 30 d
-const kundeCard = () => { const c = meta ? cac(30).cac : null; return card("Snitt per kunde", nf(shop.perKunde) + " kr", c ? `${(shop.perKunde / c).toFixed(1).replace(".", ",")}× CAC 30 d · ${nf(shop.perKundeEks)} eks mva` : `${nf(shop.perKundeEks)} kr eks mva`, "c-cac", `All ordreverdi inkl. mva delt på ${nf(shop.kunder)} unike kunder (hele historikken, etter refusjon). Eks mva ${nf(shop.perKundeEks)} kr${c ? `. CAC 30 d er ${nf(c)} kr` : ""}`); };
+const kundeCard = () => { const c = meta ? cac(30).cac : null; return card("Snitt per kunde", nf(shop.perKunde) + " kr", c ? `${nf(shop.perKundeEks)} eks mva = ${(shop.perKundeEks / c).toFixed(1).replace(".", ",")}× CAC 30 d` : `${nf(shop.perKundeEks)} kr eks mva`, "c-cac", `All ordreverdi inkl. mva delt på ${nf(shop.kunder)} unike kunder (hele historikken, etter refusjon). Eks mva ${nf(shop.perKundeEks)} kr${c ? `. CAC 30 d er ${nf(c)} kr (Meta-kost uten norsk mva), derfor sammenlignes med beløpet eks mva` : ""}`); };
 const cards = todayCard() + salgCard(7) + salgCard(30) + subCard
   + adsCard(7) + adsCard(30) + cacCard(7) + cacCard(30)
-  + card("Unike kunder", nf(shop.kunder), `+${sum(win(30), "nye")} nye siste 30 d`, "c-salg", "Kundeprofiler med minst én betalt ordre i hele historikken (uten test- og seeding-ordre)")
   + kundeCard()
+  + card("Unike kunder", nf(shop.kunder), `+${sum(win(30), "nye")} nye siste 30 d`, "c-salg", "Kundeprofiler med minst én betalt ordre i hele historikken (uten test- og seeding-ordre)")
   + card("Kasse", nf(T.kasse) + " kr", "bankbalanse lagt inn " + T.kasse_dato, "c-kasse", `Bankbalanse lagt inn manuelt ${T.kasse_dato}`)
   + lagerCard("sitron", "PACE01", "u1", T.sitron_bestfor, "Sitron & Lime") + lagerCard("bringebær", "PACE02", "u2", "", "Bringebær");
 
