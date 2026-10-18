@@ -636,6 +636,7 @@ function renderMiles() {
    «2026-10-18 Morten login» / «2026-10-18 Morten oppgave PVTI_…» / «start PVTI_…» (ferdig før start, gir ingenting)
    ============================================================ */
 const COIN_PEOPLE = ["Morten", "Victoria", "Martin", "Anders"];
+const crown = p => p === "Morten" ? "👑 " : "";
 const ME_KEY = "pace-me";
 let me = ""; try { me = localStorage.getItem(ME_KEY) || ""; } catch {}
 let coinBusy = false;
@@ -651,7 +652,7 @@ function renderCoins() {
   const el = document.getElementById("coins"), card = tasks.find(isCoins);
   if (!card) { el.innerHTML = ""; return; }
   const s = coinScores(card.body);
-  const list = COIN_PEOPLE.slice().sort((a, b) => s[b] - s[a]).map(p => `${esc(p)} <b>${s[p]}</b>`).join(" · ");
+  const list = COIN_PEOPLE.slice().sort((a, b) => s[b] - s[a]).map(p => `${crown(p)}${esc(p)} <b>${s[p]}</b>`).join(" · ");
   el.innerHTML = `<span>🪙 ${list}</span><span>1 per dag du er innom, 1 per ferdig oppgave · du er <select id="coin-me" aria-label="Hvem er du?"><option value="">velg</option>${COIN_PEOPLE.map(p => `<option${p === me ? " selected" : ""}>${esc(p)}</option>`).join("")}</select></span>`;
   el.querySelector("#coin-me").onchange = e => setMe(e.target.value);
 }
@@ -665,7 +666,7 @@ function setMe(name) {
 (function askWho() {
   if (me) return;
   const box = document.getElementById("who");
-  document.getElementById("who-opts").innerHTML = COIN_PEOPLE.map(p => `<button type="button" data-p="${esc(p)}">${esc(p)}</button>`).join("");
+  document.getElementById("who-opts").innerHTML = COIN_PEOPLE.map(p => `<button type="button" data-p="${esc(p)}">${crown(p)}${esc(p)}</button>`).join("");
   box.querySelectorAll("button").forEach(b => b.onclick = () => setMe(b.dataset.p));
   box.hidden = false; box.querySelector("button").focus();
 })();
