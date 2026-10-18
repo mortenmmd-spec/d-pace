@@ -107,6 +107,10 @@ async function fetchShopify() {
   const firstOrder = {};
   for (const o of orders) { const c = o.customer; if (!c?.id || !c.created_at || osloDay(new Date(c.created_at)) < DAYS[0]) continue; if (!firstOrder[c.id] || o.day < firstOrder[c.id]) firstOrder[c.id] = o.day; }
   for (const d of Object.values(firstOrder)) if (daily[d]) daily[d].nye++;
+  // nye kunder siste 30 hele dager (samme vindu som CAC 30 d) og hva de har kjøpt for i vinduet, eks mva
+  const nyFra = DAYS[0], nyTil = addDays(TODAY, -1), nyIds = new Set(Object.entries(firstOrder).filter(([, d]) => d >= nyFra && d <= nyTil).map(([id]) => id));
+  const nyEks = orders.filter(o => nyIds.has(String(o.customer?.id)) && o.day <= nyTil).reduce((x, o) => x + amt(o) - (+o.current_total_tax || 0), 0);
+  const nyKunde30 = { n: nyIds.size, eks: nyIds.size ? nyEks / nyIds.size : 0 };
   // lager per lokasjon (360 Logistics), ikke aggregatet
   const products = await getAll(`https://${SHOP}/admin/api/${API}/products.json?limit=250&fields=id,title,variants`, "products");
   const items = {};
@@ -172,7 +176,7 @@ async function fetchShopify() {
     for (const w of weeks.reverse()) { if ((+w.subscriptions_added || 0) > (+w.subscriptions_canceled || 0)) subRekke++; else break; }
     if (subActive !== null) { let live = subActive; for (const d of [...DAYS].reverse()) { daily[d].subLive = live; live -= (daily[d].subAdd || 0) - (daily[d].subCan || 0); } }
   } catch (e) { console.error("ShopifyQL utilgjengelig:", e.message); }
-  return { daily, lager, geo, kunder, perKunde, perKundeEks, ukedag: ukedagSnitt, subActive, subStart, subStop, subAdd30, subCan30, subRekke, totalt, rekord, at: NOW.toISOString() };
+  return { daily, lager, geo, kunder, perKunde, perKundeEks, ukedag: ukedagSnitt, subActive, subStart, subStop, subAdd30, subCan30, subRekke, totalt, rekord, nyKunde30, at: NOW.toISOString() };
 }
 
 // ---------- 3. Meta-annonsekostnad fra kvitteringsmailer (hei@getpace.no), valgfri ----------
@@ -281,7 +285,10 @@ const subCard = shop.subActive !== null
   ? card("Aktive abonnement", nf(shop.subActive), `+${sum(series.slice(-30), "subAdd")} nye · −${sum(series.slice(-30), "subCan")} avsluttet (30 d)${shop.subRekke >= 2 ? ` · 🔥 ${shop.subRekke} uker på rad med vekst` : ""}`, "c-sub", `${nf(shop.subStart)} abonnement startet og ${nf(shop.subStop)} avsluttet totalt ifølge Shopify Subscriptions (Shopify-analyse).. Siste 30 d: ${sum(series.slice(-30), "subAdd")} nye, ${sum(series.slice(-30), "subCan")} avsluttet; ${subNow} kunder fikk abonnementsordre`)
   : card("Kunder m/ abonnementsordre", nf(subNow), `+${subNew30} nye · ${subRen30} forny. (30 d)`, "c-sub", `Unike kunder med abonnementsordre siste 30 dager (ekte abonnementsstatus utilgjengelig)`);
 // snitt per kunde: hva en kunde legger igjen i snitt over hele historikken, sammenlignet med CAC 30 d
-const kundeCard = () => { const c = meta ? cac(30).cac : null; return card("Snitt per kunde", nf(shop.perKunde) + " kr", c ? `${nf(shop.perKundeEks)} eks mva = ${(shop.perKundeEks / c).toFixed(1).replace(".", ",")}× CAC 30 d` : `${nf(shop.perKundeEks)} kr eks mva`, "c-cac", `All ordreverdi inkl. mva delt på ${nf(shop.kunder)} unike kunder (hele historikken, etter refusjon). Eks mva ${nf(shop.perKundeEks)} kr${c ? `. CAC 30 d er ${nf(c)} kr (Meta-kost uten norsk mva), derfor sammenlignes med beløpet eks mva` : ""}`); };
+// ny kunde 30 d: hva kunder som kom i de siste 30 hele dagene har kjøpt for i samme periode, eks mva (CAC er Meta-kost uten norsk mva)
+const kundeCard = () => { const c = meta ? cac(30).cac : null, k = shop.nyKunde30;
+  if (!k?.n) return card("Snitt per kunde", nf(shop.perKunde) + " kr", `${nf(shop.perKundeEks)} kr eks mva`, "c-cac", `All ordreverdi inkl. mva delt på ${nf(shop.kunder)} unike kunder (hele historikken)`);
+  return card("Ny kunde 30 d", nf(k.eks) + " kr", c ? `${(k.eks / c).toFixed(1).replace(".", ",")}× CAC 30 d · eks mva` : "eks mva", "c-cac", `${k.n} nye kunder siste 30 hele dager har i snitt kjøpt for ${nf(k.eks)} kr eks mva i samme periode${c ? `. CAC 30 d er ${nf(c)} kr (bare dager med Meta-data)` : ""}. Snitt per kunde over hele historikken: ${nf(shop.perKunde)} kr inkl. mva (${nf(shop.perKundeEks)} eks mva)`); };
 const cards = todayCard() + salgCard(7) + salgCard(30) + subCard
   + adsCard(7) + adsCard(30) + cacCard(7) + cacCard(30)
   + kundeCard()
