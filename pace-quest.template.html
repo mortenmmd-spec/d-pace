@@ -228,6 +228,9 @@
   #toast.err { background: var(--critical); }
   #toast button { background: rgba(255,255,255,0.2); border: 0; color: #fff; border-radius: 999px; padding: 3px 10px; cursor: pointer; font-weight: 700; }
   footer { margin-top: 28px; font-size: 0.75rem; color: var(--ink-muted); }
+  .coins { margin-top: 18px; font-size: 0.75rem; color: var(--ink-muted); display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
+  .coins b { color: var(--ink-2); font-weight: 600; }
+  .coins select { font: inherit; color: inherit; background: transparent; border: 1px solid var(--grid); border-radius: 6px; padding: 1px 4px; }
   kbd { font-family: inherit; border: 1px solid var(--hairline); border-radius: 4px; padding: 0 5px; font-size: 0.7rem; }
 </style>
 </head>
@@ -298,6 +301,8 @@
   <div class="sec-h" id="roles-h">Roller (løpende ansvar)</div>
   <section class="roles" id="roles"></section>
 
+  <div class="coins" id="coins"></div>
+
   <footer>
     Dra kort mellom kolonnene, huk av, klikk 👤 for ansvarlig og 📅 for frist, dobbeltklikk tittelen for å redigere. Endringer lagres direkte på GitHub-boardet.
     Tastatur: <kbd>N</kbd> ny oppgave · <kbd>M</kbd> mandagsmøte · <kbd>Esc</kbd> lukk.
@@ -356,7 +361,8 @@ const isDone = t => t.sec === "Ferdig";
 const isMile = t => t.kat === "Milepæl";
 const isRole = t => t.kat === "Rolle";
 const isB2B = t => /^b2b-kunder$/i.test((t.txt || "").trim());
-const quests = () => tasks.filter(t => !isMile(t) && !isRole(t) && !isB2B(t));
+const isCoins = t => /^coins$/i.test((t.txt || "").trim());
+const quests = () => tasks.filter(t => !isMile(t) && !isRole(t) && !isB2B(t) && !isCoins(t));
 const isOver = t => !!t.due && !isDone(t) && t.due < todayOslo();
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const owners = () => project?.ansvarligField?.options.map(o => o.name) || OWNERS_FALLBACK;
@@ -522,7 +528,7 @@ function render() {
   // ukjente statuser (nye kolonner på boardet) vises sist
   const unknown = q.filter(t => !SECTIONS.includes(t.sec) && passes(t));
   for (const sec of [...new Set(unknown.map(t => t.sec))]) { const items = unknown.filter(t => t.sec === sec); const col = document.createElement("div"); col.className = "col"; col.innerHTML = `<h2>${esc(sec)}<span class="count">${items.length}</span></h2>`; for (const t of items) col.appendChild(taskCard(t)); board.appendChild(col); }
-  renderMiles(); renderRoles(); renderB2B(); renderHero(); renderAgenda(); renderOwnerSelect();
+  renderMiles(); renderRoles(); renderB2B(); renderCoins(); renderHero(); renderAgenda(); renderOwnerSelect();
 }
 
 function renderFilters() {
@@ -617,6 +623,48 @@ function renderMiles() {
 /* ============================================================
    B2B-KUNDER (fra kortet «B2B-kunder» på boardet, én kunde per linje: Kunde | Status | Kontakt)
    ============================================================ */
+/* ============================================================
+   COINS: 1 per dag man åpner siden, 1 per ferdig oppgave. Lagres som linjer i kortet «Coins» på boardet:
+   «2026-10-18 Morten login» / «2026-10-18 Morten oppgave PVTI_…» / «start PVTI_…» (ferdig før start, gir ingenting)
+   ============================================================ */
+const COIN_PEOPLE = ["Morten", "Victoria", "Martin", "Anders"];
+const ME_KEY = "pace-me";
+let me = ""; try { me = localStorage.getItem(ME_KEY) || ""; } catch {}
+let coinBusy = false;
+const coinLines = body => String(body || "").split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+function coinScores(body) {
+  const s = Object.fromEntries(COIN_PEOPLE.map(p => [p, 0]));
+  for (const l of coinLines(body)) { const m = l.match(/^\d{4}-\d{2}-\d{2} (\S+) (login|oppgave)\b/); if (m && m[1] in s) s[m[1]]++; }
+  return s;
+}
+// hvem får coin for en ferdig oppgave: ansvarlig(e), ellers den som har siden åpen
+const coinOwners = t => { const o = COIN_PEOPLE.filter(p => (t.owner || "").includes(p)); return o.length ? o : (me ? [me] : []); };
+function renderCoins() {
+  const el = document.getElementById("coins"), card = tasks.find(isCoins);
+  if (!card) { el.innerHTML = ""; return; }
+  const s = coinScores(card.body);
+  const list = COIN_PEOPLE.slice().sort((a, b) => s[b] - s[a]).map(p => `${esc(p)} <b>${s[p]}</b>`).join(" · ");
+  el.innerHTML = `<span>🪙 ${list}</span><span>1 per dag du er innom, 1 per ferdig oppgave · du er <select id="coin-me" aria-label="Hvem er du?"><option value="">velg</option>${COIN_PEOPLE.map(p => `<option${p === me ? " selected" : ""}>${esc(p)}</option>`).join("")}</select></span>`;
+  el.querySelector("#coin-me").onchange = e => { me = e.target.value; try { localStorage.setItem(ME_KEY, me); } catch {} awardCoins(); };
+}
+async function awardCoins() {
+  const card = tasks.find(isCoins);
+  if (!live || coinBusy || !card?.draft) return;
+  coinBusy = true;
+  try {
+    // les kortet på nytt rett før skriving, så vi ikke overskriver andres coins
+    const d = await gql(`query($id: ID!) { node(id: $id) { ... on DraftIssue { body } } }`, { id: card.draft });
+    const lines = coinLines(d.node?.body), have = new Set(lines), add = [], day = todayOslo();
+    const known = new Set(lines.map(l => (l.match(/(PVTI_\S+)$/) || [])[1]).filter(Boolean));
+    if (me && !have.has(`${day} ${me} login`)) add.push(`${day} ${me} login`);
+    for (const t of quests().filter(t => isDone(t) && !known.has(t.id) && !busy.has(t.id)))
+      for (const p of coinOwners(t)) add.push(`${day} ${p} oppgave ${t.id}`);
+    if (add.length) { card.body = [...lines, ...add].join("\n"); await updateDraft(card.draft, card.txt, card.body); }
+    else card.body = lines.join("\n");
+  } catch (e) { console.warn("coins:", e.message); }
+  finally { coinBusy = false; renderCoins(); }
+}
+
 function renderB2B() {
   const el = document.getElementById("b2b"); if (!el) return;
   const card = tasks.find(isB2B);
@@ -850,7 +898,7 @@ document.addEventListener("keydown", e => {
    ============================================================ */
 async function connect() {
   if (!getToken()) { setMode("off"); render(); return; }
-  try { await loadBoard(); setMode("live"); }
+  try { await loadBoard(); setMode("live"); awardCoins(); }
   catch (e) {
     if (/scope|401|Bad credentials|project-scope/i.test(e.message)) { if (!PAGE_TOKEN) localStorage.removeItem(TOKEN_KEY); setMode("off", "⚠️ token avvist"); }
     else setMode("off", "⚠️ mistet kontakt med GitHub");
@@ -873,7 +921,7 @@ const osloClock = () => new Intl.DateTimeFormat("no-NO", { timeZone: "Europe/Osl
 setInterval(async () => {
   if (!live || dragging || editing || popOpen || busy.size || adding) return;
   const pill = document.getElementById("mode-pill");
-  try { if (await loadBoard()) { render(); pollFails = 0; pill.className = "live-pill on"; pill.textContent = `🟢 LIVE — boardet hentet ${osloClock()}`; } }
+  try { if (await loadBoard()) { render(); awardCoins(); pollFails = 0; pill.className = "live-pill on"; pill.textContent = `🟢 LIVE — boardet hentet ${osloClock()}`; } }
   catch (e) { pollFails++; if (pollFails >= 2) { pill.className = "live-pill off"; pill.textContent = "⚠️ mistet kontakt med GitHub — viser sist hentede data"; } }
 }, 60000);
 
