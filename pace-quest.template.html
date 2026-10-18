@@ -684,6 +684,11 @@ function setMe(name) {
 async function awardCoins() {
   const card = tasks.find(isCoins);
   if (!live || coinBusy || !card?.draft) return;
+  // billig sjekk mot kortet som allerede er hentet; bare hvis noe mangler leses kortet på nytt og skrives
+  const have0 = coinLines(card.body), known0 = new Set(have0.map(l => (l.match(/(PVTI_\S+)$/) || [])[1]).filter(Boolean));
+  const needLogin = me && !have0.includes(`${todayOslo()} ${me} login`);
+  const needTask = quests().some(t => isDone(t) && !known0.has(t.id) && !busy.has(t.id) && coinOwners(t).length);
+  if (!needLogin && !needTask) return;
   coinBusy = true;
   try {
     // les kortet på nytt rett før skriving, så vi ikke overskriver andres coins
