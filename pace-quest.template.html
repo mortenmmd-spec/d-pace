@@ -235,6 +235,9 @@
   #toast.err { background: var(--critical); }
   #toast button { background: rgba(255,255,255,0.2); border: 0; color: #fff; border-radius: 999px; padding: 3px 10px; cursor: pointer; font-weight: 700; }
   footer { margin-top: 28px; font-size: 0.75rem; color: var(--ink-muted); }
+  .mile .gap { color: var(--ink-muted); }
+  .mile .mbar { height: 3px; width: 90px; max-width: 100%; margin: 4px auto 0; border-radius: 2px; background: var(--grid); overflow: hidden; }
+  .mile .mbar i { display: block; height: 100%; background: var(--good); border-radius: 2px; }
   .coins { margin-top: 18px; font-size: 0.75rem; color: var(--ink-muted); display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
   .coins b { color: var(--ink-2); font-weight: 600; }
   .coins select { font: inherit; color: inherit; background: transparent; border: 1px solid var(--grid); border-radius: 6px; padding: 1px 4px; }
@@ -618,10 +621,13 @@ function renderMiles() {
   for (const [elId, miles] of Object.entries(groups)) {
     const el = document.getElementById(elId); el.innerHTML = "";
     if (!miles.length) { el.innerHTML = `<div class="empty">Ingen milepæler (Kategori = Milepæl på boardet).</div>`; continue; }
+    // salgsmilepæler («2 MNOK i salg»): vis hvor mye som gjenstår, og en tynn linje på den neste
+    const mnok = m => { const x = (m.txt || "").match(/(\d+(?:[.,]\d+)?)\s*MNOK/i); return x ? parseFloat(x[1].replace(",", ".")) * 1e6 : null; };
+    const tot = META.totalt, nextM = tot != null ? miles.find(m => !isDone(m) && mnok(m) > tot) : null;
     for (const m of miles) {
       const d = document.createElement("div");
       d.className = "mile" + (isDone(m) ? " done" : "") + (busy.has(m.id) ? " busy" : "");
-      d.innerHTML = `<button class="node" title="${live ? "Klikk for å markere nådd / ikke nådd" : ""}">${isDone(m) ? "🏁" : "🚩"}</button><div class="lbl">${esc(m.txt)}</div>${m.due ? `<div class="lbl">📅 ${fmtDate(m.due)}</div>` : ""}`;
+      d.innerHTML = `<button class="node" title="${live ? "Klikk for å markere nådd / ikke nådd" : ""}">${isDone(m) ? "🏁" : "🚩"}</button><div class="lbl">${esc(m.txt)}</div>${m.due ? `<div class="lbl">📅 ${fmtDate(m.due)}</div>` : ""}${!isDone(m) && tot != null && mnok(m) > tot ? `<div class="lbl gap" title="Solgt totalt inkl. mva: ${nf(tot)} kr">${nf(mnok(m) - tot)} kr igjen</div>${m === nextM ? `<div class="mbar"><i style="width:${Math.max(2, Math.min(100, tot / mnok(m) * 100)).toFixed(1)}%"></i></div>` : ""}` : ""}`;
       if (live) d.querySelector(".node").onclick = () => moveTask(m.id, isDone(m) ? "Neste" : "Ferdig");
       el.appendChild(d);
     }
