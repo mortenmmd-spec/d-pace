@@ -183,6 +183,13 @@
   #pop { position: fixed; z-index: 60; background: var(--surface-2); border: 1px solid var(--hairline); border-radius: 10px; padding: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.4); display: none; min-width: 160px; }
   #pop button { display: block; width: 100%; text-align: left; background: none; border: 0; color: var(--ink); padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
   #pop button:hover, #pop button:focus-visible { background: var(--surface); }
+  #who { position: fixed; inset: 0; z-index: 80; background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  #who[hidden] { display: none; }
+  #who .box { background: var(--surface-2); border: 1px solid var(--hairline); border-radius: 14px; padding: 22px; max-width: 360px; width: 100%; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
+  #who h2 { margin: 0 0 14px; font-size: 1.05rem; color: var(--ink); }
+  #who .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  #who button { font: inherit; padding: 10px; border-radius: 10px; border: 1px solid var(--hairline); background: var(--surface); color: var(--ink); cursor: pointer; }
+  #who button:hover, #who button:focus-visible { border-color: var(--blue); }
   #pop button.cur { color: var(--blue); font-weight: 700; }
 
   /* ---------- milepæler ---------- */
@@ -310,6 +317,7 @@
   </footer>
 </div>
 
+<div id="who" role="dialog" aria-modal="true" aria-labelledby="who-h" hidden><div class="box"><h2 id="who-h">Hvem er du?</h2><div class="opts" id="who-opts"></div></div></div>
 <div id="pop" role="menu"></div>
 <div id="tip"></div>
 <div id="toast" role="status" aria-live="polite"><span id="toast-msg"></span><button id="toast-undo" hidden>Angre</button></div>
@@ -645,8 +653,22 @@ function renderCoins() {
   const s = coinScores(card.body);
   const list = COIN_PEOPLE.slice().sort((a, b) => s[b] - s[a]).map(p => `${esc(p)} <b>${s[p]}</b>`).join(" · ");
   el.innerHTML = `<span>🪙 ${list}</span><span>1 per dag du er innom, 1 per ferdig oppgave · du er <select id="coin-me" aria-label="Hvem er du?"><option value="">velg</option>${COIN_PEOPLE.map(p => `<option${p === me ? " selected" : ""}>${esc(p)}</option>`).join("")}</select></span>`;
-  el.querySelector("#coin-me").onchange = e => { me = e.target.value; try { localStorage.setItem(ME_KEY, me); } catch {} awardCoins(); };
+  el.querySelector("#coin-me").onchange = e => setMe(e.target.value);
 }
+function setMe(name) {
+  me = name; try { localStorage.setItem(ME_KEY, me); } catch {}
+  document.getElementById("who").hidden = true;
+  document.getElementById("new-owner").value = "";
+  renderOwnerSelect(); renderCoins(); awardCoins();
+}
+// spør hvem man er første gang siden åpnes i en nettleser
+(function askWho() {
+  if (me) return;
+  const box = document.getElementById("who");
+  document.getElementById("who-opts").innerHTML = COIN_PEOPLE.map(p => `<button type="button" data-p="${esc(p)}">${esc(p)}</button>`).join("");
+  box.querySelectorAll("button").forEach(b => b.onclick = () => setMe(b.dataset.p));
+  box.hidden = false; box.querySelector("button").focus();
+})();
 async function awardCoins() {
   const card = tasks.find(isCoins);
   if (!live || coinBusy || !card?.draft) return;
@@ -742,7 +764,8 @@ function renderAgenda() {
 function renderOwnerSelect() {
   const sel = document.getElementById("new-owner");
   const cur = sel.value;
-  sel.innerHTML = owners().map(n => `<option${n === "Ikke fordelt" ? " selected" : ""}>${esc(n)}</option>`).join("");
+  const def = owners().includes(me) ? me : "Ikke fordelt";
+  sel.innerHTML = owners().map(n => `<option${n === def ? " selected" : ""}>${esc(n)}</option>`).join("");
   if (cur) sel.value = cur;
 }
 
