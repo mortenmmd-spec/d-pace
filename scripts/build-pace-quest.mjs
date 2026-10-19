@@ -229,7 +229,31 @@ async function fetchNyeKunder(SHOP, H) {
   } catch (e) { console.error("Kundereise utilgjengelig:", e.message); return null; }
 }
 
-// ---------- 3. Meta-annonsekostnad fra kvitteringsmailer (hei@getpace.no), valgfri ----------
+// ---------- 3a. Meta-annonsekostnad fra Marketing API (Insights), brukes når META_ACCESS_TOKEN finnes ----------
+// Forbruk per dag i annonsekontoens tidssone (skal være Europe/Oslo; sjekkes mot timezone_name). Dagen i dag er ufullstendig
+// og regnes ikke som dekket. Feiler kallet, faller bygget tilbake til kvitteringene (3b).
+async function fetchMetaSpendApi() {
+  const token = env("META_ACCESS_TOKEN"), act = env("META_AD_ACCOUNT", "act_410230529686773"), V = "v23.0";
+  const get = async (path, params) => {
+    const r = await fetch(`https://graph.facebook.com/${V}/${path}?${new URLSearchParams({ ...params, access_token: token })}`);
+    const j = await r.json();
+    if (!r.ok || j.error) throw new Error("Meta API: " + (j.error?.message || r.status));
+    return j;
+  };
+  const acc = await get(act, { fields: "timezone_name,currency,account_id" });
+  if (acc.timezone_name !== OSLO) throw new Error(`Meta API: kontoens tidssone er ${acc.timezone_name}, forventet ${OSLO}`);
+  if (acc.currency !== "NOK") throw new Error(`Meta API: valuta ${acc.currency}, forventet NOK`);
+  const daily = {}; let next = null;
+  const first = await get(`${act}/insights`, { fields: "spend", level: "account", time_increment: "1", limit: "100", time_range: JSON.stringify({ since: DAYS[0], until: TODAY }) });
+  for (let page = first; page; page = next ? await (await fetch(next)).json() : null) {
+    for (const row of page.data || []) daily[row.date_start] = +row.spend || 0;
+    next = page.paging?.next || null;
+  }
+  const coveredThrough = addDays(TODAY, -1);
+  return { daily, coveredThrough, source: "api", account: acc.account_id };
+}
+
+// ---------- 3b. Meta-annonsekostnad fra kvitteringsmailer (hei@getpace.no), reserve ----------
 // "Amount billed: NOKx Date range: <fra> - <til>" fordeles på Oslo-kalenderdager i perioden (sum = kvitteringen).
 // Dager etter siste kvittering er ikke fakturert ennå → null (ukjent), ikke 0.
 async function fetchMetaSpend() {
@@ -276,7 +300,7 @@ async function fetchMetaSpend() {
   if (!nRec) throw new Error("Gmail: ingen Meta-kvitteringer funnet");
   // siste kvittering slutter ofte midt på dagen: den dagen er bare delvis dekket og regnes ikke som dekket
   const coveredThrough = osloHour(last) >= 23 ? osloDay(last) : addDays(osloDay(last), -1);
-  return { daily, coveredThrough, nRec, last, receipts };
+  return { daily, coveredThrough, nRec, last, receipts, source: "kvitteringer" };
 }
 
 // ---------- 4. Kasse (manuell) og kjente forfall ----------
@@ -290,7 +314,10 @@ const dmy = s => { const m = /(\d{1,2})\.(\d{1,2})\.(\d{4})/.exec(s || ""); retu
 // ---------- 5. Hent ----------
 const [tasks, shop] = await Promise.all([fetchBoard(), fetchShopify()]);
 let meta = null, metaErr = "";
-try { meta = await fetchMetaSpend(); } catch (e) { metaErr = e.message; console.error("Meta/CAC utilgjengelig:", e.message); }
+// API først (varig kilde), ellers kvitteringene (stoppet 12.10.2026 som fast kilde)
+if (process.env.META_ACCESS_TOKEN) { try { meta = await fetchMetaSpendApi(); } catch (e) { metaErr = e.message; console.error("Meta API utilgjengelig:", e.message); } }
+if (!meta) { try { meta = await fetchMetaSpend(); metaErr = ""; } catch (e) { metaErr = (metaErr ? metaErr + " · " : "") + e.message; console.error("Meta/CAC utilgjengelig:", e.message); } }
+const metaKilde = meta?.source === "api" ? "Meta API" : "Meta-kvitteringer";
 const T = parseKasse();
 let plan = null;
 try { plan = readPlan(env("STATICRYPT_PASSWORD", "")); } catch (e) { console.error("Pace 2.0-plan utilgjengelig:", e.message); }
@@ -369,10 +396,10 @@ const cards = todayCard() + salgCard(7) + salgCard(30) + subCard
   + lagerCard("sitron", "PACE01", "u1", T.sitron_bestfor, "Sitron & Lime") + lagerCard("bringebær", "PACE02", "u2", "", "Bringebær");
 
 // datastatus: hvor ferske tallene er per kilde
-const datastatus = [`Shopify ${stamp}`, meta ? `Meta-kvitteringer t.o.m. ${fmtD(meta.coveredThrough)}` : "Meta mangler", `bankbalanse ${T.kasse_dato}`, plan ? `Pace 2.0-plan ${fmtD(plan.built)}` : "plan mangler"].join(" · ");
+const datastatus = [`Shopify ${stamp}`, meta ? `${metaKilde} t.o.m. ${fmtD(meta.coveredThrough)}` : "Meta mangler", `bankbalanse ${T.kasse_dato}`, plan ? `Pace 2.0-plan ${fmtD(plan.built)}` : "plan mangler"].join(" · ");
 
 const note = `7 og 30 d = hele Oslo-dager t.o.m. i går; «Salg i dag» er dagen så langt. Salg = ordreverdi inkl. mva for ordre opprettet i perioden, etter refusjon, uten test- og seeding-ordre (Shopify ${stamp}). Planraden sammenlignes eks mva. Nye kunder = kundeprofiler opprettet i perioden med betalt ordre. `
-  + (meta ? `CAC = Meta-annonsekostnad fra kvitteringene i hei@getpace.no, fordelt per dag (dekket t.o.m. ${fmtD(meta.coveredThrough)}; forbruk etter det er ikke fakturert ennå og holdes utenfor), delt på nye kunder samme dager. ` : `CAC mangler: ${esc(metaErr)}. `)
+  + (meta ? (meta.source === "api" ? `CAC = Meta-annonsekostnad per dag fra Meta Marketing API (t.o.m. ${fmtD(meta.coveredThrough)}; dagen i dag er ufullstendig og holdes utenfor), delt på nye kunder samme dager. ` : `CAC = Meta-annonsekostnad fra kvitteringene i hei@getpace.no, fordelt per dag (dekket t.o.m. ${fmtD(meta.coveredThrough)}; forbruk etter det er ikke fakturert ennå og holdes utenfor), delt på nye kunder samme dager. `) : `CAC mangler: ${esc(metaErr)}. `)
   + (shop.subActive !== null ? `Aktive abonnement = startet minus avsluttet i Shopify Subscriptions (Shopify-analyse). ` : "")
   + `Lager = tilgjengelig hos 360 Logistics; tomdato ved takten siste 30 d. Kasse er bankbalanse lagt inn manuelt (sist ${T.kasse_dato}).`;
 const metaInfo = { built_at: NOW.toISOString(), shopify_at: shop.at, label: stamp, today: TODAY, meta_through: meta ? meta.coveredThrough : null, totalt: shop.totalt ?? null, daily: series.slice(-30), ukedag: shop.ukedag, geo: shop.geo, kart: { w: KART.w, h: KART.h, fylker: KART.fylker } };
