@@ -44,6 +44,13 @@ const DAYS = Array.from({ length: 31 }, (_, i) => addDays(TODAY, i - 30)); // 30
 const stamp = NOW.toLocaleString("no-NO", { timeZone: OSLO, day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).replace(",", " kl.");
 const nf = n => Math.round(n).toLocaleString("no-NO");
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+// dekningsbidrag per ordre. Kostnader eks mva fra fakturaer:
+// Kostnader per fornyelse fra fakturaer (eks mva): varekost 51,29/sjaktel = Pharmatech 34,96 (fakt. 202611329/202611631)
+// + folieark 8,51 + frakt 0,25 (Digital Etikett 341824, 10 ark à 0,851) + sjaktel 5,76 (Packly 26.05.2026 17 281,77 kr / 3 000 stk)
+// + pall 0,37 og transport til 360 1,44 (Pharmatech 202611329, Østfold Transport 118598); 360 Logistics plukk 25,25 + emballasje 4,04
+// + 3,03 per varelinje (fakt. 112646/112752); frakt 52 per ordre (112851: 7 908,71 for 152 ordre i sept.); Shopify Payments 2,81 % (faktiske gebyrer).
+const KOST = { sjaktel: 51.29, plukk: 25.25 + 4.04, linje: 3.03, frakt: 52, gebyr: 0.0281 };
+const dbOrdre = (eks, inkl, sjaktler, linjer) => eks - sjaktler * KOST.sjaktel - KOST.plukk - linjer * KOST.linje - KOST.frakt - inkl * KOST.gebyr;
 
 if (!process.env.FORCE && !process.env.SKIP_ENCRYPT) { const h = osloHour(NOW); if (h < 6 || h > 23) { console.log("utenfor 06–23 Oslo, hopper over"); process.exit(0); } }
 
@@ -89,6 +96,7 @@ async function fetchShopify() {
   const tags = o => (o.tags || "").split(",").map(s => s.trim().toLowerCase());
   const ok = o => !o.test && !o.cancelled_at && ["paid", "partially_refunded", "partially_paid"].includes(o.financial_status) && !tags(o).includes("seeding");
   const amt = o => +(o.current_total_price ?? o.total_price);
+  const dbRest = o => { const li = (o.line_items || []).filter(x => (x.current_quantity ?? x.quantity) > 0); return dbOrdre(amt(o) - (+o.current_total_tax || 0), amt(o), li.filter(x => /^PACE0[12]$/.test(x.sku || "")).reduce((y, x) => y + (x.current_quantity ?? x.quantity), 0), li.length); };
   const allOk = all.filter(ok).filter(o => amt(o) > 0).map(o => ({ ...o, day: osloDay(new Date(o.created_at)) }));
   const orders = allOk.filter(o => o.day >= DAYS[0]);
   const isSubNew = o => tags(o).includes("subscription first order"), isSubRen = o => tags(o).includes("subscription recurring order"), isSub = o => isSubNew(o) || isSubRen(o);
@@ -131,7 +139,13 @@ async function fetchShopify() {
   const lager = {};
   for (const [sku, iid] of Object.entries(items)) { const l = lv.find(x => x.inventory_item_id === iid); if (!l || typeof l.available !== "number") throw new Error("Shopify: ingen gyldig inventory_level for " + sku); lager[sku] = l.available; }
   // hele ordrehistorikken (read_all_orders) for salg per fylke
-  const hist = await getAll(`https://${SHOP}/admin/api/${API}/orders.json?status=any&limit=250&created_at_min=2024-01-01T00:00:00Z&fields=id,created_at,current_total_price,current_total_tax,total_price,cancelled_at,financial_status,test,tags,customer,shipping_address`, "orders");
+  const hist = await getAll(`https://${SHOP}/admin/api/${API}/orders.json?status=any&limit=250&created_at_min=2024-01-01T00:00:00Z&fields=id,created_at,current_total_price,current_total_tax,total_price,cancelled_at,financial_status,test,tags,customer,shipping_address,line_items`, "orders");
+  // kohort: realisert dekningsbidrag per ny kunde de første 180 dagene (alle senere ordre med), delt på om første ordre var abonnement.
+  // Kunder fra juni 2025 med full observasjonstid; dagens kostnader brukes også på eldre ordre.
+  const kohort = { sub: { n: 0, db: 0 }, non: { n: 0, db: 0 } };
+  { const per = {}; for (const o of hist.filter(ok).filter(o => amt(o) > 0 && o.customer?.id).sort((x, y) => Date.parse(x.created_at) - Date.parse(y.created_at))) (per[o.customer.id] ||= []).push(o);
+    for (const arr of Object.values(per)) { const f = Date.parse(arr[0].created_at); if (f < Date.parse("2025-06-01") || NOW - f < 180 * 864e5) continue;
+      const g = kohort[tags(arr[0]).includes("subscription first order") ? "sub" : "non"]; g.n++; g.db += arr.filter(o => Date.parse(o.created_at) <= f + 180 * 864e5).reduce((x, o) => x + dbRest(o), 0); } }
   // salg per fylke fra leveringsadressens postnummer; bare aggregater forlater bygget (ingen adresser i HTML)
   const fylkeOf = zip => { const z = +zip; const r = KART.pn.find(([a, b]) => z >= a && z <= b); return r ? r[2] : null; };
   const geoWin = { alt: "2000-01-01", d90: addDays(TODAY, -89), d30: addDays(TODAY, -29) };
@@ -187,20 +201,28 @@ async function fetchShopify() {
     for (const w of weeks.reverse()) { if ((+w.subscriptions_added || 0) > (+w.subscriptions_canceled || 0)) subRekke++; else break; }
     if (subActive !== null) { let live = subActive; for (const d of [...DAYS].reverse()) { daily[d].subLive = live; live -= (daily[d].subAdd || 0) - (daily[d].subCan || 0); } }
   } catch (e) { console.error("ShopifyQL utilgjengelig:", e.message); }
-  return { daily, lager, geo, kunder, perKunde, perKundeEks, ukedag: ukedagSnitt, subActive, subStart, subStop, subAdd30, subCan30, subRekke, totalt, rekord, nyKunde30, subOrdreEks, subOrdreN: renOrders.length, subRen42, subOrdre, nyeMeta: await fetchNyeMeta(SHOP, H), at: NOW.toISOString() };
+  return { daily, lager, geo, kunder, perKunde, perKundeEks, ukedag: ukedagSnitt, subActive, subStart, subStop, subAdd30, subCan30, subRekke, totalt, rekord, nyKunde30, subOrdreEks, subOrdreN: renOrders.length, subRen42, subOrdre, nyeKunder: await fetchNyeKunder(SHOP, H), kohort, at: NOW.toISOString() };
 }
 
-// nye kunder per Oslo-dag som kom via Meta (Shopify kundereise: første eller siste besøk fra facebook/instagram/fb/ig/meta). Valgfri → null.
-async function fetchNyeMeta(SHOP, H) {
+// nye kunder per Oslo-dag (førstegangsordre, Shopify kundereise): antall, abonnementsstartere og dekningsbidrag på første ordre,
+// totalt og for dem med Meta i første eller siste besøk (facebook/instagram/fb/ig/meta). Valgfri → null.
+async function fetchNyeKunder(SHOP, H) {
   try {
     const per = {}; let after = null;
     const meta = v => v && /facebook|instagram|\bfb\b|\big\b|meta/i.test((v.source || "") + " " + (v.utmParameters?.source || ""));
     for (;;) {
-      const q = `query($a: String) { orders(first: 250, after: $a, query: "created_at:>=${DAYS[0]}", sortKey: CREATED_AT) { pageInfo { hasNextPage endCursor } nodes { createdAt test cancelledAt customerJourneySummary { customerOrderIndex firstVisit { source utmParameters { source } } lastVisit { source utmParameters { source } } } } } }`;
+      const q = `query($a: String) { orders(first: 100, after: $a, query: "created_at:>=${DAYS[0]}", sortKey: CREATED_AT) { pageInfo { hasNextPage endCursor } nodes { createdAt test cancelledAt displayFinancialStatus tags currentTotalPriceSet { shopMoney { amount } } currentTotalTaxSet { shopMoney { amount } } lineItems(first: 20) { nodes { sku currentQuantity } } customerJourneySummary { customerOrderIndex firstVisit { source utmParameters { source } } lastVisit { source utmParameters { source } } } } } }`;
       const r = await fetch(`https://${SHOP}/admin/api/${API}/graphql.json`, { method: "POST", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify({ query: q, variables: { a: after } }) });
       const j = await r.json(); if (j.errors) throw new Error(j.errors[0]?.message);
       const o = j.data.orders;
-      for (const n of o.nodes) { const k = n.customerJourneySummary; if (n.test || n.cancelledAt || k?.customerOrderIndex !== 1) continue; if (meta(k.firstVisit) || meta(k.lastVisit)) { const d = osloDay(new Date(n.createdAt)); per[d] = (per[d] || 0) + 1; } }
+      for (const n of o.nodes) {
+        const k = n.customerJourneySummary, inkl = +n.currentTotalPriceSet.shopMoney.amount;
+        if (n.test || n.cancelledAt || k?.customerOrderIndex !== 1 || !(inkl > 0) || !["PAID", "PARTIALLY_REFUNDED", "PARTIALLY_PAID"].includes(n.displayFinancialStatus) || n.tags.some(t => /seeding/i.test(t))) continue;
+        const li = n.lineItems.nodes.filter(x => x.currentQuantity > 0), db = dbOrdre(inkl - +n.currentTotalTaxSet.shopMoney.amount, inkl, li.filter(x => /^PACE0[12]$/.test(x.sku || "")).reduce((y, x) => y + x.currentQuantity, 0), li.length);
+        const sub = n.tags.some(t => /subscription first order/i.test(t)) ? 1 : 0, m = meta(k.firstVisit) || meta(k.lastVisit);
+        const x = (per[osloDay(new Date(n.createdAt))] ||= { n: 0, nM: 0, sub: 0, subM: 0, db: 0, dbM: 0 });
+        x.n++; x.sub += sub; x.db += db; if (m) { x.nM++; x.subM += sub; x.dbM += db; }
+      }
       if (!o.pageInfo.hasNextPage) break; after = o.pageInfo.endCursor;
     }
     return per;
@@ -314,33 +336,24 @@ const subCard = shop.subActive !== null
   : card("Kunder m/ abonnementsordre", nf(subNow), `+${subNew30} nye · ${subRen30} forny. (30 d)`, "c-sub", `Unike kunder med abonnementsordre siste 30 dager (ekte abonnementsstatus utilgjengelig)`);
 // abonnement per dag: aktive abonnement × snitt per fornyelse eks mva, fordelt på leveringsintervallet (alle planer = hver 6. uke)
 const SUB_DAGER = 42;
-const subDagCard = () => { if (shop.subActive === null || !shop.subOrdreN) return card("Abonnement per dag", "–", "abonnementsdata mangler", "c-sub", "Krever aktive abonnement fra Shopify Subscriptions og minst én fornyelsesordre");
+const subDagCard = () => { if (shop.subActive === null || !shop.subOrdreN) return card("Fornyelser per dag", "–", "abonnementsdata mangler", "c-sub", "Krever aktive abonnement fra Shopify Subscriptions og minst én fornyelsesordre");
   const r = shop.subRen42, kr = r.eks / SUB_DAGER, modell = shop.subActive * shop.subOrdreEks / SUB_DAGER;
-  return card("Abonnement per dag", nf(kr) + " kr", `${r.n} forny. ${SUB_DAGER} d · ${r.betalende} betalende · eks mva`, "c-sub", `Faktisk fornyelsesomsetning eks mva siste ${SUB_DAGER} hele dager (én leveringssyklus): ${r.n} fornyelsesordre fra ${r.kunder} kunder = ${nf(r.eks)} kr (${r.betalende} kunder fikk abonnementsordre i perioden, inkl. nye) ≈ ${nf(kr * 30)} kr per 30 d. Førstegangsordre er ikke med. Til sammenligning: ${nf(shop.subActive)} «aktive» i Shopify-statistikken × ${nf(shop.subOrdreEks)} kr / ${SUB_DAGER} d ville gitt ${nf(modell)} kr/dag; avviket betyr at statistikken teller flere aktive enn som faktisk betaler.`); };
-// lønner abonnement seg: dekningsbidrag per abonnent over forventet levetid mot hva det koster å skaffe en kunde via Meta.
-// Kostnader per fornyelse fra fakturaer (eks mva): varekost 51,29/sjaktel = Pharmatech 34,96 (fakt. 202611329/202611631)
-// + folieark 8,51 + frakt 0,25 (Digital Etikett 341824, 10 ark à 0,851) + sjaktel 5,76 (Packly 26.05.2026 17 281,77 kr / 3 000 stk)
-// + pall 0,37 og transport til 360 1,44 (Pharmatech 202611329, Østfold Transport 118598); 360 Logistics plukk 25,25 + emballasje 4,04
-// + 3,03 per varelinje (fakt. 112646/112752); frakt 52 per ordre (112851: 7 908,71 for 152 ordre i sept.); Shopify Payments 2,81 % (faktiske gebyrer).
-const KOST = { sjaktel: 51.29, plukk: 25.25 + 4.04, linje: 3.03, frakt: 52, gebyr: 0.0281 };
-const subLonnCard = () => {
-  const so = shop.subOrdre, w = meta ? win(30).filter(r => r.meta !== null && r.meta > 0) : [];
-  const spend = sum(w, "meta"), nyMeta = shop.nyeMeta ? w.reduce((x, r) => x + (shop.nyeMeta[r.d] || 0), 0) : 0, nyAlle = sum(w, "nye");
-  const cPaid = nyMeta ? spend / nyMeta : null, cBlend = nyAlle ? spend / nyAlle : null;
-  if (shop.subActive === null || !so || !cPaid) return card("Abonnent: bidrag / kost", "–", cPaid ? "abonnementsdata mangler" : "Meta-data eller kundereise mangler", "c-sub", "Krever fornyelsesordre, Meta-kostnad og Shopify-kundereise");
-  // frafall regnes mot betalende abonnenter siste syklus (ikke Shopify-statistikkens «aktive», som er for høyt)
-  const base = shop.subRen42.betalende || shop.subActive, frafall = base ? shop.subCan30 / base : 0; // andel som avslutter per 30 d
-  const mnd = frafall > 0 ? 1 / frafall : null, lev = mnd ? mnd * 30 / SUB_DAGER : null;
-  const vare = so.sjaktler * KOST.sjaktel, lager = KOST.plukk + so.linjer * KOST.linje, gebyr = so.inkl * KOST.gebyr;
-  const db = shop.subOrdreEks - vare - lager - KOST.frakt - gebyr; // dekningsbidrag per leveranse
-  const ltv = lev ? lev * db : null, tilbake = db > 0 ? Math.ceil(cPaid / db) : null;
-  const x = v => (v).toFixed(1).replace(".", ",");
-  return card("Abonnent: bidrag / kost", ltv ? `${x(ltv / cPaid)}×` : "–",
-    `${ltv ? nf(ltv) : "–"} kr bidrag / ${nf(cPaid)} kr CAC Meta · ${ltv && cBlend ? x(ltv / cBlend) + "× blandet" : ""}`, "c-sub",
-    `Dekningsbidrag per leveranse: ${nf(shop.subOrdreEks)} kr eks mva − varekost ${nf(vare)} (${x(so.sjaktler)} sjaktler à ${KOST.sjaktel.toFixed(2).replace(".", ",")}) − lager/plukk ${nf(lager)} − frakt ${KOST.frakt} − betalingsgebyr ${nf(gebyr)} = ${nf(db)} kr. `
-    + `Levetid: ${shop.subCan30} avsluttet siste 30 d av ${nf(base)} betalende (${x(frafall * 100)} %/30 d) → ~${mnd ? x(mnd) : "–"} mnd ≈ ${lev ? x(lev) : "–"} leveranser → ${ltv ? nf(ltv) : "–"} kr bidrag per abonnent. `
-    + `CAC Meta = ${nf(spend)} kr Meta-kost ÷ ${nyMeta} nye kunder som kom via Meta (Shopify kundereise, ${w.length} dager med kvittering) = ${nf(cPaid)} kr. Blandet (÷ alle ${nyAlle} nye) = ${cBlend ? nf(cBlend) : "–"} kr. `
-    + `Sannheten ligger mellom: Meta-sporet mister de som så annonsen uten å klikke, blandet teller organiske kunder. Abonnenten har betalt CAC Meta etter ${tilbake ?? "–"} leveranser. Faste kostnader (360-minimum 10 000/mnd, programvare) er ikke med.`);
+  return card("Fornyelser per dag", nf(kr) + " kr", `${r.n} forny. ${SUB_DAGER} d · ${r.betalende} betalende · eks mva`, "c-sub", `Faktisk fornyelsesomsetning eks mva siste ${SUB_DAGER} hele dager (én leveringssyklus): ${r.n} fornyelsesordre fra ${r.kunder} kunder = ${nf(r.eks)} kr (${r.betalende} kunder fikk abonnementsordre i perioden, inkl. nye) ≈ ${nf(kr * 30)} kr per 30 d. Førstegangsordre er ikke med. Til sammenligning: ${nf(shop.subActive)} «aktive» i Shopify-statistikken × ${nf(shop.subOrdreEks)} kr / ${SUB_DAGER} d ville gitt ${nf(modell)} kr/dag; avviket betyr at statistikken teller flere aktive enn som faktisk betaler.`); };
+// resultat av betalt reklame: dekningsbidrag per reklamekrone (POAS) på dager med Meta-kvittering. Over 1,00 = reklamen lønner seg.
+// Konservativt = bare nye kunder med Meta i kundereisen; alle nye = alle førstegangskjøpere. Riktig tall krever inkrementalitetstest.
+// «Etter 180 d» = nye kunder × historisk 180-dagers bidrag for sin gruppe (startet med / uten abonnement).
+const poasCard = () => {
+  const w = meta ? win(30).filter(r => r.meta !== null && r.meta > 0) : [], nk = shop.nyeKunder, k = shop.kohort;
+  if (!w.length || !nk || !k.sub.n || !k.non.n) return card("Fortjeneste per reklamekrone", "–", "Meta-data eller kundereise mangler", "c-cac", "Krever Meta-kostnad per dag og Shopify-kundereise");
+  const S = sum(w, "meta"), a = w.reduce((t, r) => { const x = nk[r.d]; if (x) for (const key in t) t[key] += x[key]; return t; }, { n: 0, nM: 0, sub: 0, subM: 0, db: 0, dbM: 0 });
+  const vs = k.sub.db / k.sub.n, vn = k.non.db / k.non.n, x = v => v.toFixed(2).replace(".", ",");
+  const fA = a.db / S, fM = a.dbM / S, hA = (a.sub * vs + (a.n - a.sub) * vn) / S, hM = (a.subM * vs + (a.nM - a.subM) * vn) / S;
+  return card("Fortjeneste per reklamekrone", `${x(fM)} → ${x(hM)}`, `nå → etter 180 d · konservativt · alle nye ${x(fA)} → ${x(hA)}`, "c-cac",
+    `Dekningsbidrag (salg eks mva − varer, plukk, frakt, gebyr) per krone Meta-reklame, ${fmtD(w[0].d)}–${fmtD(w[w.length - 1].d)} (${w.length} dager med kvittering, ${nf(S)} kr). `
+    + `Konservativt: ${a.nM} nye kunder med Meta i kundereisen ga ${nf(a.dbM)} kr på første kjøp (${x(fM)}); med forventet 180-dagers bidrag ${x(hM)}. `
+    + `Alle ${a.n} nye kunder: ${nf(a.db)} kr på første kjøp (${x(fA)}); etter 180 d ${x(hA)}. `
+    + `180 d bygger på historikk: startet med abonnement ${nf(vs)} kr (${k.sub.n} kunder), uten ${nf(vn)} kr (${k.non.n} kunder), dagens kostnader. Over 1,00 = reklamen lønner seg. `
+    + `Sannheten ligger mellom tallene til en pausetest er gjort. Faste kostnader (360-minimum, programvare) er ikke med.`);
 };
 // snitt per kunde: hva en kunde legger igjen i snitt over hele historikken, sammenlignet med CAC 30 d
 // ny kunde 30 d: hva kunder som kom i de siste 30 hele dagene har kjøpt for i samme periode, eks mva (CAC er Meta-kost uten norsk mva)
@@ -348,7 +361,7 @@ const kundeCard = () => { const c = meta ? cac(30).cac : null, k = shop.nyKunde3
   if (!k?.n) return card("Snitt per kunde", nf(shop.perKunde) + " kr", `${nf(shop.perKundeEks)} kr eks mva`, "c-cac", `All ordreverdi inkl. mva delt på ${nf(shop.kunder)} unike kunder (hele historikken)`);
   return card("Ny kunde 30 d", nf(k.eks) + " kr", c ? `${(k.eks / c).toFixed(1).replace(".", ",")}× CAC 30 d · eks mva` : "eks mva", "c-cac", `${k.n} nye kunder siste 30 hele dager har i snitt kjøpt for ${nf(k.eks)} kr eks mva i samme periode${c ? `. CAC 30 d er ${nf(c)} kr (bare dager med Meta-data)` : ""}. Snitt per kunde over hele historikken: ${nf(shop.perKunde)} kr inkl. mva (${nf(shop.perKundeEks)} eks mva)`); };
 const cards = todayCard() + salgCard(7) + salgCard(30) + subCard
-  + subDagCard() + subLonnCard()
+  + subDagCard() + poasCard()
   + adsCard(7) + adsCard(30) + cacCard(7) + cacCard(30)
   + kundeCard()
   + card("Unike kunder", nf(shop.kunder), `+${sum(win(30), "nye")} nye siste 30 d`, "c-salg", "Kundeprofiler med minst én betalt ordre i hele historikken (uten test- og seeding-ordre)")
