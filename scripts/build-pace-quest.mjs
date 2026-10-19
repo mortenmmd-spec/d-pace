@@ -361,7 +361,7 @@ const kundeCard = () => { const c = meta ? cac(30).cac : null, k = shop.nyKunde3
   if (!k?.n) return card("Snitt per kunde", nf(shop.perKunde) + " kr", `${nf(shop.perKundeEks)} kr eks mva`, "c-cac", `All ordreverdi inkl. mva delt på ${nf(shop.kunder)} unike kunder (hele historikken)`);
   return card("Ny kunde 30 d", nf(k.eks) + " kr", c ? `${(k.eks / c).toFixed(1).replace(".", ",")}× CAC 30 d · eks mva` : "eks mva", "c-cac", `${k.n} nye kunder siste 30 hele dager har i snitt kjøpt for ${nf(k.eks)} kr eks mva i samme periode${c ? `. CAC 30 d er ${nf(c)} kr (bare dager med Meta-data)` : ""}. Snitt per kunde over hele historikken: ${nf(shop.perKunde)} kr inkl. mva (${nf(shop.perKundeEks)} eks mva)`); };
 const cards = todayCard() + salgCard(7) + salgCard(30) + subCard
-  + subDagCard() + poasCard()
+  + poasCard()
   + adsCard(7) + adsCard(30) + cacCard(7) + cacCard(30)
   + kundeCard()
   + card("Unike kunder", nf(shop.kunder), `+${sum(win(30), "nye")} nye siste 30 d`, "c-salg", "Kundeprofiler med minst én betalt ordre i hele historikken (uten test- og seeding-ordre)")
