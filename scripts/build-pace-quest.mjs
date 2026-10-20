@@ -303,6 +303,47 @@ async function fetchMetaSpend() {
   return { daily, coveredThrough, nRec, last, receipts, source: "kvitteringer" };
 }
 
+// ---------- 3c. Ubesvarte kundehenvendelser i hei@getpace.no ----------
+// Tråder i innboksen mottatt f.o.m. HENV_FRA der siste melding ikke er fra oss. Automatiske avsendere (kvitteringer, varsler,
+// nyhetsbrev) telles ikke; Shopify-kontaktskjema («Ny kundemelding») telles, for det er kunder.
+const HENV_FRA = "2026-10-20"; // Mortens start for tellingen (20.10.2026)
+async function gmailAuth() {
+  const tr = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ client_id: env("GMAIL_CLIENT_ID"), client_secret: env("GMAIL_CLIENT_SECRET"), refresh_token: env("GMAIL_REFRESH_TOKEN"), grant_type: "refresh_token" }) });
+  const tj = await tr.json();
+  if (!tj.access_token) throw new Error("Gmail: token-feil " + (tj.error || tr.status));
+  return { Authorization: "Bearer " + tj.access_token };
+}
+const AUTO_FROM = /no-?reply|notification|mailer-daemon|facebookmail|business-updates\.facebook|@google\.com|@accounts\.google|@shopify\.com|@stripe\.com|@klarna|@vipps|@dnb\.no|@360logistics|@bring\.com|@posten\.no|@postnord|newsletter|nyhetsbrev|info@|support@|hello@|team@|@linkedin|@meta\.com|@fiken|@tripletex|@github\.com/i;
+async function fetchHenvendelser() {
+  const G = await gmailAuth();
+  const q = encodeURIComponent(`in:inbox -in:chats after:${addDays(HENV_FRA, -1).replace(/-/g, "/")}`);
+  const ids = []; let pageToken = "";
+  for (let i = 0; i < 10; i++) {
+    const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/threads?q=${q}&maxResults=100${pageToken ? "&pageToken=" + pageToken : ""}`, { headers: G });
+    if (!r.ok) throw new Error("Gmail threads " + r.status);
+    const j = await r.json(); ids.push(...(j.threads || []).map(t => t.id)); pageToken = j.nextPageToken || ""; if (!pageToken) break;
+  }
+  const hdr = (m, n) => (m.payload?.headers || []).find(h => h.name.toLowerCase() === n.toLowerCase())?.value || "";
+  const open = [];
+  for (const id of ids) {
+    const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`, { headers: G });
+    if (!r.ok) throw new Error("Gmail thread " + r.status);
+    const t = await r.json(); const msgs = (t.messages || []).slice().sort((a, b) => +a.internalDate - +b.internalDate);
+    if (!msgs.length) continue;
+    const first = msgs[0], last = msgs[msgs.length - 1];
+    const from = hdr(first, "From"), subject = hdr(first, "Subject");
+    const kunde = /ny kundemelding/i.test(subject) || !AUTO_FROM.test(from);
+    if (!kunde) continue;
+    if (/hei@getpace\.no/i.test(hdr(last, "From"))) continue; // vi har svart sist
+    if (osloDay(new Date(+first.internalDate)) < HENV_FRA) continue; // eldre tråd som fikk nytt svar
+    const navn = from.replace(/<.*>/, "").replace(/"/g, "").trim() || from;
+    open.push({ d: osloDay(new Date(+last.internalDate)), navn, subject });
+  }
+  open.sort((a, b) => a.d < b.d ? -1 : 1);
+  return { n: open.length, open, threads: ids.length };
+}
+
 // ---------- 4. Kasse (manuell) og kjente forfall ----------
 function parseKasse() {
   const [kasse, kasse_dato, gjeld, gjeld_note, sitron_bestfor] = env("PACE_KASSE").split("|").map(s => s.trim());
@@ -318,6 +359,8 @@ let meta = null, metaErr = "";
 if (process.env.META_ACCESS_TOKEN) { try { meta = await fetchMetaSpendApi(); } catch (e) { metaErr = e.message; console.error("Meta API utilgjengelig:", e.message); } }
 if (!meta) { try { meta = await fetchMetaSpend(); metaErr = ""; } catch (e) { metaErr = (metaErr ? metaErr + " · " : "") + e.message; console.error("Meta/CAC utilgjengelig:", e.message); } }
 const metaKilde = meta?.source === "api" ? "Meta API" : "Meta-kvitteringer";
+let henv = null, henvErr = "";
+try { henv = await fetchHenvendelser(); } catch (e) { henvErr = e.message; console.error("Henvendelser utilgjengelig:", e.message); }
 const T = parseKasse();
 let plan = null;
 try { plan = readPlan(env("STATICRYPT_PASSWORD", "")); } catch (e) { console.error("Pace 2.0-plan utilgjengelig:", e.message); }
@@ -387,7 +430,13 @@ const poasCard = () => {
 const kundeCard = () => { const c = meta ? cac(30).cac : null, k = shop.nyKunde30;
   if (!k?.n) return card("Snitt per kunde", nf(shop.perKunde) + " kr", `${nf(shop.perKundeEks)} kr eks mva`, "c-cac", `All ordreverdi inkl. mva delt på ${nf(shop.kunder)} unike kunder (hele historikken)`);
   return card("Ny kunde 30 d", nf(k.eks) + " kr", c ? `${(k.eks / c).toFixed(1).replace(".", ",")}× CAC 30 d · eks mva` : "eks mva", "c-cac", `${k.n} nye kunder siste 30 hele dager har i snitt kjøpt for ${nf(k.eks)} kr eks mva i samme periode${c ? `. CAC 30 d er ${nf(c)} kr (bare dager med Meta-data)` : ""}. Snitt per kunde over hele historikken: ${nf(shop.perKunde)} kr inkl. mva (${nf(shop.perKundeEks)} eks mva)`); };
-const cards = todayCard() + salgCard(7) + salgCard(30) + subCard
+// ubesvarte kundehenvendelser i hei@getpace.no siden HENV_FRA (tråder der siste melding ikke er fra oss)
+const henvCard = () => { if (!henv) return card("Ubesvarte henvendelser", "–", "Gmail utilgjengelig", "c-ads", henvErr);
+  const eldst = henv.open[0], dager = eldst ? Math.round((Date.parse(TODAY) - Date.parse(eldst.d)) / 864e5) : 0;
+  const liste = henv.open.slice(0, 8).map(o => `${fmtD(o.d)} ${o.navn}: ${o.subject}`).join(" · ");
+  return card("Ubesvarte henvendelser", nf(henv.n), henv.n ? `eldste ${dager === 0 ? "i dag" : dager + " d"} · siden ${fmtD(HENV_FRA)}` : `alle besvart · siden ${fmtD(HENV_FRA)}`, henv.n ? "c-ads" : "c-kasse",
+    `Kundetråder i hei@getpace.no mottatt f.o.m. ${fmtD(HENV_FRA)} der siste melding ikke er fra oss. Automatiske avsendere (kvitteringer, varsler) telles ikke; Shopify-kontaktskjema telles.${liste ? " Åpne: " + liste : ""}`); };
+const cards = todayCard() + henvCard() + salgCard(7) + salgCard(30) + subCard
   + poasCard()
   + adsCard(7) + adsCard(30) + cacCard(7) + cacCard(30)
   + kundeCard()
