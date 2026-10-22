@@ -358,7 +358,12 @@ let meta = null, metaErr = "";
 // API først (varig kilde), ellers kvitteringene (stoppet 12.10.2026 som fast kilde)
 if (process.env.META_ACCESS_TOKEN) { try { meta = await fetchMetaSpendApi(); } catch (e) { metaErr = e.message; console.error("Meta API utilgjengelig:", e.message); } }
 if (!meta) { try { meta = await fetchMetaSpend(); metaErr = ""; } catch (e) { metaErr = (metaErr ? metaErr + " · " : "") + e.message; console.error("Meta/CAC utilgjengelig:", e.message); } }
-const metaKilde = meta?.source === "api" ? "Meta API" : "Meta-kvitteringer";
+// 3c. Manuelt avleste dagsbeløp fra Ads Manager (data/meta-manuell.json: {"daily":{"YYYY-MM-DD": kr}}), brukes for dager etter siste dekkede dag
+// til API-en er på plass. Dager uten oppføring forblir ukjente (null), ikke 0.
+let manuell = {};
+try { manuell = JSON.parse(readFileSync(path.join(DIR, "data", "meta-manuell.json"), "utf8")).daily || {}; } catch {}
+if (meta) meta.manual = manuell; else if (Object.keys(manuell).length) meta = { daily: {}, coveredThrough: "0000-00-00", source: "manuell", manual: manuell };
+const metaKilde = meta?.source === "api" ? "Meta API" : meta?.source === "manuell" ? "Meta manuelt" : "Meta-kvitteringer";
 let henv = null, henvErr = "";
 try { henv = await fetchHenvendelser(); } catch (e) { henvErr = e.message; console.error("Henvendelser utilgjengelig:", e.message); }
 const T = parseKasse();
@@ -366,7 +371,7 @@ let plan = null;
 try { plan = readPlan(env("STATICRYPT_PASSWORD", "")); } catch (e) { console.error("Pace 2.0-plan utilgjengelig:", e.message); }
 
 // ---------- 6. Tall ----------
-const series = DAYS.map(d => { const x = shop.daily[d]; const covered = meta && d <= meta.coveredThrough; return { d, ordre: x.ordre, oms: Math.round(x.oms * 100) / 100, eks: Math.round(x.eks * 100) / 100, nye: x.nye, u1: x.u1, u2: x.u2, subNew: x.subNew, subRen: x.subRen, subAdd: x.subAdd ?? null, subCan: x.subCan ?? null, subLive: x.subLive ?? null, meta: covered ? Math.round((meta.daily[d] || 0) * 100) / 100 : null }; });
+const series = DAYS.map(d => { const x = shop.daily[d]; const covered = meta && d <= meta.coveredThrough; return { d, ordre: x.ordre, oms: Math.round(x.oms * 100) / 100, eks: Math.round(x.eks * 100) / 100, nye: x.nye, u1: x.u1, u2: x.u2, subNew: x.subNew, subRen: x.subRen, subAdd: x.subAdd ?? null, subCan: x.subCan ?? null, subLive: x.subLive ?? null, meta: covered ? Math.round((meta.daily[d] || 0) * 100) / 100 : (meta && meta.manual[d] != null ? Math.round(meta.manual[d] * 100) / 100 : null), manuell: !!(meta && !covered && meta.manual[d] != null) }; });
 const today = series[series.length - 1];
 const win = n => series.slice(-n - 1, -1); // n hele dager t.o.m. i går
 const sum = (a, k) => a.reduce((x, r) => x + (r[k] || 0), 0);
@@ -385,7 +390,8 @@ const cacCard = (n) => { if (!meta) return card(`CAC ${n} d`, "–", "Meta-data 
 const adsCard = (n) => { if (!meta) return card(`Annonser ${n} d`, "–", "Meta-data mangler", "c-ads", metaErr); const w = win(n).filter(r => r.meta !== null); const s = sum(w, "meta");
   // ingen dekkede dager i vinduet: kostnaden er ukjent, ikke 0 (annonsene kan gå uten at kilden har fått tallene ennå)
   if (!w.length) return card(`Annonser ${n} d`, "–", `ingen Meta-data etter ${fmtD(meta.coveredThrough)}`, "c-ads", `Meta-annonsekostnad mangler for alle ${n} dagene (siste dekkede dag ${fmtD(meta.coveredThrough)}). Annonsene kan ha gått; forbruket er ikke hentet ennå.`);
-  return card(`Annonser ${n} d`, nf(s) + " kr", `~${nf(s / w.length)} kr/dag · t.o.m. ${fmtD(meta.coveredThrough)}`, "c-ads", `Meta-annonsekostnad ${w.length} av ${n} dager (fakturert t.o.m. ${fmtD(meta.coveredThrough)}; forbruk etter siste kvittering er ikke med)`); };
+  const m = w.filter(r => r.manuell).length, sist = w[w.length - 1].d;
+  return card(`Annonser ${n} d`, nf(s) + " kr", `~${nf(s / w.length)} kr/dag · ${w.length < n ? `${w.length} av ${n} d · ` : ""}t.o.m. ${fmtD(sist)}`, "c-ads", `Meta-annonsekostnad ${w.length} av ${n} dager (kvitteringer t.o.m. ${fmtD(meta.coveredThrough)}${m ? `, ${m} dager lest manuelt fra Ads Manager` : ""}; dager uten tall er ukjente, ikke 0)`); };
 // lager: tomdato ved takten siste 30 hele dager; neste batch for smaken fra Pace 2.0-planen
 const lagerCard = (navn, sku, key, bestfor, flavor) => {
   const qty = shop.lager[sku], perDag = sum(win(30), key) / 30;
