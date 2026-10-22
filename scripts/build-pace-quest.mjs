@@ -382,7 +382,10 @@ const todayCard = () => card("Salg i dag", nf(today.oms) + " kr" + (slaatt ? " �
 const salgCard = (n) => { const w = win(n); return card(`Salg ${n} d`, nf(sum(w, "oms")) + " kr", `${sum(w, "ordre")} ordre · ${sum(w, "nye")} nye`, "c-salg", `Ordreverdi inkl. mva siste ${n} hele dager t.o.m. i går, ${sum(w, "nye")} nye kunder`); };
 const cacCard = (n) => { if (!meta) return card(`CAC ${n} d`, "–", "Meta-data mangler", "c-cac", metaErr); const c = cac(n); return card(`CAC ${n} d`, c.cac ? nf(c.cac) + " kr" : "–", `${nf(c.spend)} / ${c.nye} nye${c.days < n ? ` · ${c.days} d` : ""}`, "c-cac", `Meta ${nf(c.spend)} kr delt på ${c.nye} nye kunder${c.days < n ? ` (${c.days} av ${n} dager har Meta-data)` : ""}`); };
 // annonsekost: Meta-forbruk på fakturerte dager i vinduet; kr/dag over de samme dagene
-const adsCard = (n) => { if (!meta) return card(`Annonser ${n} d`, "–", "Meta-data mangler", "c-ads", metaErr); const w = win(n).filter(r => r.meta !== null); const s = sum(w, "meta"); return card(`Annonser ${n} d`, nf(s) + " kr", `~${nf(w.length ? s / w.length : 0)} kr/dag · t.o.m. ${fmtD(meta.coveredThrough)}`, "c-ads", `Meta-annonsekostnad ${w.length} av ${n} dager (fakturert t.o.m. ${fmtD(meta.coveredThrough)}; forbruk etter siste kvittering er ikke med)`); };
+const adsCard = (n) => { if (!meta) return card(`Annonser ${n} d`, "–", "Meta-data mangler", "c-ads", metaErr); const w = win(n).filter(r => r.meta !== null); const s = sum(w, "meta");
+  // ingen dekkede dager i vinduet: kostnaden er ukjent, ikke 0 (annonsene kan gå uten at kilden har fått tallene ennå)
+  if (!w.length) return card(`Annonser ${n} d`, "–", `ingen Meta-data etter ${fmtD(meta.coveredThrough)}`, "c-ads", `Meta-annonsekostnad mangler for alle ${n} dagene (siste dekkede dag ${fmtD(meta.coveredThrough)}). Annonsene kan ha gått; forbruket er ikke hentet ennå.`);
+  return card(`Annonser ${n} d`, nf(s) + " kr", `~${nf(s / w.length)} kr/dag · t.o.m. ${fmtD(meta.coveredThrough)}`, "c-ads", `Meta-annonsekostnad ${w.length} av ${n} dager (fakturert t.o.m. ${fmtD(meta.coveredThrough)}; forbruk etter siste kvittering er ikke med)`); };
 // lager: tomdato ved takten siste 30 hele dager; neste batch for smaken fra Pace 2.0-planen
 const lagerCard = (navn, sku, key, bestfor, flavor) => {
   const qty = shop.lager[sku], perDag = sum(win(30), key) / 30;
@@ -418,7 +421,7 @@ const poasCard = () => {
   const S = sum(w, "meta"), a = w.reduce((t, r) => { const x = nk[r.d]; if (x) for (const key in t) t[key] += x[key]; return t; }, { n: 0, nM: 0, sub: 0, subM: 0, db: 0, dbM: 0 });
   const vs = k.sub.db / k.sub.n, vn = k.non.db / k.non.n, x = v => v.toFixed(2).replace(".", ",");
   const fA = a.db / S, fM = a.dbM / S, hA = (a.sub * vs + (a.n - a.sub) * vn) / S, hM = (a.subM * vs + (a.nM - a.subM) * vn) / S;
-  return card("Fortjeneste per reklamekrone", `${x(fM)} → ${x(hM)}`, `nå → etter 180 d · konservativt · alle nye ${x(fA)} → ${x(hA)}`, "c-cac",
+  return card("Fortjeneste per reklamekrone", x(fM), `siste 30 d · konservativt · alle nye ${x(fA)} · etter 180 d ${x(hM)}`, "c-cac",
     `Dekningsbidrag (salg eks mva − varer, plukk, frakt, gebyr) per krone Meta-reklame, ${fmtD(w[0].d)}–${fmtD(w[w.length - 1].d)} (${w.length} dager med kvittering, ${nf(S)} kr). `
     + `Konservativt: ${a.nM} nye kunder med Meta i kundereisen ga ${nf(a.dbM)} kr på første kjøp (${x(fM)}); med forventet 180-dagers bidrag ${x(hM)}. `
     + `Alle ${a.n} nye kunder: ${nf(a.db)} kr på første kjøp (${x(fA)}); etter 180 d ${x(hA)}. `
