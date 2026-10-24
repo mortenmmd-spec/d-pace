@@ -276,7 +276,6 @@
     <div class="chart" id="chart-sub"></div>
     <div class="chart" id="chart-wd"></div>
   </section>
-  <section class="chart" id="chart-geo" style="margin-bottom:10px"></section>
   <section class="chart" id="b2b" style="margin-bottom:10px"></section>
   <details class="about"><summary>Om tallene ▾</summary><div id="stats-note"><!--STATSNOTE--><!--/STATSNOTE--></div></details>
   <div class="stale" id="stale" hidden></div>
@@ -302,7 +301,7 @@
   <div class="toolbar" id="filters"></div>
 
   <div class="add-bar">
-    <input id="new-task" placeholder="Ny oppgave … (Enter legger i Innboks, tast N for å hoppe hit)" maxlength="200">
+    <input id="new-task" placeholder="Ny oppgave … (Enter legger i Idéer, tast N for å hoppe hit)" maxlength="200">
     <select id="new-owner"></select>
     <button id="add-task">+ Legg til</button>
   </div>
@@ -338,7 +337,7 @@ const PROJECT_NUMBER = 2;
 const TOKEN_KEY = "pace-gh-token";
 const PREV_KEY  = "pace-prev-sec";
 const FILTER_KEY = "pace-filter";
-const SECTIONS = ["Innboks", "Neste", "Pågår", "Venter", "Ferdig"];
+const SECTIONS = ["Idéer", "Backlog", "Pågår", "Venter", "Ferdig"];
 // Innebygd token (kun project-scope, settes av build-scriptet). Tom streng = brukeren må lime inn egen.
 /*__PAGE_TOKEN__*/ const PAGE_TOKEN = ""; /*__PAGE_TOKEN_END__*/
 const getToken = () => PAGE_TOKEN || localStorage.getItem(TOKEN_KEY);
@@ -348,8 +347,8 @@ const getToken = () => PAGE_TOKEN || localStorage.getItem(TOKEN_KEY);
 /*__TASKS__*/ const SNAPSHOT = []; /*__TASKS_END__*/
 
 const SECTION_META = {
-  "Innboks": { color: "var(--ink-muted)", empty: "Tomt." },
-  "Neste":   { color: "var(--blue)",      empty: "Tomt." },
+  "Idéer":   { color: "var(--ink-muted)", empty: "Tomt." },
+  "Backlog": { color: "var(--blue)",      empty: "Tomt." },
   "Pågår":   { color: "var(--orange)",    empty: "Ingenting pågår." },
   "Venter":  { color: "var(--warning)",   empty: "Ingen blokkerte oppgaver." },
   "Ferdig":  { color: "var(--good)",      empty: "Ingenting ferdig ennå." },
@@ -429,7 +428,7 @@ async function loadBoard() {
     const fv = Object.fromEntries(n.fieldValues.nodes.filter(v => v.field).map(v => [v.field.name, v.name ?? v.date]));
     const c = n.content || {};
     return { id: n.id, draft: c.__typename === "DraftIssue" ? c.id : "", body: c.body || "", txt: c.title || "(uten tittel)",
-      sec: fv["Status"] || "Innboks", owner: fv["Ansvarlig"] || "Ikke fordelt", strom: fv["Arbeidsstrøm"] || "", kat: fv["Kategori"] || "Oppgave", due: fv["Måldato"] || "" };
+      sec: fv["Status"] || "Idéer", owner: fv["Ansvarlig"] || "Ikke fordelt", strom: fv["Arbeidsstrøm"] || "", kat: fv["Kategori"] || "Oppgave", due: fv["Måldato"] || "" };
   });
   // behold lokale verdier for kort som lagres akkurat nå
   tasks = fresh.map(t => busy.has(t.id) ? (tasks.find(x => x.id === t.id) || t) : t);
@@ -500,13 +499,13 @@ async function addTask(title, owner) {
   try {
     const d = await gql(`mutation($pid: ID!, $title: String!) { addProjectV2DraftIssue(input: { projectId: $pid, title: $title }) { projectItem { id content { ... on DraftIssue { id } } } } }`, { pid: project.id, title });
     const id = d.addProjectV2DraftIssue.projectItem.id, draft = d.addProjectV2DraftIssue.projectItem.content?.id || "";
-    tasks.push({ id, draft, body: "", txt: title, sec: "Innboks", owner: owner || "Ikke fordelt", strom: "", kat: "Oppgave", due: "" });
+    tasks.push({ id, draft, body: "", txt: title, sec: "Idéer", owner: owner || "Ikke fordelt", strom: "", kat: "Oppgave", due: "" });
     inp.value = ""; render();
     const errs = [];
-    try { await setField(id, project.statusField, "Innboks"); } catch (e) { errs.push("status"); }
+    try { await setField(id, project.statusField, "Idéer"); } catch (e) { errs.push("status"); }
     if (owner && owner !== "Ikke fordelt") { try { await setField(id, project.ansvarligField, owner); } catch (e) { errs.push("ansvarlig"); } }
     if (errs.length) { toast(`Opprettet, men ${errs.join(" og ")} ble ikke lagret. Laster boardet på nytt.`, true); try { await loadBoard(); render(); } catch {} }
-    else toast("Lagt i Innboks ✅");
+    else toast("Lagt i Idéer ✅");
   } catch (e) { toast("Kunne ikke legge til: " + e.message, true); }
   finally { adding = false; btn.disabled = false; }
 }
@@ -633,7 +632,7 @@ function renderMiles() {
       const d = document.createElement("div");
       d.className = "mile" + (isDone(m) ? " done" : "") + (busy.has(m.id) ? " busy" : "");
       d.innerHTML = `<button class="node" title="${live ? "Klikk for å markere nådd / ikke nådd" : ""}">${isDone(m) ? "🏁" : "🚩"}</button><div class="lbl">${esc(m.txt)}</div>${m.due ? `<div class="lbl">📅 ${fmtDate(m.due)}</div>` : ""}${!isDone(m) && tot != null && mnok(m) > tot ? `<div class="lbl gap" title="Solgt totalt inkl. mva: ${nf(tot)} kr">${nf(mnok(m) - tot)} kr igjen</div>${m === nextM ? `<div class="mbar"><i style="width:${Math.max(2, Math.min(100, tot / mnok(m) * 100)).toFixed(1)}%"></i></div>` : ""}` : ""}`;
-      if (live) d.querySelector(".node").onclick = () => moveTask(m.id, isDone(m) ? "Neste" : "Ferdig");
+      if (live) d.querySelector(".node").onclick = () => moveTask(m.id, isDone(m) ? "Backlog" : "Ferdig");
       el.appendChild(d);
     }
   }
@@ -760,7 +759,7 @@ function renderHero() {
   document.getElementById("ring").style.strokeDashoffset = 351.86 * (1 - frac);
   const by = s => q.filter(t => t.sec === s).length;
   document.getElementById("sum-title").textContent = `${n} av ${q.length} oppgaver ferdig`;
-  document.getElementById("sum-sub").textContent = `${by("Pågår")} pågår · ${by("Neste")} neste · ${by("Venter")} venter · ${by("Innboks")} i innboks`;
+  document.getElementById("sum-sub").textContent = `${by("Pågår")} pågår · ${by("Backlog")} i backlog · ${by("Venter")} venter · ${by("Idéer")} idéer`;
   const over = q.filter(isOver).length;
   const built = META.label ? ` · tall bygget ${META.label}` : "";
   document.getElementById("sum-meta").innerHTML = (over ? `<b class="bad">${over} over frist</b>` : "Ingen over frist") + esc(built);
@@ -786,7 +785,7 @@ function renderAgenda() {
   const s = k => d7.reduce((x, r) => x + (r[k] || 0), 0);
   const tall = d7.length ? `<h3>Siste 7 dager</h3><ul><li>${nf(s("oms"))} kr · ${s("ordre")} ordre · ${s("nye")} nye kunder</li></ul>` : "";
   const rest = q.filter(t => !isOver(t));
-  el.innerHTML = (filter !== "Alle" ? `<div class="sum-meta">Filter: ${esc(filter)}</div>` : "") + tall + group("Over frist", q.filter(isOver)) + group("Uten ansvarlig", q.filter(t => !isOver(t) && t.owner === "Ikke fordelt")) + group("Venter", rest.filter(t => t.sec === "Venter")) + group("Pågår", rest.filter(t => t.sec === "Pågår")) + group("Neste", rest.filter(t => t.sec === "Neste"));
+  el.innerHTML = (filter !== "Alle" ? `<div class="sum-meta">Filter: ${esc(filter)}</div>` : "") + tall + group("Over frist", q.filter(isOver)) + group("Uten ansvarlig", q.filter(t => !isOver(t) && t.owner === "Ikke fordelt")) + group("Venter", rest.filter(t => t.sec === "Venter")) + group("Pågår", rest.filter(t => t.sec === "Pågår")) + group("Backlog", rest.filter(t => t.sec === "Backlog"));
 }
 
 function renderOwnerSelect() {
@@ -803,6 +802,7 @@ function renderOwnerSelect() {
 let geoWin = (() => { try { return localStorage.getItem("pace-geo-win") || "alt"; } catch { return "alt"; } })();
 function geoMap() {
   const el = document.getElementById("chart-geo"), G = META.geo, K = META.kart;
+  if (!el) return;
   if (!G || !K) { el.innerHTML = `<div class="k">Salg per fylke</div><div class="empty">Ingen data ennå.</div>`; return; }
   const g = G[geoWin] || G.alt, tip = document.getElementById("tip");
   const rows = K.fylker.map(f => ({ ...f, o: g.fy[f.id]?.o || 0, kr: g.fy[f.id]?.kr || 0 })).sort((a, b) => b.kr - a.kr);

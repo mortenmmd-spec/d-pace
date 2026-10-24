@@ -79,7 +79,7 @@ async function fetchBoard() {
   return items.map(n => {
     const fv = Object.fromEntries(n.fieldValues.nodes.filter(v => v.field).map(v => [v.field.name, v.name ?? v.date]));
     const c = n.content || {};
-    return { id: n.id, draft: c.__typename === "DraftIssue" ? c.id : "", body: c.body || "", sec: fv["Status"] || "Innboks", owner: fv["Ansvarlig"] || "Ikke fordelt", strom: fv["Arbeidsstrøm"] || "", kat: fv["Kategori"] || "Oppgave", due: fv["Måldato"] || "", txt: c.title || "(uten tittel)" };
+    return { id: n.id, draft: c.__typename === "DraftIssue" ? c.id : "", body: c.body || "", sec: fv["Status"] || "Idéer", owner: fv["Ansvarlig"] || "Ikke fordelt", strom: fv["Arbeidsstrøm"] || "", kat: fv["Kategori"] || "Oppgave", due: fv["Måldato"] || "", txt: c.title || "(uten tittel)" };
   });
 }
 
