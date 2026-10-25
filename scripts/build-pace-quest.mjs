@@ -314,7 +314,8 @@ async function gmailAuth() {
   if (!tj.access_token) throw new Error("Gmail: token-feil " + (tj.error || tr.status));
   return { Authorization: "Bearer " + tj.access_token };
 }
-const AUTO_FROM = /no-?reply|notification|mailer-daemon|facebookmail|business-updates\.facebook|@google\.com|@accounts\.google|@shopify\.com|@stripe\.com|@klarna|@vipps|@dnb\.no|@360logistics|@bring\.com|@posten\.no|@postnord|newsletter|nyhetsbrev|info@|support@|hello@|team@|@linkedin|@meta\.com|@fiken|@tripletex|@github\.com/i;
+const AUTO_FROM = /no-?reply|notification|mailer-daemon|facebookmail|business-updates\.facebook|@google\.com|@accounts\.google|@shopify\.com|@stripe\.com|@klarna|@vipps|@dnb\.no|@360logistics|@bring\.com|@posten\.no|@postnord|newsletter|nyhetsbrev|info@|support@|kundeservice@|hello@|team@|@linkedin|@meta\.com|@fiken|@tripletex|@github\.com/i;
+const OSS = /@getpace\.no/i; // hei@ og aliasene (morten@ osv.)
 async function fetchHenvendelser() {
   const G = await gmailAuth();
   const q = encodeURIComponent(`in:inbox -in:chats after:${addDays(HENV_FRA, -1).replace(/-/g, "/")}`);
@@ -333,11 +334,13 @@ async function fetchHenvendelser() {
     if (!msgs.length) continue;
     const first = msgs[0], last = msgs[msgs.length - 1];
     const from = hdr(first, "From"), subject = hdr(first, "Subject");
-    const kunde = /ny kundemelding/i.test(subject) || !AUTO_FROM.test(from);
+    const lastFrom = hdr(last, "From"), vaarTraad = OSS.test(from); // tråd vi startet: avsender = den som svarte
+    const kunde = /ny kundemelding/i.test(subject) || !AUTO_FROM.test(vaarTraad ? lastFrom : from);
     if (!kunde) continue;
-    if (/hei@getpace\.no/i.test(hdr(last, "From"))) continue; // vi har svart sist
+    if (OSS.test(lastFrom)) continue; // vi har svart sist
     if (osloDay(new Date(+first.internalDate)) < HENV_FRA) continue; // eldre tråd som fikk nytt svar
-    const navn = from.replace(/<.*>/, "").replace(/"/g, "").trim() || from;
+    const avsender = vaarTraad ? lastFrom : from;
+    const navn = avsender.replace(/<.*>/, "").replace(/"/g, "").trim() || avsender;
     open.push({ d: osloDay(new Date(+last.internalDate)), navn, subject });
   }
   open.sort((a, b) => a.d < b.d ? -1 : 1);
