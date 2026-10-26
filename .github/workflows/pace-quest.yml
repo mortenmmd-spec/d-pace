@@ -1,7 +1,7 @@
 name: pace-quest
 on:
   schedule:
-    - cron: "0 4-22 * * *"   # hver hele time; scriptet hopper selv over utenfor 06-23 Oslo
+    - cron: "17 4-22 * * *"   # minutt 17, ikke hel time (GitHub dropper/forsinker kjøringer ved timeskiftet); scriptet hopper selv over utenfor 06-23 Oslo
   workflow_dispatch:
 concurrency:
   group: pace-quest
