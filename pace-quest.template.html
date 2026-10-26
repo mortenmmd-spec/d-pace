@@ -180,6 +180,15 @@
   .task .due.over { color: var(--critical); border-color: var(--critical); font-weight: 700; }
   .task.overdue { border-color: var(--critical); }
   .task .due input { font: inherit; font-size: 0.72rem; background: var(--surface); color: var(--ink); border: 1px solid var(--hairline); border-radius: 6px; padding: 1px 4px; }
+  /* Backlog og Idéer: én kompakt linje per oppgave (beskrivelse i tooltip) */
+  .col.compact .task { padding: 6px 10px; margin-bottom: 4px; gap: 8px; align-items: center; }
+  .col.compact .task .box { margin-top: 0; }
+  .col.compact .task .txt { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; }
+  .col.compact .task .title { flex: 1; min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .col.compact .task .body { display: none; }
+  .col.compact .task .tag { margin: 0; flex: none; padding: 0 6px; font-size: 0.68rem; }
+  /* Backlog får dobbel bredde på store skjermer, så linjene holder seg korte */
+  @media (min-width: 1000px) { #board { grid-template-columns: minmax(160px, 1fr) minmax(320px, 2fr) repeat(3, minmax(160px, 1fr)); } }
   .empty { font-size: 0.8rem; color: var(--ink-muted); font-style: italic; padding: 6px 2px; }
 
   /* ---------- popover ---------- */
@@ -338,6 +347,7 @@ const TOKEN_KEY = "pace-gh-token";
 const PREV_KEY  = "pace-prev-sec";
 const FILTER_KEY = "pace-filter";
 const SECTIONS = ["Idéer", "Backlog", "Pågår", "Venter", "Ferdig"];
+const COMPACT = ["Idéer", "Backlog"];   // vises som kompakte linjer
 // Innebygd token (kun project-scope, settes av build-scriptet). Tom streng = brukeren må lime inn egen.
 /*__PAGE_TOKEN__*/ const PAGE_TOKEN = ""; /*__PAGE_TOKEN_END__*/
 const getToken = () => PAGE_TOKEN || localStorage.getItem(TOKEN_KEY);
@@ -366,7 +376,8 @@ let live = false;
 let tasks = SNAPSHOT.slice();
 let project = null;                      // { id, statusField, ansvarligField, dueField }
 let prevSec = {}; try { prevSec = JSON.parse(localStorage.getItem(PREV_KEY) || "{}"); } catch {}
-let filter = "Alle"; try { filter = localStorage.getItem(FILTER_KEY) || "Alle"; } catch {}
+// starter alltid på den som har siden åpen («Hvem er du?»), ellers sist valgte filter
+let filter = "Alle"; try { filter = localStorage.getItem("pace-me") || localStorage.getItem(FILTER_KEY) || "Alle"; } catch {}
 const busy = new Set();                  // item-id-er med pågående lagring
 let loadSeq = 0, editing = false, popOpen = false;
 
@@ -528,11 +539,12 @@ function render() {
   for (const name of SECTIONS) {
     const meta = SECTION_META[name];
     const items = sortTasks(q.filter(t => t.sec === name && passes(t)));
+    const compact = COMPACT.includes(name);
     const col = document.createElement("div");
-    col.className = "col";
+    col.className = "col" + (compact ? " compact" : "");
     col.innerHTML = `<h2><span class="dot" style="background:${meta.color}"></span>${esc(name)}<span class="count">${items.length}</span></h2>`;
     if (!items.length) col.insertAdjacentHTML("beforeend", `<div class="empty">${meta.empty}</div>`);
-    for (const t of items) col.appendChild(taskCard(t));
+    for (const t of items) col.appendChild(taskCard(t, compact));
     if (live) {
       col.addEventListener("dragover", e => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; col.classList.add("drop-hint"); });
       col.addEventListener("dragleave", e => { if (!col.contains(e.relatedTarget)) col.classList.remove("drop-hint"); });
@@ -555,19 +567,24 @@ function renderFilters() {
   el.querySelectorAll(".chip").forEach(b => b.onclick = () => { filter = b.dataset.f; try { localStorage.setItem(FILTER_KEY, filter); } catch {} render(); });
 }
 
-function taskCard(t) {
+function taskCard(t, compact = false) {
   const el = document.createElement("div");
   el.className = "task" + (isDone(t) ? " done" : "") + (isOver(t) ? " overdue" : "") + (busy.has(t.id) ? " busy" : "");
-  const strom = t.strom ? `<span class="tag">${esc(t.strom)}</span>` : "";
+  // kompakt: ingen arbeidsstrøm, frist bare hvis satt, ansvarlig bare når den ikke er filteret
+  const strom = t.strom && !compact ? `<span class="tag">${esc(t.strom)}</span>` : "";
   const due = `<button class="tag due act${isOver(t) ? " over" : ""}" title="Sett frist">📅 ${t.due ? fmtDate(t.due) + (isOver(t) ? " !" : "") : (live ? "frist" : "–")}</button>`;
+  const showDue = compact ? !!t.due : (t.due || live);
+  const showWho = !compact || filter !== t.owner;
+  const who = `<button class="tag act who" style="color:${OWNER_COLOR[t.owner] || "var(--ink-muted)"}" title="Bytt ansvarlig">${compact ? "" : "👤 "}${esc(t.owner)}</button>`;
+  if (compact) el.title = t.body ? `${t.txt}\n\n${t.body}` : t.txt;
   el.innerHTML =
     `<button class="box" title="Marker ferdig / gjenåpne" aria-label="Marker ferdig">✓</button>` +
     `<span class="txt"><span class="title" title="${live ? "Dobbeltklikk for å redigere" : ""}">${esc(t.txt)}</span><span class="body">${esc(t.body)}</span>` +
-    `<button class="tag act who" style="color:${OWNER_COLOR[t.owner] || "var(--ink-muted)"}" title="Bytt ansvarlig">👤 ${esc(t.owner)}</button>${strom}${t.due || live ? due : ""}</span>`;
+    `${showWho ? who : ""}${strom}${showDue ? due : ""}</span>`;
   if (live) {
     el.draggable = true;
     el.querySelector(".box").onclick = () => toggleDone(t.id);
-    el.querySelector(".who").onclick = e => ownerMenu(e.currentTarget, t);
+    const whoBtn = el.querySelector(".who"); if (whoBtn) whoBtn.onclick = e => ownerMenu(e.currentTarget, t);
     const dueBtn = el.querySelector(".due"); if (dueBtn) dueBtn.onclick = e => dueEditor(e.currentTarget, t);
     const title = el.querySelector(".title");
     title.ondblclick = () => startEdit(title, t);
@@ -670,6 +687,7 @@ function setMe(name) {
   me = name; try { localStorage.setItem(ME_KEY, me); } catch {}
   document.getElementById("who").hidden = true;
   document.getElementById("new-owner").value = "";
+  if (me) { filter = me; render(); }
   renderOwnerSelect(); renderCoins(); awardCoins();
 }
 // spør hvem man er første gang siden åpnes i en nettleser
