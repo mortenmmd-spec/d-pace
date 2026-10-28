@@ -371,7 +371,7 @@ let meta = null, metaErr = "";
 if (process.env.META_ACCESS_TOKEN) { try { meta = await fetchMetaSpendApi(); } catch (e) { metaErr = e.message; console.error("Meta API utilgjengelig:", e.message); } }
 if (!meta) { try { meta = await fetchMetaSpend(); metaErr = ""; } catch (e) { metaErr = (metaErr ? metaErr + " · " : "") + e.message; console.error("Meta/CAC utilgjengelig:", e.message); } }
 // 3c. Manuelt avleste dagsbeløp fra Ads Manager (data/meta-manuell.json: {"daily":{"YYYY-MM-DD": kr}}), brukes for dager etter siste dekkede dag
-// til API-en er på plass. Dager uten oppføring forblir ukjente (null), ikke 0.
+// til API-en er på plass. Manuelt avleste dager VINNER over kvitteringsfordelingen (kvitteringer kan være små/skjeve, f.eks. 0,02 kr for hele 22.10 som gjorde 13.–22.10 til «dekket» med 0 kr). Dager uten oppføring forblir ukjente (null), ikke 0.
 let manuell = {};
 try { manuell = JSON.parse(readFileSync(path.join(DIR, "data", "meta-manuell.json"), "utf8")).daily || {}; } catch {}
 if (meta) meta.manual = manuell; else if (Object.keys(manuell).length) meta = { daily: {}, coveredThrough: "0000-00-00", source: "manuell", manual: manuell };
@@ -391,7 +391,7 @@ const perDag = (tab, d) => { const v = tab?.[d.slice(0, 7)]; return v == null ? 
 const adtrDag = d => { const p = perDag(kanalKost.adtraction?.provisjon, d); return p == null ? null : (kanalKost.adtraction?.fast ?? 995) / daysInMonth(d.slice(0, 7)) + p; };
 
 // ---------- 6. Tall ----------
-const series = DAYS.map(d => { const x = shop.daily[d]; const covered = meta && d <= meta.coveredThrough; return { d, ordre: x.ordre, oms: Math.round(x.oms * 100) / 100, eks: Math.round(x.eks * 100) / 100, nye: x.nye, u1: x.u1, u2: x.u2, subNew: x.subNew, subRen: x.subRen, subAdd: x.subAdd ?? null, subCan: x.subCan ?? null, subLive: x.subLive ?? null, meta: covered ? Math.round((meta.daily[d] || 0) * 100) / 100 : (meta && meta.manual[d] != null ? Math.round(meta.manual[d] * 100) / 100 : null), manuell: !!(meta && !covered && meta.manual[d] != null), bml: Math.round(x.bmlKost * 100) / 100, adtr: adtrDag(d), google: perDag(kanalKost.google, d), nyeK: x.nyeK, dbK: x.dbK, ordreK: x.ordreK, dbOK: x.dbOK }; });
+const series = DAYS.map(d => { const x = shop.daily[d]; const covered = meta && d <= meta.coveredThrough; return { d, ordre: x.ordre, oms: Math.round(x.oms * 100) / 100, eks: Math.round(x.eks * 100) / 100, nye: x.nye, u1: x.u1, u2: x.u2, subNew: x.subNew, subRen: x.subRen, subAdd: x.subAdd ?? null, subCan: x.subCan ?? null, subLive: x.subLive ?? null, meta: meta && meta.manual[d] != null ? Math.round(meta.manual[d] * 100) / 100 : covered ? Math.round((meta.daily[d] || 0) * 100) / 100 : null, manuell: !!(meta && meta.manual[d] != null), bml: Math.round(x.bmlKost * 100) / 100, adtr: adtrDag(d), google: perDag(kanalKost.google, d), nyeK: x.nyeK, dbK: x.dbK, ordreK: x.ordreK, dbOK: x.dbOK }; });
 const today = series[series.length - 1];
 const win = n => series.slice(-n - 1, -1); // n hele dager t.o.m. i går
 const sum = (a, k) => a.reduce((x, r) => x + (r[k] || 0), 0);
