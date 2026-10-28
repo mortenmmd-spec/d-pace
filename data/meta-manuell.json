@@ -1,4 +1,14 @@
 {
-  "note": "Dagsforbruk Meta act 410230529686773 lest manuelt i Ads Manager, kr eks mva. Brukes for dager etter siste kvittering (12.10). 20.–21.10: PUR|CBO|TOF (Victoria på 20.10 21:12, Isak av 21.10 08:40) ca. 200 + 224 kr, pluss ABO | Testing ca. 31 kr lagt på 21.10. Avrundede avlesninger 21.10, erstattes av API-tall.",
-  "daily": { "2026-10-20": 200, "2026-10-21": 255 }
+  "note": "Dagsforbruk Meta act 410230529686773 lest i Ads Manager (per-dag-eksport 24.04–27.10 + avlesning 28.10 kl 18:30), kr eks mva. Brukes for dager etter siste kvittering (12.10). 28.10 er delvis dag (ny kampanje Nov 2026 startet 17:30). Oppdateres daglig til API er på plass.",
+  "daily": {
+    "2026-10-20": 231.13,
+    "2026-10-21": 273.55,
+    "2026-10-22": 24.4,
+    "2026-10-23": 27.49,
+    "2026-10-24": 24.2,
+    "2026-10-25": 21.6,
+    "2026-10-26": 18.85,
+    "2026-10-27": 23.23,
+    "2026-10-28": 33.03
+  }
 }
