@@ -1,0 +1,5 @@
+{
+  "note": "Kanalkostnader eks mva per måned, lagt inn manuelt. Adtraction: fast 995/mnd + provisjon fra Kleer Group-faktura (hei@). Google Ads: belastning på DNB-kortet (Google:Ads2330169), krever DNB-eksport. null = ukjent (ikke 0).",
+  "adtraction": { "fast": 995, "provisjon": { "2026-04": 977.5, "2026-09": 617, "2026-10": null } },
+  "google": { "2026-05": 6102.75, "2026-06": 8258.97, "2026-09": null, "2026-10": null }
+}

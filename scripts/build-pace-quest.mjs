@@ -92,7 +92,7 @@ async function fetchShopify() {
   const H = { "X-Shopify-Access-Token": tok };
   const getAll = async (url, key) => { let out = []; while (url) { const r = await fetch(url, { headers: H }); if (!r.ok) throw new Error(`Shopify ${key} ${r.status}`); const j = await r.json(); out = out.concat(j[key] || []); const l = r.headers.get("link"); const m = l && l.match(/<([^>]+)>;\s*rel="next"/); url = m ? m[1] : null; } return out; };
   const since = new Date(new Date(DAYS[0] + "T00:00:00Z").getTime() - 36e5 * 26 - 30 * 864e5).toISOString(); // 30 dager før første Oslo-dag (for aktive abonnenter)
-  const all = await getAll(`https://${SHOP}/admin/api/${API}/orders.json?status=any&limit=250&created_at_min=${since}&fields=id,created_at,current_total_price,current_total_tax,total_price,cancelled_at,financial_status,test,tags,line_items,customer`, "orders");
+  const all = await getAll(`https://${SHOP}/admin/api/${API}/orders.json?status=any&limit=250&created_at_min=${since}&fields=id,created_at,current_total_price,current_total_tax,current_subtotal_price,total_price,cancelled_at,financial_status,test,tags,line_items,customer,landing_site,referring_site,note_attributes,discount_codes`, "orders");
   const tags = o => (o.tags || "").split(",").map(s => s.trim().toLowerCase());
   const ok = o => !o.test && !o.cancelled_at && ["paid", "partially_refunded", "partially_paid"].includes(o.financial_status) && !tags(o).includes("seeding");
   const amt = o => +(o.current_total_price ?? o.total_price);
@@ -101,10 +101,17 @@ async function fetchShopify() {
   const orders = allOk.filter(o => o.day >= DAYS[0]);
   const isSubNew = o => tags(o).includes("subscription first order"), isSubRen = o => tags(o).includes("subscription recurring order"), isSub = o => isSubNew(o) || isSubRen(o);
   // per Oslo-dag
-  const daily = Object.fromEntries(DAYS.map(d => [d, { d, ordre: 0, oms: 0, eks: 0, nye: 0, u1: 0, u2: 0, subNew: 0, subRen: 0, subAct: 0 }]));
+  // kanal per ordre (attribusjon fra Shopify): BML20-kode = bml; fbclid/utm meta eller Adtractions __adtr_channel fb/ig = meta;
+  // annen __adtr_channel = adtr (øvrige Adtraction-partnere); gclid/utm google = google; ellers org (organisk/ukjent)
+  const KANALER = ["meta", "bml", "adtr", "google", "org"];
+  const kanal = o => { const s = (o.landing_site || "") + " " + (o.referring_site || ""); const codes = (o.discount_codes || []).map(d => String(d.code || "").toUpperCase()); const adtr = String((o.note_attributes || []).find(a => a.name === "__adtr_channel")?.value || "");
+    if (codes.includes("BML20")) return "bml"; if (/facebook|fb|ig|instagram/i.test(adtr) || /fbclid|facebook|instagram|igshid|utm_source=(fb|ig|facebook|instagram|meta)/i.test(s)) return "meta"; if (adtr) return "adtr"; if (/gclid|gbraid|wbraid|utm_source=google/i.test(s)) return "google"; return "org"; };
+  // BML-kost = 30 % provisjon av varesalg eks mva (ordresum etter rabatt, før frakt, 15 % mva) på BML20-ordre
+  const bmlKost = o => (o.discount_codes || []).some(d => String(d.code || "").toUpperCase() === "BML20") ? 0.30 * ((+o.current_subtotal_price || 0) / 1.15) : 0;
+  const daily = Object.fromEntries(DAYS.map(d => [d, { d, ordre: 0, oms: 0, eks: 0, nye: 0, u1: 0, u2: 0, subNew: 0, subRen: 0, subAct: 0, bmlKost: 0, nyeK: Object.fromEntries(KANALER.map(k => [k, 0])), dbK: Object.fromEntries(KANALER.map(k => [k, 0])) }]));
   for (const o of orders) {
     const x = daily[o.day]; if (!x) continue;
-    x.ordre++; x.oms += amt(o); x.eks += amt(o) - (+o.current_total_tax || 0);
+    x.ordre++; x.oms += amt(o); x.eks += amt(o) - (+o.current_total_tax || 0); x.bmlKost += bmlKost(o);
     if (isSubNew(o)) x.subNew++; if (isSubRen(o)) x.subRen++;
     for (const li of o.line_items || []) { const q = li.current_quantity ?? li.quantity; if (li.sku === "PACE01") x.u1 += q; if (li.sku === "PACE02") x.u2 += q; }
   }
@@ -112,9 +119,11 @@ async function fetchShopify() {
   const subOrders = allOk.filter(o => isSub(o) && o.customer?.id);
   for (const d of DAYS) { const from = addDays(d, -29); daily[d].subAct = new Set(subOrders.filter(o => o.day >= from && o.day <= d).map(o => o.customer.id)).size; }
   // ny kunde = kundeprofil opprettet i vinduet (Shopify lager profilen ved første ordre); telles én gang, på dagen for kundens TIDLIGSTE betalte ordre
-  const firstOrder = {};
-  for (const o of orders) { const c = o.customer; if (!c?.id || !c.created_at || osloDay(new Date(c.created_at)) < DAYS[0]) continue; if (!firstOrder[c.id] || o.day < firstOrder[c.id]) firstOrder[c.id] = o.day; }
+  const firstOrder = {}, firstOrd = {};
+  for (const o of orders) { const c = o.customer; if (!c?.id || !c.created_at || osloDay(new Date(c.created_at)) < DAYS[0]) continue; if (!firstOrder[c.id] || o.day < firstOrder[c.id]) { firstOrder[c.id] = o.day; firstOrd[c.id] = o; } }
   for (const d of Object.values(firstOrder)) if (daily[d]) daily[d].nye++;
+  // nye kunder per kanal (kanalen til første ordre) og dekningsbidrag på første ordre
+  for (const o of Object.values(firstOrd)) { const x = daily[o.day]; if (!x) continue; const k = kanal(o); x.nyeK[k]++; x.dbK[k] += dbRest(o); }
   // nye kunder siste 30 hele dager (samme vindu som CAC 30 d) og hva de har kjøpt for i vinduet, eks mva
   const nyFra = DAYS[0], nyTil = addDays(TODAY, -1), nyIds = new Set(Object.entries(firstOrder).filter(([, d]) => d >= nyFra && d <= nyTil).map(([id]) => id));
   const nyEks = orders.filter(o => nyIds.has(String(o.customer?.id)) && o.day <= nyTil).reduce((x, o) => x + amt(o) - (+o.current_total_tax || 0), 0);
@@ -373,8 +382,16 @@ const T = parseKasse();
 let plan = null;
 try { plan = readPlan(env("STATICRYPT_PASSWORD", "")); } catch (e) { console.error("Pace 2.0-plan utilgjengelig:", e.message); }
 
+// ---------- 5b. Kanalkost (manuell månedsfil) ----------
+// data/kanal-kost.json: {"adtraction":{"fast":995,"provisjon":{"YYYY-MM":kr|null}},"google":{"YYYY-MM":kr|null}} eks mva. null/mangler = ukjent (ikke 0).
+let kanalKost = { adtraction: { fast: 995, provisjon: {} }, google: {} };
+try { kanalKost = { ...kanalKost, ...JSON.parse(readFileSync(path.join(DIR, "data", "kanal-kost.json"), "utf8")) }; } catch {}
+const daysInMonth = ym => new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)).getUTCDate();
+const perDag = (tab, d) => { const v = tab?.[d.slice(0, 7)]; return v == null ? null : v / daysInMonth(d.slice(0, 7)); };
+const adtrDag = d => { const p = perDag(kanalKost.adtraction?.provisjon, d); return p == null ? null : (kanalKost.adtraction?.fast ?? 995) / daysInMonth(d.slice(0, 7)) + p; };
+
 // ---------- 6. Tall ----------
-const series = DAYS.map(d => { const x = shop.daily[d]; const covered = meta && d <= meta.coveredThrough; return { d, ordre: x.ordre, oms: Math.round(x.oms * 100) / 100, eks: Math.round(x.eks * 100) / 100, nye: x.nye, u1: x.u1, u2: x.u2, subNew: x.subNew, subRen: x.subRen, subAdd: x.subAdd ?? null, subCan: x.subCan ?? null, subLive: x.subLive ?? null, meta: covered ? Math.round((meta.daily[d] || 0) * 100) / 100 : (meta && meta.manual[d] != null ? Math.round(meta.manual[d] * 100) / 100 : null), manuell: !!(meta && !covered && meta.manual[d] != null) }; });
+const series = DAYS.map(d => { const x = shop.daily[d]; const covered = meta && d <= meta.coveredThrough; return { d, ordre: x.ordre, oms: Math.round(x.oms * 100) / 100, eks: Math.round(x.eks * 100) / 100, nye: x.nye, u1: x.u1, u2: x.u2, subNew: x.subNew, subRen: x.subRen, subAdd: x.subAdd ?? null, subCan: x.subCan ?? null, subLive: x.subLive ?? null, meta: covered ? Math.round((meta.daily[d] || 0) * 100) / 100 : (meta && meta.manual[d] != null ? Math.round(meta.manual[d] * 100) / 100 : null), manuell: !!(meta && !covered && meta.manual[d] != null), bml: Math.round(x.bmlKost * 100) / 100, adtr: adtrDag(d), google: perDag(kanalKost.google, d), nyeK: x.nyeK, dbK: x.dbK }; });
 const today = series[series.length - 1];
 const win = n => series.slice(-n - 1, -1); // n hele dager t.o.m. i går
 const sum = (a, k) => a.reduce((x, r) => x + (r[k] || 0), 0);
@@ -383,6 +400,13 @@ const MON = ["jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt
 const monLabel = ymd => MON[+ymd.slice(5, 7) - 1] + " " + ymd.slice(2, 4); // "okt 26", samme form som planen
 // bare dager med annonsekostnad teller (kost og nye kunder); dager uten annonser gir organiske kunder som ellers trekker CAC kunstig ned
 const cac = n => { const w = win(n).filter(r => r.meta !== null && r.meta > 0); const s = sum(w, "meta"), ny = sum(w, "nye"); return { spend: s, nye: ny, days: w.length, cac: ny ? s / ny : null }; };
+// CAC per kanal: kostnad i vinduet / nye kunder (første ordre) attribuert til kanalen, bare dager der kostnaden er kjent
+const KNAVN = { meta: "Meta", bml: "BML-podcast", adtr: "Adtraction", google: "Google Ads", org: "Organisk/ukjent" };
+const KKOST = { meta: "Ads Manager (kvitteringer + daglig avlesning)", bml: "30 % provisjon av varesalg eks mva på BML20-ordre", adtr: "995 kr/mnd + provisjon fra faktura (data/kanal-kost.json)", google: "DNB-kort, månedsbeløp i data/kanal-kost.json", org: "ingen kostnad" };
+const kanalTall = (k, n) => { const all = win(n); const w = k === "org" ? all : all.filter(r => r[k] !== null && r[k] !== undefined); const kost = k === "org" ? 0 : sum(w, k); const nye = w.reduce((x, r) => x + (r.nyeK?.[k] || 0), 0); const db = w.reduce((x, r) => x + (r.dbK?.[k] || 0), 0); return { kost, nye, db: nye ? db / nye : null, days: w.length, cac: nye && k !== "org" ? kost / nye : null }; };
+const kanalCard = (k, n = 30) => { const t = kanalTall(k, n); const ukjent = t.days === 0; const v = k === "org" ? nf(t.nye) : ukjent ? "–" : t.cac != null ? nf(t.cac) + " kr" : "–";
+  const sub = k === "org" ? `nye kunder ${n} d · 0 kr` : ukjent ? "kost ukjent" : `${nf(t.kost)} kr / ${t.nye} nye${t.days < n ? ` · ${t.days} d` : ""}${t.db != null ? ` · DB ${nf(t.db)}` : ""}`;
+  return card(`CAC ${KNAVN[k]}`, v, sub, k === "org" ? "c-salg" : "c-cac", `${KNAVN[k]}, siste ${n} hele dager. Kostnad: ${KKOST[k]}. Nye kunder = kundeprofiler opprettet i perioden, attribuert etter kanalen på første betalte ordre (BML20-kode, fbclid/utm/__adtr_channel, gclid). DB = dekningsbidrag på første ordre per ny kunde.${ukjent ? " Kostnaden mangler for alle dagene i vinduet." : t.days < n ? ` ${t.days} av ${n} dager har kjent kostnad; kunder telles bare på de dagene.` : ""}`); };
 // kort: kort undertekst (én linje), detaljer i title-tooltip
 const card = (k, v, s, cls, tip) => `<div class="stat ${cls}" title="${esc(tip || "")}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
 const rek = shop.rekord?.kr ? shop.rekord : null, slaatt = rek && today.oms > rek.kr;
@@ -451,6 +475,7 @@ const henvCard = () => { if (!henv) return card("Ubesvarte henvendelser", "–",
 const cards = todayCard() + henvCard() + salgCard(7) + salgCard(30) + subCard
   + poasCard()
   + adsCard(7) + adsCard(30) + cacCard(7) + cacCard(30)
+  + kanalCard("meta") + kanalCard("bml") + kanalCard("adtr") + kanalCard("google") + kanalCard("org")
   + kundeCard()
   + card("Unike kunder", nf(shop.kunder), `+${sum(win(30), "nye")} nye siste 30 d`, "c-salg", "Kundeprofiler med minst én betalt ordre i hele historikken (uten test- og seeding-ordre)")
   + card("Kasse", nf(T.kasse) + " kr", "bankbalanse lagt inn " + T.kasse_dato, "c-kasse", `Bankbalanse lagt inn manuelt ${T.kasse_dato}`)
@@ -462,6 +487,7 @@ const datastatus = [`Shopify ${stamp}`, meta ? `${metaKilde} t.o.m. ${fmtD(meta.
 const note = `7 og 30 d = hele Oslo-dager t.o.m. i går; «Salg i dag» er dagen så langt. Salg = ordreverdi inkl. mva for ordre opprettet i perioden, etter refusjon, uten test- og seeding-ordre (Shopify ${stamp}). Planraden sammenlignes eks mva. Nye kunder = kundeprofiler opprettet i perioden med betalt ordre. `
   + (meta ? (meta.source === "api" ? `CAC = Meta-annonsekostnad per dag fra Meta Marketing API (t.o.m. ${fmtD(meta.coveredThrough)}; dagen i dag er ufullstendig og holdes utenfor), delt på nye kunder samme dager. ` : `CAC = Meta-annonsekostnad fra kvitteringene i hei@getpace.no, fordelt per dag (dekket t.o.m. ${fmtD(meta.coveredThrough)}; forbruk etter det er ikke fakturert ennå og holdes utenfor), delt på nye kunder samme dager. `) : `CAC mangler: ${esc(metaErr)}. `)
   + (shop.subActive !== null ? `Aktive abonnement = startet minus avsluttet i Shopify Subscriptions (Shopify-analyse). ` : "")
+  + `CAC per kanal = kanalens kostnad siste 30 hele dager delt på nye kunder hvis første ordre kom via kanalen (BML20-kode, Meta-klikk/__adtr_channel fb/ig, annen Adtraction-partner, gclid); BML-kost = 30 % provisjon av varesalg eks mva, Adtraction = 995/mnd + provisjon fra faktura, Google = kortbelastning per måned (manuelle månedsfiler; mangler = kost ukjent). `
   + `Lager = tilgjengelig hos 360 Logistics; tomdato ved takten siste 30 d. Kasse er bankbalanse lagt inn manuelt (sist ${T.kasse_dato}).`;
 const metaInfo = { built_at: NOW.toISOString(), shopify_at: shop.at, label: stamp, today: TODAY, meta_through: meta ? meta.coveredThrough : null, totalt: shop.totalt ?? null, daily: series.slice(-30), ukedag: shop.ukedag, geo: shop.geo, kart: { w: KART.w, h: KART.h, fylker: KART.fylker } };
 
