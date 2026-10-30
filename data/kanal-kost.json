@@ -15,12 +15,22 @@
     "2026-10": null
   },
   "bml": {
-    "note": "Fast episodehonorar BML eks mva per måned (2 000 kr/episode). null = antall episoder ukjent → kortet viser ⚠ og tallet er et gulv. Fylles fra Andreas' oppgjør.",
+    "note": "Fast episodehonorar BML eks mva per måned. Kilder (hei@, tråd «pace i BML podcast»): oppgjør 17 498 mars/april = 3 episoder fastpris 10 000 + provisjon; oppgjør 27.05 (21.04–27.05) = 10 000 fastpris for 3 episoder + 15 851 provisjon = 25 851; oppgjør 21.06 = kun provisjon 3 195; oppgjør 23.08 (21.06–23.08) = 3 episoder × 2 000 + 5 995 provisjon = 11 995. Avtale fra 24.06: 2 000 per episode + 30 %. Måneder i «anslag» er ikke oppgjort ennå og satt til 3 000 (1,5 episoder/mnd, samme takt som juni–august). Provisjonen regnes fra ordrene.",
     "fast": {
-      "2026-08": null,
-      "2026-09": null,
-      "2026-10": null,
-      "2026-11": null
-    }
+      "2026-03": 10000,
+      "2026-04": 0,
+      "2026-05": 10000,
+      "2026-06": 0,
+      "2026-07": 3000,
+      "2026-08": 3000,
+      "2026-09": 3000,
+      "2026-10": 3000,
+      "2026-11": 3000
+    },
+    "anslag": [
+      "2026-09",
+      "2026-10",
+      "2026-11"
+    ]
   }
 }
