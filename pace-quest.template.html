@@ -186,6 +186,12 @@
   .task .body { display: block; font-size: 0.75rem; color: var(--ink-2); margin-top: 3px; white-space: pre-wrap; }
   .task .body:empty { display: none; }
   .tag { display: inline-block; font-size: 0.72rem; color: var(--ink-muted); margin: 4px 4px 0 0; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--hairline); background: none; cursor: default; }
+  .task .del { position: absolute; right: 6px; top: 6px; background: none; border: 0; color: var(--ink-muted); font-size: 0.85rem; cursor: pointer; opacity: 0; padding: 2px 4px; border-radius: 6px; }
+  .task:hover .del, .task:focus-within .del { opacity: .8; }
+  .task .del:hover { opacity: 1; color: #e5534b; background: var(--surface-2, rgba(255,255,255,.06)); }
+  @media (hover: none) { .task .del { opacity: .6; } }
+  .task { padding-right: 30px; }
+  @media (max-width: 640px) { .add-bar input { min-width: 100%; } .add-bar select, .add-bar button { flex: 1; } }
   body.live .task .tag.act { cursor: pointer; }
   body.live .task .tag.act:hover { border-color: var(--ink-muted); }
   .task .due.over { color: var(--critical); border-color: var(--critical); font-weight: 700; }
@@ -513,6 +519,23 @@ function setTitle(id, title) {
   const from = t.txt;
   mutate(id, x => x.txt = title, x => x.txt = from, x => updateDraft(t.draft, title, t.body), "Tittel lagret");
 }
+async function deleteTask(id, withUndo = true) {
+  const t = tasks.find(t => t.id === id);
+  if (!live || !t || busy.has(id)) return;
+  if (withUndo && !confirm(`Slette «${t.txt}»?`)) return;
+  busy.add(id); render();
+  try {
+    await gql(`mutation($p: ID!, $i: ID!) { archiveProjectV2Item(input: { projectId: $p, itemId: $i }) { item { id } } }`, { p: project.id, i: id });
+    tasks = tasks.filter(x => x.id !== id); busy.delete(id); render();
+    toast("Slettet 🗑", false, withUndo ? () => restoreTask(t) : null);
+  } catch (e) { busy.delete(id); render(); toast("Kunne ikke slette: " + e.message, true); }
+}
+async function restoreTask(t) {
+  try {
+    await gql(`mutation($p: ID!, $i: ID!) { unarchiveProjectV2Item(input: { projectId: $p, itemId: $i }) { item { id } } }`, { p: project.id, i: t.id });
+    tasks.push(t); render(); toast("Gjenopprettet");
+  } catch (e) { toast("Kunne ikke gjenopprette: " + e.message, true); }
+}
 let adding = false;
 async function addTask(title, owner) {
   title = title.trim();
@@ -592,12 +615,13 @@ function taskCard(t, compact = false) {
   el.innerHTML =
     `<button class="box" title="Marker ferdig / gjenåpne" aria-label="Marker ferdig">✓</button>` +
     `<span class="txt"><span class="title" title="${live ? "Dobbeltklikk for å redigere" : ""}">${esc(t.txt)}</span><span class="body">${esc(t.body)}</span>` +
-    `${showWho ? who : ""}${strom}${showDue ? due : ""}</span>`;
+    `${showWho ? who : ""}${strom}${showDue ? due : ""}</span>` + (live ? `<button class="del" title="Slett kortet (kan angres)" aria-label="Slett">🗑</button>` : "");
   if (live) {
     el.draggable = true;
     el.querySelector(".box").onclick = () => toggleDone(t.id);
     const whoBtn = el.querySelector(".who"); if (whoBtn) whoBtn.onclick = e => ownerMenu(e.currentTarget, t);
     const dueBtn = el.querySelector(".due"); if (dueBtn) dueBtn.onclick = e => dueEditor(e.currentTarget, t);
+    const delBtn = el.querySelector(".del"); if (delBtn) delBtn.onclick = e => { e.stopPropagation(); deleteTask(t.id); };
     const title = el.querySelector(".title");
     title.ondblclick = () => startEdit(title, t);
     el.addEventListener("dragstart", e => { if (editing) { e.preventDefault(); return; } e.dataTransfer.setData("text/plain", t.id); e.dataTransfer.effectAllowed = "move"; el.classList.add("dragging"); });
