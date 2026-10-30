@@ -82,9 +82,9 @@
   .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 0 0 12px; }
   @media (max-width: 900px) { .stats { grid-template-columns: repeat(2, 1fr); } }
   .stat { background: var(--surface); border: 1px solid var(--hairline); border-radius: 14px; padding: 14px 16px 12px; position: relative; overflow: hidden; }
-  .stat::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--acc, var(--ink-muted)); opacity: .9; }
-  .stat.stale { border: 1px dashed var(--warning); } .stat.stale .v::after { content: " ⚠"; color: var(--warning); font-size: 0.9rem; vertical-align: top; } .stat.stale .s { color: var(--warning); }
-  .stat.c-salg { --acc: var(--blue); } .stat.c-cac { --acc: var(--magenta); } .stat.c-kasse { --acc: var(--good); } .stat.c-lager { --acc: var(--orange); } .stat.c-ads { --acc: var(--warning); }
+  .stat::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--hairline); }
+  .stat.stale { border: 1px dashed var(--ink-muted); } .stat.stale .v::after { content: " ⚠"; font-size: 0.9rem; vertical-align: top; }
+  /* fargekoding per korttype fjernet 30.10.2026 (Morten: vanskelig å se); alle kort nøytrale */
   .stat .k { font-size: 0.68rem; color: var(--ink-muted); text-transform: uppercase; letter-spacing: .06em; }
   .stat .v { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.02em; color: var(--ink); margin: 2px 0 0; font-variant-numeric: tabular-nums; line-height: 1.15; white-space: nowrap; }
   .stat .s { font-size: 0.76rem; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 3px; }
@@ -99,7 +99,7 @@
   details.about summary:hover { color: var(--ink-2); }
   details.about[open] summary { margin-bottom: 4px; }
   .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr)); gap: 12px; margin: 0 0 10px; }
-  .stat.c-sub { --acc: var(--aqua); }
+
   .b2b { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 8px; }
   .b2b th { text-align: left; font-weight: 500; color: var(--ink-muted); font-size: 0.72rem; padding: 4px 10px 6px 0; border-bottom: 1px solid var(--hairline); }
   .b2b td { padding: 7px 10px 7px 0; border-bottom: 1px solid var(--hairline); vertical-align: top; color: var(--ink-2); }
