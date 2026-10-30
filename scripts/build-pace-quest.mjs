@@ -188,6 +188,9 @@ async function fetchShopify() {
   // totalt solgt (inkl. mva, hele historikken) til milepælene, og årets beste dag før i dag (rekorddag)
   const okHist = hist.filter(ok).filter(o => amt(o) > 0);
   const totalt = Math.round(okHist.reduce((x, o) => x + amt(o), 0));
+  const ordreTotalt = okHist.length, forsteDag = okHist.map(o => osloDay(new Date(o.created_at))).sort()[0] || "";
+  const iAar = Math.round(okHist.filter(o => osloDay(new Date(o.created_at)).slice(0, 4) === TODAY.slice(0, 4)).reduce((x, o) => x + amt(o), 0));
+  const ordreIAar = okHist.filter(o => osloDay(new Date(o.created_at)).slice(0, 4) === TODAY.slice(0, 4)).length;
   const perDag = {};
   for (const o of okHist) { const d = osloDay(new Date(o.created_at)); if (d.slice(0, 4) === TODAY.slice(0, 4) && d < TODAY) perDag[d] = (perDag[d] || 0) + amt(o); }
   const rekord = Object.entries(perDag).reduce((b, [d, kr]) => kr > b.kr ? { d, kr: Math.round(kr) } : b, { d: "", kr: 0 });
@@ -210,7 +213,7 @@ async function fetchShopify() {
     for (const w of weeks.reverse()) { if ((+w.subscriptions_added || 0) > (+w.subscriptions_canceled || 0)) subRekke++; else break; }
     if (subActive !== null) { let live = subActive; for (const d of [...DAYS].reverse()) { daily[d].subLive = live; live -= (daily[d].subAdd || 0) - (daily[d].subCan || 0); } }
   } catch (e) { console.error("ShopifyQL utilgjengelig:", e.message); }
-  return { daily, lager, geo, kunder, perKunde, perKundeEks, ukedag: ukedagSnitt, subActive, subStart, subStop, subAdd30, subCan30, subRekke, totalt, rekord, nyKunde30, subOrdreEks, subOrdreN: renOrders.length, subRen42, subOrdre, nyeKunder: await fetchNyeKunder(SHOP, H), kohort, at: NOW.toISOString() };
+  return { daily, lager, geo, kunder, perKunde, perKundeEks, ukedag: ukedagSnitt, subActive, subStart, subStop, subAdd30, subCan30, subRekke, totalt, rekord, nyKunde30, subOrdreEks, subOrdreN: renOrders.length, ordreTotalt, forsteDag, iAar, ordreIAar, subRen42, subOrdre, nyeKunder: await fetchNyeKunder(SHOP, H), kohort, at: NOW.toISOString() };
 }
 
 // nye kunder per Oslo-dag (førstegangsordre, Shopify kundereise): antall, abonnementsstartere og dekningsbidrag på første ordre,
@@ -417,6 +420,7 @@ const mcard = (k, v, s, cls, tip) => card(k, v, s + staleTxt, cls + (metaStale ?
 const card = (k, v, s, cls, tip) => `<div class="stat ${cls}" title="${esc(tip || "")}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
 const rek = shop.rekord?.kr ? shop.rekord : null, slaatt = rek && today.oms > rek.kr;
 const todayCard = () => card("Salg i dag", nf(today.oms) + " kr" + (slaatt ? " 🏆" : ""), `${today.ordre} ordre · ${today.nye} nye${slaatt ? " · årets beste dag" : ""}`, "c-salg", `Ordreverdi inkl. mva i dag t.o.m. ${stamp}${rek ? `. Årets beste dag før i dag: ${nf(rek.kr)} kr (${fmtD(rek.d)})` : ""}`);
+const totaltCard = () => card("Salg totalt", nf(shop.totalt) + " kr", `${nf(shop.ordreTotalt)} ordre siden ${shop.forsteDag ? shop.forsteDag.slice(8, 10) + "." + shop.forsteDag.slice(5, 7) + "." + shop.forsteDag.slice(0, 4) : "start"} · i år ${nf(shop.iAar)} kr`, "c-salg", `All ordreverdi inkl. mva og frakt, betalte ordre, hele historikken (${nf(shop.ordreTotalt)} ordre). Hittil i ${TODAY.slice(0, 4)}: ${nf(shop.iAar)} kr fra ${nf(shop.ordreIAar)} ordre. Seeding og kansellerte ordre er ikke med.`);
 const salgCard = (n) => { const w = win(n); return card(`Salg ${n} d`, nf(sum(w, "oms")) + " kr", `${sum(w, "ordre")} ordre · ${sum(w, "nye")} nye`, "c-salg", `Ordreverdi inkl. mva siste ${n} hele dager t.o.m. i går, ${sum(w, "nye")} nye kunder`); };
 // grunnlinje uten annonser: nye kunder per dag 18.08–27.09.2026 (Meta av, 41 dager, 61 nye = 1,49). Oppdateres etter neste av-periode.
 const BASELINE_NYE = 1.49, BASELINE_KILDE = "18.08–27.09.2026, 41 dager uten Meta, 61 nye";
@@ -482,7 +486,7 @@ const henvCard = () => { if (!henv) return card("Ubesvarte henvendelser", "–",
   const liste = henv.open.slice(0, 8).map(o => `${fmtD(o.d)} ${o.navn}: ${o.subject}`).join(" · ");
   return card("Ubesvarte henvendelser", nf(henv.n), henv.n ? `eldste ${dager === 0 ? "i dag" : dager + " d"} · siden ${fmtD(HENV_FRA)}` : `alle besvart · siden ${fmtD(HENV_FRA)}`, henv.n ? "c-ads" : "c-kasse",
     `Kundetråder i hei@getpace.no mottatt f.o.m. ${fmtD(HENV_FRA)} der siste melding ikke er fra oss. Automatiske avsendere (kvitteringer, varsler) telles ikke; Shopify-kontaktskjema telles.${liste ? " Åpne: " + liste : ""}`); };
-const cards = todayCard() + henvCard() + salgCard(7) + salgCard(30) + subCard
+const cards = todayCard() + henvCard() + salgCard(7) + salgCard(30) + totaltCard() + subCard
   + poasCard()
   + adsCard(7) + adsCard(30) + cacCard(7) + cacCard(30) + ekstraCard(30)
   + kanalCard("meta") + kanalCard("bml") + kanalCard("adtr") + kanalCard("google") + kanalCard("org")
