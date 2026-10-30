@@ -83,7 +83,8 @@
   @media (max-width: 900px) { .stats { grid-template-columns: repeat(2, 1fr); } }
   .stat { background: var(--surface); border: 1px solid var(--hairline); border-radius: 14px; padding: 14px 16px 12px; position: relative; overflow: hidden; }
   .stat::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--hairline); }
-  .stat.stale { border: 1px dashed var(--ink-muted); } .stat.stale .v::after { content: " ⚠"; font-size: 0.9rem; vertical-align: top; }
+  .stat.utdatert { border: 1px dashed var(--ink-muted); } .stat.utdatert .v::after { content: " ⚠"; font-size: 0.9rem; vertical-align: top; }
+  .stats { align-items: stretch; } .stat .k { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* fargekoding per korttype fjernet 30.10.2026 (Morten: vanskelig å se); alle kort nøytrale */
   .stat .k { font-size: 0.68rem; color: var(--ink-muted); text-transform: uppercase; letter-spacing: .06em; }
   .stat .v { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.02em; color: var(--ink); margin: 2px 0 0; font-variant-numeric: tabular-nums; line-height: 1.15; white-space: nowrap; }

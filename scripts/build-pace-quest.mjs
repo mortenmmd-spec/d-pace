@@ -419,7 +419,7 @@ const kanalCard = (k, n = 90) => { const t = kanalTall(k, n), t30 = kanalTall(k,
 const metaSist = series.filter(r => r.meta !== null).map(r => r.d).pop() || null;
 const metaStale = !metaSist || metaSist < addDays(TODAY, -1);
 const staleTxt = metaStale ? ` · ⚠ IKKE OPPDATERT: Meta mangler fra ${metaSist ? fmtD(addDays(metaSist, 1)) : "start"}` : "";
-const mcard = (k, v, s, cls, tip) => card(k, v, s + staleTxt, cls + (metaStale ? " stale" : ""), (tip || "") + (metaStale ? ` ADVARSEL: Meta-annonsekost mangler fra ${metaSist ? fmtD(addDays(metaSist, 1)) : "start"}; tallet er ikke oppdatert.` : ""));
+const mcard = (k, v, s, cls, tip) => card(k, v, s + staleTxt, cls + (metaStale ? " utdatert" : ""), (tip || "") + (metaStale ? ` ADVARSEL: Meta-annonsekost mangler fra ${metaSist ? fmtD(addDays(metaSist, 1)) : "start"}; tallet er ikke oppdatert.` : ""));
 const card = (k, v, s, cls, tip) => `<div class="stat ${cls}" title="${esc(tip || "")}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
 const rek = shop.rekord?.kr ? shop.rekord : null, slaatt = rek && today.oms > rek.kr;
 const todayCard = () => card("Salg i dag", nf(today.oms) + " kr" + (slaatt ? " 🏆" : ""), `${today.ordre} ordre · ${today.nye} nye${slaatt ? " · årets beste dag" : ""}`, "c-salg", `Ordreverdi inkl. mva i dag t.o.m. ${stamp}${rek ? `. Årets beste dag før i dag: ${nf(rek.kr)} kr (${fmtD(rek.d)})` : ""}`);
