@@ -67,6 +67,16 @@
   .banner input { flex: 1; min-width: 220px; background: var(--surface-2); color: var(--ink); border: 1px solid var(--hairline); border-radius: 8px; padding: 7px 10px; font: inherit; }
   .banner a { color: var(--blue); }
 
+  /* ---------- fokus nå ---------- */
+  .fokus { background: var(--surface); border: 1px solid var(--hairline); border-radius: 14px; padding: 6px 16px; margin: 0 0 6px; }
+  .f-row { display: flex; gap: 14px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--hairline); }
+  .f-row:last-child { border-bottom: 0; }
+  .f-who { flex: 0 0 84px; font-size: 0.72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-muted); }
+  .f-what { flex: 1; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 0.95rem; font-weight: 600; color: var(--ink); }
+  .f-item { white-space: nowrap; }
+  .f-due { font-weight: 500; color: var(--ink-muted); font-size: 0.8rem; margin-left: 6px; }
+  .f-due.f-soon { color: var(--warning); } .f-due.f-late { color: #e5534b; } .f-due.f-miss { color: var(--warning); font-style: italic; }
+  .f-none { font-weight: 400; color: var(--ink-muted); font-size: 0.85rem; }
   /* ---------- tall ---------- */
   .sec-h { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-2); margin: 22px 0 10px; display: flex; align-items: center; gap: 10px; }
   .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 0 0 12px; }
@@ -278,6 +288,7 @@
     <button class="btn primary" id="token-save">Koble til</button>
   </div>
 
+  <!--FOKUS--><!--/FOKUS-->
   <div class="sec-h">Tall <span class="sec-sub" id="datastatus"><!--DATASTATUS--><!--/DATASTATUS--></span></div>
   <section class="stats" id="stats"><!--STATS--><!--/STATS--></section>
   <section class="charts">

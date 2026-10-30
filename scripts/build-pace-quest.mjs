@@ -79,7 +79,7 @@ async function fetchBoard() {
   return items.map(n => {
     const fv = Object.fromEntries(n.fieldValues.nodes.filter(v => v.field).map(v => [v.field.name, v.name ?? v.date]));
     const c = n.content || {};
-    return { id: n.id, draft: c.__typename === "DraftIssue" ? c.id : "", body: c.body || "", sec: fv["Status"] || "Idéer", owner: fv["Ansvarlig"] || "Ikke fordelt", strom: fv["Arbeidsstrøm"] || "", kat: fv["Kategori"] || "Oppgave", due: fv["Måldato"] || "", txt: c.title || "(uten tittel)" };
+    return { id: n.id, draft: c.__typename === "DraftIssue" ? c.id : "", body: c.body || "", sec: fv["Status"] || "Idéer", owner: fv["Ansvarlig"] || "Ikke fordelt", strom: fv["Arbeidsstrøm"] || "", kat: fv["Kategori"] || "Oppgave", due: fv["Måldato"] || "", fokus: fv["Fokus"] === "Nå", txt: c.title || "(uten tittel)" };
   });
 }
 
@@ -501,6 +501,13 @@ const note = `7 og 30 d = hele Oslo-dager t.o.m. i går; «Salg i dag» er dagen
   + `Lager = tilgjengelig hos 360 Logistics; tomdato ved takten siste 30 d. Kasse er bankbalanse lagt inn manuelt (sist ${T.kasse_dato}).`;
 const metaInfo = { built_at: NOW.toISOString(), shopify_at: shop.at, label: stamp, today: TODAY, meta_through: meta ? meta.coveredThrough : null, totalt: shop.totalt ?? null, daily: series.slice(-30), ukedag: shop.ukedag, geo: shop.geo, kart: { w: KART.w, h: KART.h, fylker: KART.fylker } };
 
+// ---------- 6b. Fokus nå: én linje per person, kun kort med Fokus = Nå (settes av Morten på boardet), ikke Ferdig ----------
+const PERSONER = ["Anders", "Victoria", "Martin", "Morten"];
+const fokusItems = tasks.filter(t => t.fokus && t.sec !== "Ferdig").sort((a, b) => (a.due || "9999") < (b.due || "9999") ? -1 : 1);
+const dueTxt = d => { if (!d) return `<span class="f-due f-miss">sett dato</span>`; const n = Math.round((Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) - Date.UTC(+TODAY.slice(0, 4), +TODAY.slice(5, 7) - 1, +TODAY.slice(8, 10))) / 864e5); return `<span class="f-due${n < 0 ? " f-late" : n <= 3 ? " f-soon" : ""}">${fmtD(d)}${n < 0 ? ` · ${-n} d over` : n === 0 ? " · i dag" : ` · ${n} d`}</span>`; };
+const fokusRows = PERSONER.map(pn => { const mine = fokusItems.filter(t => t.owner.split(" & ").includes(pn)); return `<div class="f-row"><div class="f-who">${pn}</div><div class="f-what">${mine.length ? mine.map(t => `<span class="f-item">${esc(t.txt)} ${dueTxt(t.due)}</span>`).join("") : `<span class="f-none">ingen fokusoppgave</span>`}</div></div>`; }).join("");
+const fokusHtml = `<div class="sec-h">Fokus nå <span class="sec-sub">én oppgave per person · settes med feltet «Fokus = Nå» på boardet</span></div><section class="fokus">${fokusRows}</section>`;
+
 // ---------- 7. Bygg HTML ----------
 let html = readFileSync(TEMPLATE, "utf8");
 const js = s => JSON.stringify(s).replace(/</g, "\\u003c").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
@@ -509,6 +516,7 @@ put(/\/\*__TASKS__\*\/[\s\S]*?\/\*__TASKS_END__\*\//, `/*__TASKS__*/ const SNAPS
 put(/\/\*__META__\*\/[\s\S]*?\/\*__META_END__\*\//, `/*__META__*/ const META = ${js(metaInfo)}; /*__META_END__*/`, "META");
 put(/\/\*__PAGE_TOKEN__\*\/[\s\S]*?\/\*__PAGE_TOKEN_END__\*\//, `/*__PAGE_TOKEN__*/ const PAGE_TOKEN = ${js(process.env.PACE_PAGE_TOKEN || "")}; /*__PAGE_TOKEN_END__*/`, "PAGE_TOKEN");
 put(/<!--STATS-->[\s\S]*?<!--\/STATS-->/, `<!--STATS-->${cards}<!--/STATS-->`, "STATS");
+put(/<!--FOKUS-->[\s\S]*?<!--\/FOKUS-->/, `<!--FOKUS-->${fokusHtml}<!--/FOKUS-->`, "FOKUS");
 put(/<!--DATASTATUS-->[\s\S]*?<!--\/DATASTATUS-->/, `<!--DATASTATUS-->${esc(datastatus)}<!--/DATASTATUS-->`, "DATASTATUS");
 put(/<!--STATSNOTE-->[\s\S]*?<!--\/STATSNOTE-->/, `<!--STATSNOTE-->${note}<!--/STATSNOTE-->`, "STATSNOTE");
 put(/<!--SYNC-->.*?<!--\/SYNC-->/, `<!--SYNC-->${stamp}<!--/SYNC-->`, "SYNC");
