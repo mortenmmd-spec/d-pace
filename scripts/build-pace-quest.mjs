@@ -108,10 +108,13 @@ async function fetchShopify() {
     if (codes.includes("BML20")) return "bml"; if (/facebook|fb|ig|instagram/i.test(adtr) || /fbclid|facebook|instagram|igshid|utm_source=(fb|ig|facebook|instagram|meta)/i.test(s)) return "meta"; if (adtr) return "adtr"; if (/gclid|gbraid|wbraid|utm_source=google/i.test(s)) return "google"; return "org"; };
   // BML-kost = 30 % provisjon av varesalg eks mva (ordresum etter rabatt, før frakt, 15 % mva) på BML20-ordre
   const bmlKost = o => (o.discount_codes || []).some(d => String(d.code || "").toUpperCase() === "BML20") ? 0.30 * ((+o.current_subtotal_price || 0) / 1.15) : 0;
-  const daily = Object.fromEntries(DAYS.map(d => [d, { d, ordre: 0, oms: 0, eks: 0, nye: 0, u1: 0, u2: 0, subNew: 0, subRen: 0, subAct: 0, bmlKost: 0, nyeK: Object.fromEntries(KANALER.map(k => [k, 0])), dbK: Object.fromEntries(KANALER.map(k => [k, 0])), ordreK: Object.fromEntries(KANALER.map(k => [k, 0])), dbOK: Object.fromEntries(KANALER.map(k => [k, 0])) }]));
+  // Adtraction-provisjon ANSLAG (brukes bare for måneder uten faktura): 15 % × 1,3 (nettverkspåslag) av varesalg eks mva på ordre med Adtraction-sporing
+  // utenom fb/ig-kanal og abonnementsfornyelser (kalibrert mot sept-faktura 178532: 617,08 = 15 % × 1,3 × 3 164)
+  const adtrProv = o => { const ch = String((o.note_attributes || []).find(a => a.name === "__adtr_channel")?.value || ""); return ch && !/facebook|fb|ig|instagram/i.test(ch) && !isSubRen(o) ? 0.15 * 1.3 * ((+o.current_subtotal_price || 0) / 1.15) : 0; };
+  const daily = Object.fromEntries(DAYS.map(d => [d, { d, ordre: 0, oms: 0, eks: 0, nye: 0, u1: 0, u2: 0, subNew: 0, subRen: 0, subAct: 0, bmlKost: 0, adtrProv: 0, nyeK: Object.fromEntries(KANALER.map(k => [k, 0])), dbK: Object.fromEntries(KANALER.map(k => [k, 0])), ordreK: Object.fromEntries(KANALER.map(k => [k, 0])), dbOK: Object.fromEntries(KANALER.map(k => [k, 0])) }]));
   for (const o of orders) {
     const x = daily[o.day]; if (!x) continue;
-    x.ordre++; x.oms += amt(o); x.eks += amt(o) - (+o.current_total_tax || 0); x.bmlKost += bmlKost(o); { const k = kanal(o); x.ordreK[k]++; x.dbOK[k] += dbRest(o); }
+    x.ordre++; x.oms += amt(o); x.eks += amt(o) - (+o.current_total_tax || 0); x.bmlKost += bmlKost(o); x.adtrProv += adtrProv(o); { const k = kanal(o); x.ordreK[k]++; x.dbOK[k] += dbRest(o); }
     if (isSubNew(o)) x.subNew++; if (isSubRen(o)) x.subRen++;
     for (const li of o.line_items || []) { const q = li.current_quantity ?? li.quantity; if (li.sku === "PACE01") x.u1 += q; if (li.sku === "PACE02") x.u2 += q; }
   }
@@ -392,10 +395,12 @@ try { kanalKost = { ...kanalKost, ...JSON.parse(readFileSync(path.join(DIR, "dat
 const daysInMonth = ym => new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)).getUTCDate();
 const perDag = (tab, d) => { const v = tab?.[d.slice(0, 7)]; return v == null ? null : v / daysInMonth(d.slice(0, 7)); };
 const bmlFastDag = d => perDag(kanalKost.bml?.fast, d); // null = ukjent for måneden
-const adtrDag = d => { const p = perDag(kanalKost.adtraction?.provisjon, d); return p == null ? null : (kanalKost.adtraction?.fast ?? 995) / daysInMonth(d.slice(0, 7)) + p; };
+// Adtraction per dag = fast/dager i mnd + provisjon fra faktura; mangler fakturaen brukes anslaget fra ordrene (adtrProv) og dagen flagges
+const adtrFaktura = d => kanalKost.adtraction?.provisjon?.[d.slice(0, 7)] != null;
+const adtrDag = (d, est) => (kanalKost.adtraction?.fast ?? 995) / daysInMonth(d.slice(0, 7)) + (adtrFaktura(d) ? perDag(kanalKost.adtraction.provisjon, d) : (est || 0));
 
 // ---------- 6. Tall ----------
-const series = DAYS.map(d => { const x = shop.daily[d]; const covered = meta && d <= meta.coveredThrough; return { d, ordre: x.ordre, oms: Math.round(x.oms * 100) / 100, eks: Math.round(x.eks * 100) / 100, nye: x.nye, u1: x.u1, u2: x.u2, subNew: x.subNew, subRen: x.subRen, subAdd: x.subAdd ?? null, subCan: x.subCan ?? null, subLive: x.subLive ?? null, meta: meta && meta.source !== "api" && meta.manual[d] != null ? Math.round(meta.manual[d] * 100) / 100 : covered ? Math.round((meta.daily[d] || 0) * 100) / 100 : (meta && meta.manual[d] != null ? Math.round(meta.manual[d] * 100) / 100 : null), manuell: !!(meta && meta.source !== "api" && meta.manual[d] != null), bml: Math.round(x.bmlKost * 100) / 100, adtr: adtrDag(d), google: perDag(kanalKost.google, d), nyeK: x.nyeK, dbK: x.dbK, ordreK: x.ordreK, dbOK: x.dbOK }; });
+const series = DAYS.map(d => { const x = shop.daily[d]; const covered = meta && d <= meta.coveredThrough; return { d, ordre: x.ordre, oms: Math.round(x.oms * 100) / 100, eks: Math.round(x.eks * 100) / 100, nye: x.nye, u1: x.u1, u2: x.u2, subNew: x.subNew, subRen: x.subRen, subAdd: x.subAdd ?? null, subCan: x.subCan ?? null, subLive: x.subLive ?? null, meta: meta && meta.source !== "api" && meta.manual[d] != null ? Math.round(meta.manual[d] * 100) / 100 : covered ? Math.round((meta.daily[d] || 0) * 100) / 100 : (meta && meta.manual[d] != null ? Math.round(meta.manual[d] * 100) / 100 : null), manuell: !!(meta && meta.source !== "api" && meta.manual[d] != null), bml: Math.round(x.bmlKost * 100) / 100, adtr: adtrDag(d, x.adtrProv), adtrAnslag: !adtrFaktura(d),google: perDag(kanalKost.google, d), nyeK: x.nyeK, dbK: x.dbK, ordreK: x.ordreK, dbOK: x.dbOK }; });
 const today = series[series.length - 1];
 const win = n => series.slice(-n - 1, -1); // n hele dager t.o.m. i går
 const sum = (a, k) => a.reduce((x, r) => x + (r[k] || 0), 0);
@@ -405,19 +410,19 @@ const monLabel = ymd => MON[+ymd.slice(5, 7) - 1] + " " + ymd.slice(2, 4); // "o
 // total markedskost per dag (Meta + BML provisjon + BML-honorar + Adtraction + Google); ukjent kostnad regnes som 0 og flagges
 for (const r of series) { const f = bmlFastDag(r.d); r.kost = Math.round(((r.meta ?? 0) + (r.bml || 0) + (f ?? 0) + (r.adtr ?? 0) + (r.google ?? 0)) * 100) / 100; r.kostUfull = r.meta == null || f == null || r.adtr == null || r.google == null; }
 // CAC totalt: all markedskost i vinduet / alle nye kunder i vinduet
-const totalTall = n => { const w = win(n); const mangler = new Set(); let anslag = false;
-  for (const r of w) { if (r.meta == null) mangler.add("Meta"); if (bmlFastDag(r.d) == null) mangler.add("BML-honorar"); if (r.adtr == null) mangler.add("Adtraction"); if (r.google == null) mangler.add("Google"); if ((kanalKost.bml?.anslag || []).includes(r.d.slice(0, 7))) anslag = true; }
-  const kost = sum(w, "kost"), nye = sum(w, "nye"); return { kost, nye, cac: nye ? kost / nye : null, mangler: [...mangler], anslag }; };
+const totalTall = n => { const w = win(n); const mangler = new Set(); let anslag = false, adtrAnslag = false;
+  for (const r of w) { if (r.meta == null) mangler.add("Meta"); if (bmlFastDag(r.d) == null) mangler.add("BML-honorar"); if (r.adtr == null) mangler.add("Adtraction"); if (r.google == null) mangler.add("Google"); if ((kanalKost.bml?.anslag || []).includes(r.d.slice(0, 7))) anslag = true; if (r.adtrAnslag) adtrAnslag = true; }
+  const kost = sum(w, "kost"), nye = sum(w, "nye"); return { kost, nye, cac: nye ? kost / nye : null, mangler: [...mangler], anslag, adtrAnslag }; };
 // CAC per kanal: kostnad i vinduet / nye kunder (første ordre) attribuert til kanalen, bare dager der kostnaden er kjent
 const KNAVN = { meta: "Meta", bml: "BML-podcast", adtr: "Adtraction", google: "Google Ads", org: "Organisk/ukjent" };
-const KKOST = { meta: "Ads Manager (kvitteringer + daglig avlesning)", bml: "30 % provisjon av varesalg eks mva på BML20-ordre + 2 000 kr per episode (data/kanal-kost.json bml.fast per måned)", adtr: "995 kr/mnd + provisjon fra faktura (data/kanal-kost.json)", google: "DNB-kort, månedsbeløp i data/kanal-kost.json", org: "ingen kostnad" };
+const KKOST = { meta: "Ads Manager (kvitteringer + daglig avlesning)", bml: "30 % provisjon av varesalg eks mva på BML20-ordre + 2 000 kr per episode (data/kanal-kost.json bml.fast per måned)", adtr: "995 kr/mnd + provisjon fra Adtraction-faktura (data/kanal-kost.json); måneder uten faktura ennå: provisjon anslått som 15 % × 1,3 av varesalg eks mva på Adtraction-sporede ordre (ikke fb/ig, ikke abonnementsfornyelser)", google: "«Net cost» per måned fra Google Ads-fakturering (data/kanal-kost.json)", org: "ingen kostnad" };
 // alle ordre merket med kanalen teller (ikke bare første ordre); nye kunder vises i tillegg
 const kanalTall = (k, n) => { const all = win(n); const w = k === "org" ? all : all.filter(r => r[k] !== null && r[k] !== undefined); let kost = k === "org" ? 0 : sum(w, k); let fast = 0, ufull = false;
-  let anslag = false;
+  let anslag = k === "adtr" && w.some(r => r.adtrAnslag);
   if (k === "bml") { for (const r of w) { const f = bmlFastDag(r.d); if (f == null) ufull = true; else fast += f; if ((kanalKost.bml?.anslag || []).includes(r.d.slice(0, 7))) anslag = true; } kost += fast; } const ordre = w.reduce((x, r) => x + (r.ordreK?.[k] || 0), 0); const nye = w.reduce((x, r) => x + (r.nyeK?.[k] || 0), 0); const db = w.reduce((x, r) => x + (r.dbOK?.[k] || 0), 0); return { kost, fast, ufull, anslag, ordre, nye, db: ordre ? db / ordre : null, days: w.length, cac: nye && k !== "org" ? kost / nye : null, perOrdre: ordre && k !== "org" ? kost / ordre : null }; };
 const kr = x => x.cac != null ? nf(x.cac) + " kr" : "–";
 const kanalCard = (k, n = 30, m = 7) => { const t = kanalTall(k, n), t7 = kanalTall(k, m); const ukjent = t.days === 0; const v = k === "org" ? nf(t.ordre) : ukjent ? "–" : kr(t);
-  const sub = k === "org" ? `${t.nye} nye · ${m} d: ${t7.ordre} ordre, ${t7.nye} nye` : ukjent ? "kost ukjent" : `${m} d: ${t7.days === 0 ? "kost ukjent" : `${kr(t7)} (${t7.nye} nye)`} · ${n} d: ${nf(t.kost)} kr / ${t.nye} nye${t.ufull ? " · ⚠ honorar mangler" : ""}${t.days < n ? ` · ${t.days} d` : ""}`;
+  const sub = k === "org" ? `${t.nye} nye · ${m} d: ${t7.ordre} ordre, ${t7.nye} nye` : ukjent ? "kost ukjent" : `${k === "adtr" && t.anslag ? "provisjon anslått · " : ""}${m} d: ${t7.days === 0 ? "kost ukjent" : t7.nye ? `${kr(t7)} (${t7.nye} nye)` : `${nf(t7.kost)} kr, 0 nye`} · ${n} d: ${nf(t.kost)} kr / ${t.nye} nye${t.ufull ? " · ⚠ honorar mangler" : ""}${t.days < n ? ` · ${t.days} d` : ""}`;
   return (k === "meta" ? mcard : card)(k === "org" ? `Ordre ${KNAVN[k]} ${n} d` : `CAC ${KNAVN[k]} ${n} d`, v, sub, k === "org" ? "c-salg" : "c-cac", `${KNAVN[k]}, siste ${n} hele dager (${m} d i underteksten). Kostnad: ${KKOST[k]}${k === "bml" ? ` = provisjon ${nf(t.kost - t.fast)} kr + episodehonorar ${nf(t.fast)} kr${t.ufull ? " (honorar mangler for én eller flere måneder i vinduet, tallet er et gulv)" : t.anslag ? " (honorar for måneder uten oppgjør ennå er anslått til 3 000 kr/mnd, se data/kanal-kost.json)" : ""}` : ""}. Hovedtall = kostnad delt på NYE kunder hvis første ordre er merket med kanalen (BML20-kode, fbclid/utm/__adtr_channel, gclid). ${t.ordre} ordre i alt merket kanalen (også gjenkjøp)${t.perOrdre != null ? `, ${nf(t.perOrdre)} kr per ordre` : ""}${t.db != null ? `, DB ${nf(t.db)} kr per ordre` : ""}. Shopify finner færre Meta-kjøp enn Metas piksel, så Meta-tallet per ny kunde er et tak.${ukjent ? " Kostnaden mangler for alle dagene i vinduet." : t.days < n ? ` ${t.days} av ${n} dager har kjent kostnad; kunder telles bare på de dagene.` : ""}`); };
 // kort: kort undertekst (én linje), detaljer i title-tooltip
 // Meta-data som ikke er oppdatert t.o.m. i går: kortene merkes synlig (stiplet ramme + tekst), tallene vises likevel
@@ -431,8 +436,8 @@ const todayCard = () => card("Salg i dag", nf(today.oms) + " kr" + (slaatt ? " �
 const totaltCard = () => card("Salg totalt", nf(shop.totalt) + " kr", `${nf(shop.ordreTotalt)} ordre siden ${shop.forsteDag ? shop.forsteDag.slice(8, 10) + "." + shop.forsteDag.slice(5, 7) + "." + shop.forsteDag.slice(0, 4) : "start"} · i år ${nf(shop.iAar)} kr`, "c-salg", `All ordreverdi inkl. mva og frakt, betalte ordre, hele historikken (${nf(shop.ordreTotalt)} ordre). Hittil i ${TODAY.slice(0, 4)}: ${nf(shop.iAar)} kr fra ${nf(shop.ordreIAar)} ordre. Seeding og kansellerte ordre er ikke med.`);
 const salgCard = (n) => { const w = win(n); return card(`Salg ${n} d`, nf(sum(w, "oms")) + " kr", `${sum(w, "ordre")} ordre · ${sum(w, "nye")} nye`, "c-salg", `Ordreverdi inkl. mva siste ${n} hele dager t.o.m. i går, ${sum(w, "nye")} nye kunder`); };
 const totalCard = (n = 30, m = 7) => { const t = totalTall(n), t7 = totalTall(m);
-  return mcard(`CAC totalt ${n} d`, kr(t), `${m} d: ${kr(t7)} (${t7.nye} nye) · ${n} d: ${nf(t.kost)} kr / ${t.nye} nye${t.mangler.length ? ` · ⚠ mangler ${t.mangler.join(", ")}` : ""}`, "c-cac",
-    `All markedskost siste ${n} hele dager (Meta + BML provisjon og episodehonorar + Adtraction + Google Ads) delt på alle nye kunder i samme periode, uansett kanal. ${t.mangler.length ? `Kostnad mangler for ${t.mangler.join(", ")} på én eller flere dager og er regnet som 0, så tallet er et gulv. ` : ""}${t.anslag ? "BML-honorar for måneder uten oppgjør er anslått til 3 000 kr/mnd. " : ""}${m} d i underteksten.`); };
+  return mcard(`CAC totalt ${n} d`, kr(t), `${t.mangler.length ? `⚠ mangler ${t.mangler.join(", ")} · ` : ""}${m} d: ${kr(t7)} (${t7.nye} nye) · ${n} d: ${nf(t.kost)} kr / ${t.nye} nye`, "c-cac",
+    `All markedskost siste ${n} hele dager (Meta + BML provisjon og episodehonorar + Adtraction + Google Ads) delt på alle nye kunder i samme periode, uansett kanal. ${t.mangler.length ? `Kostnad mangler for ${t.mangler.join(", ")} på én eller flere dager og er regnet som 0, så tallet er et gulv. ` : ""}${t.anslag ? "BML-honorar for måneder uten oppgjør er anslått til 3 000 kr/mnd. " : ""}${t.adtrAnslag ? "Adtraction-provisjon for måneder uten faktura er anslått fra ordrene. " : ""}${m} d i underteksten.`); };
 // annonsekost: Meta-forbruk på fakturerte dager i vinduet; kr/dag over de samme dagene
 const adsCard = (n) => { if (!meta) return mcard(`Annonser ${n} d`, "–", "Meta-data mangler", "c-ads", metaErr); const w = win(n).filter(r => r.meta !== null); const s = sum(w, "meta");
   // ingen dekkede dager i vinduet: kostnaden er ukjent, ikke 0 (annonsene kan gå uten at kilden har fått tallene ennå)
@@ -474,12 +479,11 @@ const poasCard = () => {
   const S = sum(w, "meta"), a = w.reduce((t, r) => { const x = nk[r.d]; if (x) for (const key in t) t[key] += x[key]; return t; }, { n: 0, nM: 0, sub: 0, subM: 0, db: 0, dbM: 0 });
   const vs = k.sub.db / k.sub.n, vn = k.non.db / k.non.n, x = v => v.toFixed(2).replace(".", ",");
   const fA = a.db / S, fM = a.dbM / S, hA = (a.sub * vs + (a.n - a.sub) * vn) / S, hM = (a.subM * vs + (a.nM - a.subM) * vn) / S;
-  return mcard("Fortjeneste per reklamekrone", x(fM), `siste 30 d · konservativt · alle nye ${x(fA)} · etter 180 d ${x(hM)}`, "c-cac",
+  return mcard("Fortjeneste per reklamekrone", x(fM), `siste 30 d · Meta-kunder · etter 180 d ${x(hM)}`, "c-cac",
     `Dekningsbidrag (salg eks mva − varer, plukk, frakt, gebyr) per krone Meta-reklame, ${fmtD(w[0].d)}–${fmtD(w[w.length - 1].d)} (${w.length} dager med kvittering, ${nf(S)} kr). `
-    + `Konservativt: ${a.nM} nye kunder med Meta i kundereisen ga ${nf(a.dbM)} kr på første kjøp (${x(fM)}); med forventet 180-dagers bidrag ${x(hM)}. `
-    + `Alle ${a.n} nye kunder: ${nf(a.db)} kr på første kjøp (${x(fA)}); etter 180 d ${x(hA)}. `
+    + `${a.nM} nye kunder med Meta i kundereisen ga ${nf(a.dbM)} kr på første kjøp (${x(fM)}); med forventet 180-dagers bidrag ${x(hM)}. `
     + `180 d bygger på historikk: startet med abonnement ${nf(vs)} kr (${k.sub.n} kunder), uten ${nf(vn)} kr (${k.non.n} kunder), dagens kostnader. Over 1,00 = reklamen lønner seg. `
-    + `Sannheten ligger mellom tallene til en pausetest er gjort. Faste kostnader (360-minimum, programvare) er ikke med.`);
+    + `Faste kostnader (360-minimum, programvare) er ikke med.`);
 };
 // snitt per kunde: hva en kunde legger igjen i snitt over hele historikken, sammenlignet med CAC 30 d
 // ny kunde 30 d: hva kunder som kom i de siste 30 hele dagene har kjøpt for i samme periode, eks mva (CAC er Meta-kost uten norsk mva)
