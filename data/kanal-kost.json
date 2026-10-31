@@ -1,5 +1,5 @@
 {
-  "note": "Kanalkostnader eks mva per måned, lagt inn manuelt. Adtraction: fast 995/mnd + provisjon fra Kleer Group-faktura (hei@). Google Ads: belastning på DNB-kortet (Google:Ads2330169), krever DNB-eksport. null = ukjent (ikke 0). BML: bml.fast = episodehonorar per måned (provisjonen regnes fra ordrene).",
+  "note": "Kanalkostnader eks mva per måned, lagt inn manuelt. Adtraction: fast 995/mnd + provisjon fra Kleer Group-faktura (hei@). Google Ads: «Net cost» per måned fra Google Ads → Fakturering → Sammendrag (konto Pace Sport AS 7205670683), lest 31.10.2026 13:05; oktober er t.o.m. 31.10 kl. 13 (nesten hel måned). Kortbelastningene (Payments) henger en måned etter og skal IKKE brukes. null = ukjent (ikke 0). BML: bml.fast = episodehonorar per måned (provisjonen regnes fra ordrene).",
   "adtraction": {
     "fast": 995,
     "provisjon": {
@@ -9,10 +9,13 @@
     }
   },
   "google": {
-    "2026-05": 6102.75,
-    "2026-06": 8258.97,
-    "2026-09": null,
-    "2026-10": null
+    "2026-04": 2102.75,
+    "2026-05": 8258.97,
+    "2026-06": 14172.44,
+    "2026-07": 7453.5,
+    "2026-08": 6078.52,
+    "2026-09": 6074.81,
+    "2026-10": 5925.35
   },
   "bml": {
     "note": "Fast episodehonorar BML eks mva per måned. Kilder (hei@, tråd «pace i BML podcast»): oppgjør 17 498 mars/april = 3 episoder fastpris 10 000 + provisjon; oppgjør 27.05 (21.04–27.05) = 10 000 fastpris for 3 episoder + 15 851 provisjon = 25 851; oppgjør 21.06 = kun provisjon 3 195; oppgjør 23.08 (21.06–23.08) = 3 episoder × 2 000 + 5 995 provisjon = 11 995. Avtale fra 24.06: 2 000 per episode + 30 %. Måneder i «anslag» er ikke oppgjort ennå og satt til 3 000 (1,5 episoder/mnd, samme takt som juni–august). Provisjonen regnes fra ordrene.",
