@@ -892,7 +892,7 @@ function geoMap() {
    ============================================================ */
 function charts() {
   const D = META.daily || [];
-  if (!D.length) { document.getElementById("chart-sales").innerHTML = `<div class="k">Salg per dag, 30 d</div><div class="empty">Ingen data ennå.</div>`; document.getElementById("chart-cac").innerHTML = `<div class="k">CAC-trend</div><div class="empty">Ingen data ennå.</div>`; return; }
+  if (!D.length) { document.getElementById("chart-sales").innerHTML = `<div class="k">Salg per dag, 30 d</div><div class="empty">Ingen data ennå.</div>`; document.getElementById("chart-cac").innerHTML = `<div class="k">CAC totalt, 7 d rullerende</div><div class="empty">Ingen data ennå.</div>`; return; }
   const W = 600, H = 200, L = 44, R = 10, T = 14, B = 26, iw = W - L - R, ih = H - T - B;
   const tip = document.getElementById("tip");
   const showTip = (e, html) => { tip.innerHTML = html; tip.style.display = "block"; tip.style.left = Math.min(e.clientX + 12, window.innerWidth - tip.offsetWidth - 8) + "px"; tip.style.top = (e.clientY - 36) + "px"; };
@@ -914,12 +914,11 @@ function charts() {
     el.innerHTML = `<div class="k">Salg per dag, 30 d <b>${nf(sum7)} kr siste 7 d</b></div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Salg per dag siste 30 dager">${axis(max, v => nf(v / 1000) + "k")}${bars}${line}${xlabels()}</svg><div class="legend"><span><i style="background:var(--blue)"></i>omsetning per dag (i dag ufullstendig)</span><span><i style="background:var(--ink-2)"></i>7-dagers snitt</span></div>`;
     el.querySelectorAll("rect[data-i]").forEach(r => { r.onmousemove = e => { const d = D[+r.dataset.i]; showTip(e, `<b>${lbl(d)}</b><br>${nf(d.oms)} kr · ${d.ordre} ordre · ${d.nye} nye kunder<br>sitron ${d.u1} · bringebær ${d.u2} sjaktler${d.meta !== null ? `<br>Meta ${nf(d.meta)} kr` : ""}`); }; r.onmouseleave = hideTip; });
   }
-  // 2) CAC-trend (7-dagers rullerende), bare dager med Meta-dekning
+  // 2) CAC totalt-trend (7-dagers rullerende): all markedskost / alle nye kunder; punkt bare når Meta-kost er kjent alle 7 dager
   { const el = document.getElementById("chart-cac");
-    // 7-dagersvindu, men bare dager MED annonsekostnad teller (kost og nye kunder), minst 4 slike dager. Ellers blandes organiske kunder fra annonsefrie dager inn og CAC ser kunstig lav ut.
-    const pts = D.map((d, i) => { if (i < 6 || d.meta === null) return null; const w = D.slice(i - 6, i + 1).filter(r => r.meta !== null && r.meta > 0); if (w.length < 4) return null; const s = w.reduce((x, r) => x + r.meta, 0), n = w.reduce((x, r) => x + r.nye, 0); return { s, n, days: w.length, cac: n ? s / n : null }; });
+    const pts = D.map((d, i) => { if (i < 6) return null; const w = D.slice(i - 6, i + 1); if (w.some(r => r.meta === null)) return null; const s = w.reduce((x, r) => x + (r.kost || 0), 0), n = w.reduce((x, r) => x + r.nye, 0); return { s, n, days: w.length, ufull: w.some(r => r.kostUfull), cac: n ? s / n : null }; });
     const vals = pts.filter(p => p && p.cac !== null).map(p => p.cac);
-    if (!vals.length) { el.innerHTML = `<div class="k">CAC-trend</div><div class="empty">Ingen Meta-data i perioden.</div>`; return; }
+    if (!vals.length) { el.innerHTML = `<div class="k">CAC totalt, 7 d rullerende</div><div class="empty">Ingen Meta-data i perioden.</div>`; return; }
     const max = Math.max(...vals) * 1.15, y = v => T + ih - ih * v / max;
     let segs = [], cur = [];
     pts.forEach((p, i) => { if (p && p.cac !== null) cur.push(`${xOf(i)},${y(p.cac)}`); else { if (cur.length) segs.push(cur); cur = []; } }); if (cur.length) segs.push(cur);
@@ -929,8 +928,8 @@ function charts() {
     const last = pts[lastIdx];
     const uncovered = META.meta_through ? D.filter(d => d.d > META.meta_through).length : 0;
     const shade = uncovered ? `<rect x="${xOf(D.length - uncovered) - iw / D.length / 2}" y="${T}" width="${uncovered * iw / D.length}" height="${ih}" fill="var(--grid)" opacity="0.5"/>` : "";
-    el.innerHTML = `<div class="k">CAC-trend, 7 d rullerende <b>${nf(last.cac)} kr per ny kunde</b></div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="CAC-trend">${axis(max, v => nf(v))}${shade}${line}${dots}${xlabels()}</svg><div class="legend"><span><i style="background:var(--magenta)"></i>Meta-kost / nye kunder, siste 7 dager</span>${uncovered ? `<span><i style="background:var(--grid)"></i>ikke fakturert ennå</span>` : ""}</div>`;
-    el.querySelectorAll("circle[data-i]").forEach(c => { c.onmousemove = e => { const i = +c.dataset.i, p = pts[i]; showTip(e, `<b>${lbl(D[i])}</b> (${p.days} annonsedager til og med)<br>CAC ${nf(p.cac)} kr · Meta ${nf(p.s)} kr · ${p.n} nye kunder`); }; c.onmouseleave = hideTip; });
+    el.innerHTML = `<div class="k">CAC totalt, 7 d rullerende <b>${nf(last.cac)} kr per ny kunde</b></div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="CAC totalt-trend">${axis(max, v => nf(v))}${shade}${line}${dots}${xlabels()}</svg><div class="legend"><span><i style="background:var(--magenta)"></i>all markedskost / alle nye kunder, siste 7 dager</span>${uncovered ? `<span><i style="background:var(--grid)"></i>Meta ikke lagt inn ennå</span>` : ""}</div>`;
+    el.querySelectorAll("circle[data-i]").forEach(c => { c.onmousemove = e => { const i = +c.dataset.i, p = pts[i]; showTip(e, `<b>${lbl(D[i])}</b> (7 dager til og med)<br>CAC totalt ${nf(p.cac)} kr · kost ${nf(p.s)} kr · ${p.n} nye kunder${p.ufull ? "<br>⚠ noe kanalkost ukjent, regnet som 0" : ""}`); }; c.onmouseleave = hideTip; });
   }
   // 3) abonnement: stolper opp = nye, ned = avsluttet per dag; linje = aktive abonnement (samme tall som kortet)
   { const el = document.getElementById("chart-sub");
