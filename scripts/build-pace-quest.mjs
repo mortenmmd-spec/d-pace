@@ -409,6 +409,16 @@ const MON = ["jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt
 const monLabel = ymd => MON[+ymd.slice(5, 7) - 1] + " " + ymd.slice(2, 4); // "okt 26", samme form som planen
 // total markedskost per dag (Meta + BML provisjon + BML-honorar + Adtraction + Google); ukjent kostnad regnes som 0 og flagges
 for (const r of series) { const f = bmlFastDag(r.d); r.kost = Math.round(((r.meta ?? 0) + (r.bml || 0) + (f ?? 0) + (r.adtr ?? 0) + (r.google ?? 0)) * 100) / 100; r.kostUfull = r.meta == null || f == null || r.adtr == null || r.google == null; }
+for (const r of series) r.db = Math.round(Object.values(r.dbOK || {}).reduce((x, y) => x + y, 0) * 100) / 100; // dekningsbidrag alle ordre den dagen
+// markedskost mot alt salg (uavhengig av merking): kost / omsetning eks mva, og DB fra alle ordre minus all markedskost
+const merTall = n => { const w = win(n); const kost = sum(w, "kost"), eks = sum(w, "eks"), db = sum(w, "db"); return { kost, eks, db, andel: eks ? kost / eks : null, netto: db - kost, ufull: w.some(r => r.kostUfull) }; };
+const pct = v => v == null ? "–" : Math.round(v * 100) + " %";
+const merCard = (n = 30, m = 7) => { const t = merTall(n), t7 = merTall(m);
+  return mcard(`Markedskost / omsetning ${n} d`, pct(t.andel), `${t.ufull ? "⚠ noe kost ukjent · " : ""}${m} d: ${pct(t7.andel)} · ${n} d: ${nf(t.kost)} kr / ${nf(t.eks)} kr eks mva`, "c-cac",
+    `All markedskost (Meta + BML + Adtraction + Google Ads) delt på ALL omsetning eks mva siste ${n} hele dager, også gjenkjøp og abonnement. Trenger ingen kanalmerking og påvirkes ikke av sporingsfeil. ${t.ufull ? "Noe kanalkost er ukjent og regnet som 0, så andelen er et gulv. " : ""}${m} d i underteksten.`); };
+const nettoCard = (n = 30, m = 7) => { const t = merTall(n), t7 = merTall(m);
+  return mcard(`DB etter markedsføring ${n} d`, nf(t.netto) + " kr", `${t.ufull ? "⚠ noe kost ukjent · " : ""}${m} d: ${nf(t7.netto)} kr · ${n} d: DB ${nf(t.db)} − kost ${nf(t.kost)}`, "c-cac",
+    `Dekningsbidrag fra ALLE ordre siste ${n} hele dager (salg eks mva − varer, plukk, frakt, gebyr, per ordre) minus all markedskost (Meta + BML + Adtraction + Google Ads). Under 0 = markedsføringen koster mer enn alt salget gir i bidrag. Faste kostnader (360-minimum, programvare) er ikke med. ${t.ufull ? "Noe kanalkost er ukjent og regnet som 0, så tallet er et tak. " : ""}${m} d i underteksten.`); };
 // CAC totalt: all markedskost i vinduet / alle nye kunder i vinduet
 const totalTall = n => { const w = win(n); const mangler = new Set(); let anslag = false, adtrAnslag = false;
   for (const r of w) { if (r.meta == null) mangler.add("Meta"); if (bmlFastDag(r.d) == null) mangler.add("BML-honorar"); if (r.adtr == null) mangler.add("Adtraction"); if (r.google == null) mangler.add("Google"); if ((kanalKost.bml?.anslag || []).includes(r.d.slice(0, 7))) anslag = true; if (r.adtrAnslag) adtrAnslag = true; }
@@ -498,7 +508,7 @@ const henvCard = () => { if (!henv) return card("Ubesvarte henvendelser", "–",
     `Kundetråder i hei@getpace.no mottatt f.o.m. ${fmtD(HENV_FRA)} der siste melding ikke er fra oss. Automatiske avsendere (kvitteringer, varsler) telles ikke; Shopify-kontaktskjema telles.${liste ? " Åpne: " + liste : ""}`); };
 const cards = todayCard() + henvCard() + salgCard(7) + salgCard(30) + totaltCard() + subCard
   + poasCard()
-  + adsCard(7) + adsCard(30) + totalCard()
+  + adsCard(7) + adsCard(30) + merCard() + nettoCard() + totalCard()
   + kanalCard("meta") + kanalCard("bml") + kanalCard("adtr") + kanalCard("google") + kanalCard("org")
   + kundeCard()
   + card("Unike kunder", nf(shop.kunder), `+${sum(win(30), "nye")} nye siste 30 d`, "c-salg", "Kundeprofiler med minst én betalt ordre i hele historikken (uten test- og seeding-ordre)")
