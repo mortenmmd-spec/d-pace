@@ -1,0 +1,8 @@
+{
+  "note": "Tråder i hei@getpace.no som ikke trenger svar (Mortens avgjørelse). Skjules på dashboardet så lenge siste melding er den som står her; kommer det en ny melding i tråden, telles den igjen.",
+  "lukket": [
+    { "thread": "1a179f3976f41b4c", "sisteMelding": "1a18454d58d7c76f", "hvem": "Mattis Eriksen", "grunn": "takk for erstatningspakke #5311712, ingen svar nødvendig", "dato": "2026-11-01" },
+    { "thread": "1a186f40b598ec2b", "sisteMelding": "1a186f40b598ec2b", "hvem": "Sana", "grunn": "automatisk varsel om nedleggelse 30.11", "dato": "2026-11-01" },
+    { "thread": "1a16a2f8b2074706", "sisteMelding": "1a18bd5163c97a25", "hvem": "Reddit (Vincent Bergerson)", "grunn": "salgsmail", "dato": "2026-11-01" }
+  ]
+}

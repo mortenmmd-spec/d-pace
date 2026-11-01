@@ -341,6 +341,8 @@ async function fetchHenvendelser() {
     const j = await r.json(); ids.push(...(j.threads || []).map(t => t.id)); pageToken = j.nextPageToken || ""; if (!pageToken) break;
   }
   const hdr = (m, n) => (m.payload?.headers || []).find(h => h.name.toLowerCase() === n.toLowerCase())?.value || "";
+  // data/henvendelser-lukket.json: tråder Morten har avgjort at ikke trenger svar; skjules bare så lenge siste melding er uendret
+  let lukket = {}; try { for (const x of JSON.parse(readFileSync(path.join(DIR, "data", "henvendelser-lukket.json"), "utf8")).lukket || []) lukket[x.thread] = x.sisteMelding; } catch {}
   const open = [];
   for (const id of ids) {
     const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`, { headers: G });
@@ -348,6 +350,7 @@ async function fetchHenvendelser() {
     const t = await r.json(); const msgs = (t.messages || []).slice().sort((a, b) => +a.internalDate - +b.internalDate);
     if (!msgs.length) continue;
     const first = msgs[0], last = msgs[msgs.length - 1];
+    if (lukket[id] && lukket[id] === last.id) continue; // avgjort: trenger ikke svar
     const from = hdr(first, "From"), subject = hdr(first, "Subject");
     const lastFrom = hdr(last, "From"), vaarTraad = OSS.test(from); // tråd vi startet: avsender = den som svarte
     const kunde = /ny kundemelding/i.test(subject) || !AUTO_FROM.test(vaarTraad ? lastFrom : from);
