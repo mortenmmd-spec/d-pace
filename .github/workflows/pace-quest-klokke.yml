@@ -1,0 +1,37 @@
+name: pace-quest-klokke
+# GitHubs cron er «best effort» og dropper ofte kjøringer (31.10–01.11: 1–3 av ~17 per dag).
+# Denne jobben starter pace-quest hver time 06–23 Oslo selv, i ~5,5 t, og starter så seg selv på nytt.
+# Cron under er bare gjenoppliving hvis kjeden skulle stoppe. Repoet er offentlig, så minuttene er gratis.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 */4 * * *"
+concurrency:
+  group: pace-quest-klokke
+  cancel-in-progress: false
+permissions:
+  actions: write
+jobs:
+  klokke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 345
+    steps:
+      - name: Start pace-quest hver time (06–23 Oslo)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          slutt=$(( $(date +%s) + 19800 ))
+          while [ "$(date +%s)" -lt "$slutt" ]; do
+            t=$(TZ=Europe/Oslo date +%-H)
+            if [ "$t" -ge 6 ] && [ "$t" -le 23 ]; then
+              gh workflow run pace-quest && echo "startet pace-quest $(TZ=Europe/Oslo date '+%d.%m %H:%M')" || echo "kunne ikke starte pace-quest"
+            fi
+            sleep 3600
+          done
+      - name: Start neste klokke
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run pace-quest-klokke
