@@ -345,7 +345,7 @@ async function fetchHenvendelser() {
   let lukket = {}; try { for (const x of JSON.parse(readFileSync(path.join(DIR, "data", "henvendelser-lukket.json"), "utf8")).lukket || []) lukket[x.thread] = x.sisteMelding; } catch {}
   const open = [];
   for (const id of ids) {
-    const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`, { headers: G });
+    const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=Auto-Submitted`, { headers: G });
     if (!r.ok) throw new Error("Gmail thread " + r.status);
     const t = await r.json(); const msgs = (t.messages || []).slice().sort((a, b) => +a.internalDate - +b.internalDate);
     if (!msgs.length) continue;
@@ -356,6 +356,9 @@ async function fetchHenvendelser() {
     const kunde = /ny kundemelding/i.test(subject) || !AUTO_FROM.test(vaarTraad ? lastFrom : from);
     if (!kunde) continue;
     if (OSS.test(lastFrom)) continue; // vi har svart sist
+    // autosvar (fravær o.l., typisk på nyhetsbrev fra Klaviyo) er ikke henvendelser: Auto-Submitted-header eller kjent emne
+    const auto = /^auto-(replied|generated)/i.test(hdr(last, "Auto-Submitted")) || /^(automatic reply|auto(matisk)?[ -]?svar|autoreply|out of office|fraværende|fravær|ikke til stede|frånvaro|automatiskt svar)\b/i.test(hdr(last, "Subject") || subject);
+    if (auto) continue;
     if (osloDay(new Date(+first.internalDate)) < HENV_FRA) continue; // eldre tråd som fikk nytt svar
     const avsender = vaarTraad ? lastFrom : from;
     const navn = avsender.replace(/<.*>/, "").replace(/"/g, "").trim() || avsender;
