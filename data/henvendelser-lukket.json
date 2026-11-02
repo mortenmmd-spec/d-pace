@@ -1,8 +1,47 @@
 {
   "note": "Tråder i hei@getpace.no som ikke trenger svar (Mortens avgjørelse). Skjules på dashboardet så lenge siste melding er den som står her; kommer det en ny melding i tråden, telles den igjen.",
   "lukket": [
-    { "thread": "1a179f3976f41b4c", "sisteMelding": "1a18454d58d7c76f", "hvem": "Mattis Eriksen", "grunn": "takk for erstatningspakke #5311712, ingen svar nødvendig", "dato": "2026-11-01" },
-    { "thread": "1a186f40b598ec2b", "sisteMelding": "1a186f40b598ec2b", "hvem": "Sana", "grunn": "automatisk varsel om nedleggelse 30.11", "dato": "2026-11-01" },
-    { "thread": "1a16a2f8b2074706", "sisteMelding": "1a18bd5163c97a25", "hvem": "Reddit (Vincent Bergerson)", "grunn": "salgsmail", "dato": "2026-11-01" }
+    {
+      "thread": "1a179f3976f41b4c",
+      "sisteMelding": "1a18454d58d7c76f",
+      "hvem": "Mattis Eriksen",
+      "grunn": "takk for erstatningspakke #5311712, ingen svar nødvendig",
+      "dato": "2026-11-01"
+    },
+    {
+      "thread": "1a186f40b598ec2b",
+      "sisteMelding": "1a186f40b598ec2b",
+      "hvem": "Sana",
+      "grunn": "automatisk varsel om nedleggelse 30.11",
+      "dato": "2026-11-01"
+    },
+    {
+      "thread": "1a16a2f8b2074706",
+      "sisteMelding": "1a18bd5163c97a25",
+      "hvem": "Reddit (Vincent Bergerson)",
+      "grunn": "salgsmail",
+      "dato": "2026-11-01"
+    },
+    {
+      "thread": "1a198769c23d9ef5",
+      "sisteMelding": "1a198769c23d9ef5",
+      "hvem": "Sølvi Abbedissen (kontaktskjema)",
+      "grunn": "besvart i egen tråd 02.11 fra hei@ (1a19d696de216c87), frakt 39 kr refundert",
+      "dato": "2026-11-02"
+    },
+    {
+      "thread": "1a19b9c425705199",
+      "sisteMelding": "1a19b9c425705199",
+      "hvem": "Åshild Haustveit (kontaktskjema)",
+      "grunn": "besvart i egen tråd 02.11 fra hei@ (1a19c8295e944165), erstatning #5350012",
+      "dato": "2026-11-02"
+    },
+    {
+      "thread": "1a19db1fba37e3b6",
+      "sisteMelding": "1a19db1fba37e3b6",
+      "hvem": "Eva Bauthler (kontaktskjema)",
+      "grunn": "besvart i egen tråd 02.11 fra hei@ (1a19dd06f0b50aab), abonnement byttet til Sitron & Lime",
+      "dato": "2026-11-02"
+    }
   ]
 }
