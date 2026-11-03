@@ -215,6 +215,7 @@
   .col.compact .task .title { flex: 1; min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .col.compact .task .body { display: none; }
   .col.compact .task .tag { margin: 0; flex: none; padding: 0 6px; font-size: 0.68rem; }
+  .col.compact .task .del { position: static; flex: none; align-self: center; }  /* i flyten, så 🗑 ikke ligger over 👤/frist */
   /* Backlog får dobbel bredde på store skjermer, så linjene holder seg korte */
   @media (min-width: 1000px) { #board { grid-template-columns: minmax(160px, 1fr) minmax(320px, 2fr) repeat(3, minmax(160px, 1fr)); } }
   .empty { font-size: 0.8rem; color: var(--ink-muted); font-style: italic; padding: 6px 2px; }
@@ -630,8 +631,10 @@ function taskCard(t, compact = false) {
   const strom = t.strom && !compact ? `<span class="tag">${esc(t.strom)}</span>` : "";
   const due = `<button class="tag due act${isOver(t) ? " over" : ""}" title="Sett frist">📅 ${t.due ? fmtDate(t.due) + (isOver(t) ? " !" : "") : (live ? "frist" : "–")}</button>`;
   const showDue = compact ? !!t.due : (t.due || live);
-  const showWho = !compact || filter !== t.owner;
-  const who = `<button class="tag act who" style="color:${OWNER_COLOR[t.owner] || "var(--ink-muted)"}" title="Bytt ansvarlig">${compact ? "" : "👤 "}${esc(t.owner)}</button>`;
+  // kompakt + ansvarlig = filteret: bare 👤 (navnet er unødvendig), men knappen skal alltid finnes så eier kan byttes
+  const whoSlim = compact && filter === t.owner;
+  const showWho = live || !whoSlim;
+  const who = `<button class="tag act who" style="color:${OWNER_COLOR[t.owner] || "var(--ink-muted)"}" title="Bytt ansvarlig (nå: ${esc(t.owner)})" aria-label="Bytt ansvarlig, nå ${esc(t.owner)}">${whoSlim ? "👤" : (compact ? "" : "👤 ") + esc(t.owner)}</button>`;
   if (compact) el.title = t.body ? `${t.txt}\n\n${t.body}` : t.txt;
   el.innerHTML =
     `<button class="box" title="Marker ferdig / gjenåpne" aria-label="Marker ferdig">✓</button>` +
