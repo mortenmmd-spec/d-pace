@@ -331,6 +331,20 @@ async function gmailAuth() {
 }
 const AUTO_FROM = /no-?reply|notification|mailer-daemon|facebookmail|business-updates\.facebook|@google\.com|@accounts\.google|@shopify\.com|@stripe\.com|@klarna|@vipps|@dnb\.no|@360logistics|@bring\.com|@posten\.no|@postnord|newsletter|nyhetsbrev|info@|support@|kundeservice@|hello@|team@|@linkedin|@meta\.com|@fiken|@tripletex|@github\.com/i;
 const OSS = /@getpace\.no/i; // hei@ og aliasene (morten@ osv.)
+// selve svarteksten i en melding (uten sitert tråd): text/plain, ellers html uten tagger; kuttes ved «skrev»/«wrote»-linjen og >-linjer
+async function svartekst(G, msgId) {
+  const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=full`, { headers: G });
+  if (!r.ok) throw new Error("Gmail message " + r.status);
+  const m = await r.json(), dec = s => Buffer.from(s.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
+  const parts = []; (function walk(p) { if (!p) return; if (p.body?.data) parts.push(p); (p.parts || []).forEach(walk); })(m.payload);
+  const plain = parts.find(p => p.mimeType === "text/plain"), html = parts.find(p => p.mimeType === "text/html");
+  let t = plain ? dec(plain.body.data) : html ? dec(html.body.data).replace(/<blockquote[\s\S]*$/i, "").replace(/<br\s*\/?>|<\/(p|div)>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ") : "";
+  const ut = [];
+  for (const l of t.split(/\r?\n/)) { if (/^\s*>/.test(l) || /(skrev|wrote|schrieb|skrev følgende)\s*:?\s*$/i.test(l) || /^-{2,}\s*(original|opprinnelig|videresendt)/i.test(l) || /^(From|Fra):\s/i.test(l)) break; ut.push(l); }
+  return ut.join("\n").replace(/\s+/g, " ").trim();
+}
+// «bare takk»: kort, inneholder takk, ingen spørsmål
+const baretakk = async (G, msgId) => { const t = await svartekst(G, msgId); return t.length > 0 && t.length <= 300 && /\b(takk|thanks|thank you|tack)\b/i.test(t) && !/\?/.test(t); };
 async function fetchHenvendelser() {
   const G = await gmailAuth();
   const q = encodeURIComponent(`in:inbox -in:chats after:${addDays(HENV_FRA, -1).replace(/-/g, "/")}`);
@@ -345,7 +359,7 @@ async function fetchHenvendelser() {
   let lukket = {}; try { for (const x of JSON.parse(readFileSync(path.join(DIR, "data", "henvendelser-lukket.json"), "utf8")).lukket || []) lukket[x.thread] = x.sisteMelding; } catch {}
   const open = [];
   for (const id of ids) {
-    const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=Auto-Submitted`, { headers: G });
+    const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=Auto-Submitted&metadataHeaders=List-Unsubscribe&metadataHeaders=Precedence`, { headers: G });
     if (!r.ok) throw new Error("Gmail thread " + r.status);
     const t = await r.json(); const msgs = (t.messages || []).slice().sort((a, b) => +a.internalDate - +b.internalDate);
     if (!msgs.length) continue;
@@ -359,7 +373,11 @@ async function fetchHenvendelser() {
     // autosvar (fravær o.l., typisk på nyhetsbrev fra Klaviyo) er ikke henvendelser: Auto-Submitted-header eller kjent emne
     const auto = /^auto-(replied|generated)/i.test(hdr(last, "Auto-Submitted")) || /^(automatic reply|auto(matisk)?[ -]?svar|autoreply|out of office|fraværende|fravær|ikke til stede|frånvaro|automatiskt svar)\b/i.test(hdr(last, "Subject") || subject);
     if (auto) continue;
+    // nyhetsbrev/salgsutsendelser (Morten 03.11: Profrakt-utsendelse talt som henvendelse): List-Unsubscribe eller Precedence bulk/list
+    if (!/ny kundemelding/i.test(subject) && (hdr(last, "List-Unsubscribe") || /^(bulk|list|junk)$/i.test(hdr(last, "Precedence").trim()))) { if (process.env.HENV_DEBUG) console.log("skjult utsendelse:", hdr(last, "From"), "|", subject); continue; }
     if (osloDay(new Date(+first.internalDate)) < HENV_FRA) continue; // eldre tråd som fikk nytt svar
+    // kvittering fra kunden etter at vi har svart («Hjertelig takk!»): kort svar med takk og uten spørsmål trenger ikke svar (Morten 03.11)
+    if (msgs.slice(0, -1).some(m => OSS.test(hdr(m, "From"))) && await baretakk(G, last.id)) { if (process.env.HENV_DEBUG) console.log("skjult takk-svar:", lastFrom, "|", subject); continue; }
     const avsender = vaarTraad ? lastFrom : from;
     const navn = avsender.replace(/<.*>/, "").replace(/"/g, "").trim() || avsender;
     open.push({ d: osloDay(new Date(+last.internalDate)), navn, subject });
@@ -515,8 +533,7 @@ const henvCard = () => { if (!henv) return card("Ubesvarte henvendelser", "–",
 // tallkortene i fire faner (Morten 03.11.2026); ⚠ på fanenavnet hvis et kort i fanen er utdatert
 const TABS = [
   ["salg", "Salg", todayCard() + salgCard(7) + salgCard(30) + totaltCard()
-    + card("Unike kunder", nf(shop.kunder), `+${sum(win(30), "nye")} nye siste 30 d`, "c-salg", "Kundeprofiler med minst én betalt ordre i hele historikken (uten test- og seeding-ordre)")],
-  ["abo", "Abonnement", subCard],
+    + card("Unike kunder", nf(shop.kunder), `+${sum(win(30), "nye")} nye siste 30 d`, "c-salg", "Kundeprofiler med minst én betalt ordre i hele historikken (uten test- og seeding-ordre)") + subCard],
   ["mf", "Markedsføring", adsCard(7) + adsCard(30) + totalCard() + merCard() + nettoCard() + poasCard()
     + kanalCard("meta") + kanalCard("bml") + kanalCard("adtr") + kanalCard("google") + kanalCard("org")
     + kundeCard()],
