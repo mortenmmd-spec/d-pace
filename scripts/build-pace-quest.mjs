@@ -512,14 +512,24 @@ const henvCard = () => { if (!henv) return card("Ubesvarte henvendelser", "–",
   const liste = henv.open.slice(0, 8).map(o => `${fmtD(o.d)} ${o.navn}: ${o.subject}`).join(" · ");
   return card("Ubesvarte henvendelser", nf(henv.n), henv.n ? `eldste ${dager === 0 ? "i dag" : dager + " d"} · siden ${fmtD(HENV_FRA)}` : `alle besvart · siden ${fmtD(HENV_FRA)}`, henv.n ? "c-ads" : "c-kasse",
     `Kundetråder i hei@getpace.no mottatt f.o.m. ${fmtD(HENV_FRA)} der siste melding ikke er fra oss. Automatiske avsendere (kvitteringer, varsler) telles ikke; Shopify-kontaktskjema telles.${liste ? " Åpne: " + liste : ""}`); };
-const cards = todayCard() + henvCard() + salgCard(7) + salgCard(30) + totaltCard() + subCard
-  + poasCard()
-  + adsCard(7) + adsCard(30) + merCard() + nettoCard() + totalCard()
-  + kanalCard("meta") + kanalCard("bml") + kanalCard("adtr") + kanalCard("google") + kanalCard("org")
-  + kundeCard()
-  + card("Unike kunder", nf(shop.kunder), `+${sum(win(30), "nye")} nye siste 30 d`, "c-salg", "Kundeprofiler med minst én betalt ordre i hele historikken (uten test- og seeding-ordre)")
-  + card("Kasse", nf(T.kasse) + " kr", "bankbalanse lagt inn " + T.kasse_dato, "c-kasse", `Bankbalanse lagt inn manuelt ${T.kasse_dato}`)
-  + lagerCard("sitron", "PACE01", "u1", T.sitron_bestfor, "Sitron & Lime") + lagerCard("bringebær", "PACE02", "u2", "", "Bringebær");
+// tallkortene i fire faner (Morten 03.11.2026); ⚠ på fanenavnet hvis et kort i fanen er utdatert
+const TABS = [
+  ["salg", "Salg", todayCard() + salgCard(7) + salgCard(30) + totaltCard()
+    + card("Unike kunder", nf(shop.kunder), `+${sum(win(30), "nye")} nye siste 30 d`, "c-salg", "Kundeprofiler med minst én betalt ordre i hele historikken (uten test- og seeding-ordre)")],
+  ["abo", "Abonnement", subCard],
+  ["mf", "Markedsføring", adsCard(7) + adsCard(30) + totalCard() + merCard() + nettoCard() + poasCard()
+    + kanalCard("meta") + kanalCard("bml") + kanalCard("adtr") + kanalCard("google") + kanalCard("org")
+    + kundeCard()],
+  ["drift", "Drift", henvCard()
+    + card("Kasse", nf(T.kasse) + " kr", "bankbalanse lagt inn " + T.kasse_dato, "c-kasse", `Bankbalanse lagt inn manuelt ${T.kasse_dato}`)
+    + lagerCard("sitron", "PACE01", "u1", T.sitron_bestfor, "Sitron & Lime") + lagerCard("bringebær", "PACE02", "u2", "", "Bringebær")],
+];
+const nCards = h => (h.match(/class="stat /g) || []).length;
+const tabsHtml = TABS.map(([k, navn, h], i) => { const ut = /class="stat [^"]*\butdatert\b/.test(h);
+  return `<button type="button" class="tab" role="tab" data-tab="${k}" aria-controls="tab-${k}" aria-selected="${i ? "false" : "true"}"${ut ? ' title="Noen tall i fanen er ikke oppdatert"' : ""}>${navn}<span class="n">${nCards(h)}</span>${ut ? '<span class="warn">⚠</span>' : ""}</button>`; }).join("");
+// KPI-definisjonene er ikke låst (Mortens forslag 01.11 ubesvart av Anders per 03.11); sett true når de er avtalt
+const KPI_AVTALT = false;
+const kpiNote = KPI_AVTALT ? "" : `<div class="tab-note">⚠ KPI-definisjonene er ikke avtalt ennå (Morten og Anders). Tallene kan endre seg når målene er låst.</div>`;
 
 // datastatus: hvor ferske tallene er per kilde
 const datastatus = [`Shopify ${stamp}`, meta ? `${metaKilde} t.o.m. ${metaSist ? fmtD(metaSist) : "–"}${metaStale ? " ⚠ IKKE OPPDATERT" : ""}` : "Meta mangler ⚠", `bankbalanse ${T.kasse_dato}`, plan ? `Pace 2.0-plan ${fmtD(plan.built)}` : "plan mangler"].join(" · ");
@@ -532,7 +542,7 @@ const note = `7 og 30 d = hele Oslo-dager t.o.m. i går; «Salg i dag» er dagen
 const metaInfo = { built_at: NOW.toISOString(), shopify_at: shop.at, label: stamp, today: TODAY, meta_through: meta ? meta.coveredThrough : null, totalt: shop.totalt ?? null, daily: series.slice(-30), ukedag: shop.ukedag, geo: shop.geo, kart: { w: KART.w, h: KART.h, fylker: KART.fylker } };
 
 // ---------- 6b. Fokus nå: én linje per person, kun kort med Fokus = Nå (settes av Morten på boardet), ikke Ferdig ----------
-const PERSONER = ["Anders", "Victoria", "Martin", "Morten"];
+const PERSONER = ["Anders", "Victoria", "Anna", "Martin", "Morten"];
 const fokusItems = tasks.filter(t => t.fokus && t.sec !== "Ferdig").sort((a, b) => (a.due || "9999") < (b.due || "9999") ? -1 : 1);
 const dueTxt = d => { if (!d) return `<span class="f-due f-miss">sett dato</span>`; const n = Math.round((Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) - Date.UTC(+TODAY.slice(0, 4), +TODAY.slice(5, 7) - 1, +TODAY.slice(8, 10))) / 864e5); return `<span class="f-due${n < 0 ? " f-late" : n <= 3 ? " f-soon" : ""}">${fmtD(d)}${n < 0 ? ` · ${-n} d over` : n === 0 ? " · i dag" : ` · ${n} d`}</span>`; };
 const fokusRows = PERSONER.map(pn => { const mine = fokusItems.filter(t => t.owner.split(" & ").includes(pn)); return `<div class="f-row"><div class="f-who">${pn}</div><div class="f-what">${mine.length ? mine.map(t => `<span class="f-item">${esc(t.txt)} ${dueTxt(t.due)}</span>`).join("") : `<span class="f-none">ingen fokusoppgave</span>`}</div></div>`; }).join("");
@@ -545,7 +555,9 @@ const put = (re, val, label) => { if (!re.test(html)) throw new Error("template 
 put(/\/\*__TASKS__\*\/[\s\S]*?\/\*__TASKS_END__\*\//, `/*__TASKS__*/ const SNAPSHOT = ${js(tasks)}; /*__TASKS_END__*/`, "TASKS");
 put(/\/\*__META__\*\/[\s\S]*?\/\*__META_END__\*\//, `/*__META__*/ const META = ${js(metaInfo)}; /*__META_END__*/`, "META");
 put(/\/\*__PAGE_TOKEN__\*\/[\s\S]*?\/\*__PAGE_TOKEN_END__\*\//, `/*__PAGE_TOKEN__*/ const PAGE_TOKEN = ${js(process.env.PACE_PAGE_TOKEN || "")}; /*__PAGE_TOKEN_END__*/`, "PAGE_TOKEN");
-put(/<!--STATS-->[\s\S]*?<!--\/STATS-->/, `<!--STATS-->${cards}<!--/STATS-->`, "STATS");
+for (const [k, , h] of TABS) put(new RegExp(`<!--STATS_${k}-->[\\s\\S]*?<!--\\/STATS_${k}-->`), `<!--STATS_${k}-->${h}<!--/STATS_${k}-->`, "STATS_" + k);
+put(/<!--TABS-->[\s\S]*?<!--\/TABS-->/, `<!--TABS-->${tabsHtml}<!--/TABS-->`, "TABS");
+put(/<!--TABNOTE_mf-->[\s\S]*?<!--\/TABNOTE_mf-->/, `<!--TABNOTE_mf-->${kpiNote}<!--/TABNOTE_mf-->`, "TABNOTE_mf");
 put(/<!--FOKUS-->[\s\S]*?<!--\/FOKUS-->/, `<!--FOKUS-->${fokusHtml}<!--/FOKUS-->`, "FOKUS");
 put(/<!--DATASTATUS-->[\s\S]*?<!--\/DATASTATUS-->/, `<!--DATASTATUS-->${esc(datastatus)}<!--/DATASTATUS-->`, "DATASTATUS");
 put(/<!--STATSNOTE-->[\s\S]*?<!--\/STATSNOTE-->/, `<!--STATSNOTE-->${note}<!--/STATSNOTE-->`, "STATSNOTE");

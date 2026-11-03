@@ -73,7 +73,7 @@
   .f-row:last-child { border-bottom: 0; }
   .f-who { flex: 0 0 84px; font-size: 0.72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-muted); }
   .f-what { flex: 1; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 0.95rem; font-weight: 600; color: var(--ink); }
-  .f-item { white-space: nowrap; }
+  .f-item { white-space: normal; } .f-due { white-space: nowrap; }
   .f-due { font-weight: 500; color: var(--ink-muted); font-size: 0.8rem; margin-left: 6px; }
   .f-due.f-soon { color: var(--warning); } .f-due.f-late { color: #e5534b; } .f-due.f-miss { color: var(--warning); font-style: italic; }
   .f-none { font-weight: 400; color: var(--ink-muted); font-size: 0.85rem; }
@@ -131,6 +131,16 @@
   .chart .legend { font-size: 0.7rem; color: var(--ink-muted); display: flex; gap: 12px; margin-top: 2px; }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
   #tip { position: fixed; z-index: 50; pointer-events: none; background: var(--surface-2); color: var(--ink); border: 1px solid var(--hairline); border-radius: 8px; padding: 6px 10px; font-size: 0.75rem; box-shadow: 0 6px 24px rgba(0,0,0,0.35); white-space: nowrap; display: none; }
+  /* ---------- faner i tall ---------- */
+  .tabs { display: flex; gap: 6px; margin: 0 0 12px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { flex: 0 0 auto; background: var(--surface); color: var(--ink-2); border: 1px solid var(--hairline); border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .tab:hover { color: var(--ink); }
+  .tab[aria-selected="true"] { background: var(--ink); color: var(--page); border-color: var(--ink); }
+  .tab .n { font-weight: 400; opacity: .7; margin-left: 6px; font-size: 0.75rem; }
+  .tab .warn { margin-left: 4px; }
+  .tab-panel[hidden] { display: none; }
+  .tab-note { font-size: 0.8rem; color: var(--warning); border: 1px dashed var(--warning); border-radius: 10px; padding: 8px 12px; margin: 0 0 12px; }
   .stats-note { font-size: 0.72rem; color: var(--ink-muted); margin: 0 0 18px; }
   .stale { background: color-mix(in oklab, var(--warning) 18%, var(--surface)); border: 1px solid var(--warning); border-radius: 10px; padding: 8px 12px; font-size: 0.8rem; margin: 0 0 18px; }
 
@@ -297,14 +307,24 @@
 
   <!--FOKUS--><!--/FOKUS-->
   <div class="sec-h">Tall <span class="sec-sub" id="datastatus"><!--DATASTATUS--><!--/DATASTATUS--></span></div>
-  <section class="stats" id="stats"><!--STATS--><!--/STATS--></section>
-  <section class="charts">
-    <div class="chart" id="chart-sales"></div>
-    <div class="chart" id="chart-cac"></div>
-    <div class="chart" id="chart-sub"></div>
-    <div class="chart" id="chart-wd"></div>
-  </section>
-  <section class="chart" id="b2b" style="margin-bottom:10px"></section>
+  <div class="tabs" id="tall-tabs" role="tablist" aria-label="Tall per kategori"><!--TABS--><!--/TABS--></div>
+  <div class="tab-panel" id="tab-salg" data-tab="salg" role="tabpanel">
+    <section class="stats"><!--STATS_salg--><!--/STATS_salg--></section>
+    <section class="charts"><div class="chart" id="chart-sales"></div><div class="chart" id="chart-wd"></div></section>
+    <section class="chart" id="b2b" style="margin-bottom:10px"></section>
+  </div>
+  <div class="tab-panel" id="tab-abo" data-tab="abo" role="tabpanel" hidden>
+    <section class="stats"><!--STATS_abo--><!--/STATS_abo--></section>
+    <section class="charts"><div class="chart" id="chart-sub"></div></section>
+  </div>
+  <div class="tab-panel" id="tab-mf" data-tab="mf" role="tabpanel" hidden>
+    <!--TABNOTE_mf--><!--/TABNOTE_mf-->
+    <section class="stats"><!--STATS_mf--><!--/STATS_mf--></section>
+    <section class="charts"><div class="chart" id="chart-cac"></div></section>
+  </div>
+  <div class="tab-panel" id="tab-drift" data-tab="drift" role="tabpanel" hidden>
+    <section class="stats"><!--STATS_drift--><!--/STATS_drift--></section>
+  </div>
   <details class="about"><summary>Om tallene ▾</summary><div id="stats-note"><!--STATSNOTE--><!--/STATSNOTE--></div></details>
   <div class="stale" id="stale" hidden></div>
 
@@ -383,10 +403,10 @@ const SECTION_META = {
   "Ferdig":  { color: "var(--good)",      empty: "Ingenting ferdig ennå." },
 };
 const OWNER_COLOR = {
-  "Morten": "var(--blue)", "Martin": "var(--aqua)", "Victoria": "var(--magenta)", "Anders": "var(--aqua)",
+  "Morten": "var(--blue)", "Martin": "var(--aqua)", "Victoria": "var(--magenta)", "Anders": "var(--aqua)", "Anna": "var(--orange)", "Anna & Victoria": "var(--magenta)",
   "Morten & Martin": "var(--aqua)", "Morten & Victoria": "var(--magenta)", "Anders & Martin": "var(--aqua)", "Alle": "var(--ink-2)", "Ikke fordelt": "var(--ink-muted)",
 };
-const OWNERS_FALLBACK = ["Morten", "Victoria", "Martin", "Anders", "Morten & Martin", "Morten & Victoria", "Anders & Martin", "Alle", "Ikke fordelt"];
+const OWNERS_FALLBACK = ["Morten", "Victoria", "Martin", "Anders", "Anna", "Morten & Martin", "Morten & Victoria", "Anders & Martin", "Anna & Victoria", "Alle", "Ikke fordelt"];
 
 /* ============================================================
    STATE
@@ -699,7 +719,7 @@ function renderMiles() {
    COINS: 1 per dag man åpner siden, 1 per ferdig oppgave. Lagres som linjer i kortet «Coins» på boardet:
    «2026-10-18 Morten login» / «2026-10-18 Morten oppgave PVTI_…» / «start PVTI_…» (ferdig før start, gir ingenting)
    ============================================================ */
-const COIN_PEOPLE = ["Morten", "Victoria", "Martin", "Anders"];
+const COIN_PEOPLE = ["Morten", "Victoria", "Martin", "Anders", "Anna"];
 const crown = p => p === "Morten" ? "👑 " : "";
 const ME_KEY = "pace-me";
 let me = ""; try { me = localStorage.getItem(ME_KEY) || ""; } catch {}
@@ -758,6 +778,26 @@ async function awardCoins() {
   finally { coinBusy = false; renderCoins(); }
 }
 
+/* ============================================================
+   FANER I TALL (valgt fane huskes i localStorage pace-tab)
+   ============================================================ */
+(function initTabs() {
+  const bar = document.getElementById("tall-tabs"); if (!bar) return;
+  const tabs = [...bar.querySelectorAll(".tab")]; if (!tabs.length) return;
+  const show = key => {
+    if (!tabs.some(t => t.dataset.tab === key)) key = tabs[0].dataset.tab;
+    for (const t of tabs) { const on = t.dataset.tab === key; t.setAttribute("aria-selected", on ? "true" : "false"); t.tabIndex = on ? 0 : -1; }
+    document.querySelectorAll(".tab-panel").forEach(p => p.hidden = p.dataset.tab !== key);
+    try { localStorage.setItem("pace-tab", key); } catch {}
+  };
+  tabs.forEach((t, i) => {
+    t.onclick = () => show(t.dataset.tab);
+    t.onkeydown = e => { const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0; if (!d) return; const n = tabs[(i + d + tabs.length) % tabs.length]; show(n.dataset.tab); n.focus(); };
+  });
+  let saved = ""; try { saved = localStorage.getItem("pace-tab") || ""; } catch {}
+  show(saved);
+})();
+
 function renderB2B() {
   const el = document.getElementById("b2b"); if (!el) return;
   const card = tasks.find(isB2B);
@@ -781,7 +821,7 @@ function renderRoles() {
   };
   const items = roles.map(parse);
   // én rad per person; delte roller vises hos hver av dem, «Alle» hos alle
-  const people = ["Morten", "Victoria", "Martin", "Anders"];
+  const people = ["Morten", "Victoria", "Martin", "Anders", "Anna"];
   const who = o => o === "Alle" ? people : o.split("&").map(s => s.trim()).filter(p => people.includes(p));
   const rowsBy = {};
   for (const it of items) { const ps = who(it.r.owner); for (const p of (ps.length ? ps : ["Ikke fordelt"])) (rowsBy[p] ||= []).push(it); }
