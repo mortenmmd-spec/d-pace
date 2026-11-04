@@ -290,19 +290,6 @@
   @media (max-width: 640px) { .rp { grid-template-columns: 1fr; gap: 6px; } .ro-n { white-space: normal; } .ro-n span { display: block; margin-left: 0; } }
   body.live .role .tag.act { cursor: pointer; }
 
-  /* ---------- møtemodus ---------- */
-  body.meeting .charts, body.meeting .stats-note, body.meeting #roles, body.meeting #roles-h, body.meeting .miles, body.meeting .miles-h, body.meeting .add-bar { display: none; }
-  body.meeting .task .txt { font-size: 1rem; }
-  body.meeting .board { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-  .meeting-only { display: none; }
-  body.meeting .meeting-only { display: block; }
-  .agenda { background: var(--surface); border: 1px solid var(--hairline); border-radius: 14px; padding: 14px 16px; margin: 0 0 14px; }
-  .agenda h3 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-2); margin: 8px 0 6px; }
-  .agenda ul { list-style: none; padding: 0; }
-  .agenda li { font-size: 0.9rem; padding: 3px 0; border-bottom: 1px solid var(--hairline); }
-  .agenda li:last-child { border-bottom: 0; }
-  .agenda .who { color: var(--ink-muted); font-size: 0.75rem; margin-left: 6px; }
-
   /* ---------- toast ---------- */
   #toast { position: fixed; left: 50%; bottom: 34px; transform: translate(-50%, 20px); background: var(--good); color: #fff; font-weight: 700; padding: 10px 18px; border-radius: 999px; font-size: 0.95rem; opacity: 0; pointer-events: none; transition: all 250ms ease; box-shadow: 0 6px 24px rgba(0,0,0,0.35); display: flex; gap: 12px; align-items: center; }
   #toast.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
@@ -331,7 +318,7 @@
         <button id="token-clear" class="linkbtn" hidden>Koble fra</button></small>
     </h1>
     <div class="hdr-actions">
-      <button class="btn" id="meeting-btn" title="Tast M">Mandagsmøte</button>
+      <button class="btn" id="uke-btn" disabled>Gjennomgang</button>
       <button class="btn" id="reload-btn" title="Hent boardet på nytt" hidden>Oppdater</button>
     </div>
   </header>
@@ -383,8 +370,6 @@
     </div>
   </section>
 
-  <section class="agenda meeting-only" id="agenda"></section>
-
   <div class="toolbar" id="filters"></div>
 
   <div class="add-bar">
@@ -406,7 +391,7 @@
 
   <footer>
     Dra kort mellom kolonnene, huk av, klikk 👤 for ansvarlig og 📅 for frist, dobbeltklikk tittelen for å redigere. Endringer lagres direkte på GitHub-boardet.
-    Tastatur: <kbd>N</kbd> ny oppgave · <kbd>M</kbd> mandagsmøte · <kbd>Esc</kbd> lukk.
+    Tastatur: <kbd>N</kbd> ny oppgave · <kbd>Esc</kbd> lukk.
     Tallene bygges automatisk hver time 06–23; sist bygget <b><!--SYNC--><!--/SYNC--></b>.
   </footer>
 </div>
@@ -660,7 +645,7 @@ function render() {
   // ukjente statuser (nye kolonner på boardet) vises sist
   const unknown = q.filter(t => !SECTIONS.includes(t.sec) && passes(t));
   for (const sec of [...new Set(unknown.map(t => t.sec))]) { const items = unknown.filter(t => t.sec === sec); const col = document.createElement("div"); col.className = "col"; col.innerHTML = `<h2>${esc(sec)}<span class="count">${items.length}</span></h2>`; for (const t of items) col.appendChild(taskCard(t)); board.appendChild(col); }
-  renderMiles(); renderRoles(); renderB2B(); renderCoins(); renderUke(); renderFokus(); visGjg(); renderHero(); renderAgenda(); renderOwnerSelect();
+  renderMiles(); renderRoles(); renderB2B(); renderCoins(); renderUke(); renderFokus(); visGjg(); renderHero(); renderOwnerSelect();
 }
 
 function renderFilters() {
@@ -805,12 +790,15 @@ function renderUke() {
   const card = tasks.find(isUke), u = isoUke(), s = card ? ukeSett(card.body) : {};
   const st = document.getElementById("uke-status");
   if (st) st.innerHTML = `<span class="u-h">Gått gjennom oppgavene, uke ${u.n}:</span>` + COIN_PEOPLE.map(p => s[p] ? `<span class="u-ok" title="bekreftet ${esc(s[p])}">✓ ${esc(p)} <span class="u-m">${esc(s[p].slice(5, 16).replace(/^(dd)-(dd)/, "$2.$1"))}</span></span>` : `<span class="u-no">○ ${esc(p)}</span>`).join("");
+  const btn = document.getElementById("uke-btn");
+  btn.disabled = !(live && me && card);
+  btn.textContent = s[me] ? "✓ Gjennomgang" : "Gjennomgang";
+  btn.title = !live ? "Kobler til boardet" : !me ? "Velg hvem du er (nederst) først" : `Gå gjennom oppgavene dine, uke ${u.n}`;
   const b = document.getElementById("uke-bar"); if (!b) return;
   if (!card) { b.innerHTML = `<span class="u-m">Lag et kort som heter «Ukesjekk» på boardet.</span>`; return; }
   if (!me) { b.innerHTML = `<span class="u-m">Velg hvem du er (nederst) for å bekrefte uka.</span>`; return; }
   b.innerHTML = s[me] ? `<span class="u-ok">✓ ${esc(me)}, du har gått gjennom oppgavene dine i uke ${u.n}</span>`
-    : live ? `<button class="btn primary" id="uke-btn">✓ Jeg har gått gjennom oppgavene mine (uke ${u.n})</button>` : `<span class="u-m">Kobler til boardet …</span>`;
-  const btn = document.getElementById("uke-btn"); if (btn) btn.onclick = startGjennomgang;
+    : live ? "" : `<span class="u-m">Kobler til boardet …</span>`;
 }
 // gjennomgang: én og én åpen oppgave i et vindu, «Sett ✓» for å gå videre; bekreftelsen lagres først etter siste oppgave (Morten 04.11.2026)
 let gjg = null;
@@ -1021,18 +1009,6 @@ function renderGoal() {
   el.innerHTML = `🎯 Ukens fellesmål: <b>${esc(txt)}</b>${q.length ? ` · ${n} av ${q.length} ferdig<div class="gbar"><i style="width:${Math.max(2, n / q.length * 100).toFixed(1)}%"></i></div>` : ""}`;
 }
 
-function renderAgenda() {
-  const el = document.getElementById("agenda");
-  const q = quests().filter(t => !isDone(t) && passes(t)); // følger samme filter som tavlen
-  const li = t => `<li>${esc(t.txt)}<span class="who">${esc(t.owner)}${t.due ? " · " + fmtDate(t.due) : ""}${isOver(t) ? " · over frist" : ""}</span></li>`;
-  const group = (title, arr) => arr.length ? `<h3>${title} (${arr.length})</h3><ul>${sortTasks(arr).map(li).join("")}</ul>` : "";
-  const d7 = (META.daily || []).slice(-8, -1); // 7 hele dager t.o.m. i går
-  const s = k => d7.reduce((x, r) => x + (r[k] || 0), 0);
-  const tall = d7.length ? `<h3>Siste 7 dager</h3><ul><li>${nf(s("oms"))} kr · ${s("ordre")} ordre · ${s("nye")} nye kunder</li></ul>` : "";
-  const rest = q.filter(t => !isOver(t));
-  el.innerHTML = (filter !== "Alle" ? `<div class="sum-meta">Filter: ${esc(filter)}</div>` : "") + tall + group("Over frist", q.filter(isOver)) + group("Uten ansvarlig", q.filter(t => !isOver(t) && t.owner === "Ikke fordelt")) + group("Venter", rest.filter(t => t.sec === "Venter")) + group("Pågår", rest.filter(t => t.sec === "Pågår")) + group("Backlog", rest.filter(t => t.sec === "Backlog"));
-}
-
 function renderOwnerSelect() {
   const sel = document.getElementById("new-owner");
   const cur = sel.value;
@@ -1188,13 +1164,12 @@ function setMode(mode, msg) {
 }
 document.getElementById("token-clear").onclick = () => { localStorage.removeItem(TOKEN_KEY); tasks = SNAPSHOT.slice(); project = null; setMode("off", "🔒 koblet fra"); render(); };
 document.getElementById("reload-btn").onclick = async () => { try { if (await loadBoard()) { render(); toast("Boardet oppdatert"); } } catch (e) { toast("Kunne ikke hente boardet: " + e.message, true); } };
-document.getElementById("meeting-btn").onclick = () => { const on = document.body.classList.toggle("meeting"); const b = document.getElementById("meeting-btn"); b.classList.toggle("on", on); b.setAttribute("aria-pressed", on); renderAgenda(); };
+document.getElementById("uke-btn").onclick = startGjennomgang;
 document.addEventListener("keydown", e => {
   const typing = /INPUT|SELECT|TEXTAREA/.test(e.target.tagName) || e.target.isContentEditable;
   if (e.key === "Escape") { closePop(); hideToast(); if (document.activeElement) document.activeElement.blur(); return; }
   if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.key === "n" || e.key === "N") { if (live) { e.preventDefault(); document.getElementById("new-task").focus(); } }
-  if (e.key === "m" || e.key === "M") { e.preventDefault(); document.getElementById("meeting-btn").click(); }
 });
 (function staleCheck() {
   if (!META.shopify_at) return;
