@@ -488,6 +488,13 @@ const mcard = (k, v, s, cls, tip) => card(k, v, s + staleTxt, cls + (metaStale ?
 const card = (k, v, s, cls, tip) => `<div class="stat ${cls}" title="${esc(tip || "")}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
 const rek = shop.rekord?.kr ? shop.rekord : null, slaatt = rek && today.oms > rek.kr;
 const todayCard = () => card("Salg i dag", nf(today.oms) + " kr" + (slaatt ? " 🏆" : ""), `${today.ordre} ordre · ${today.nye} nye${slaatt ? " · årets beste dag" : ""}`, "c-salg", `Ordreverdi inkl. mva i dag t.o.m. ${stamp}${rek ? `. Årets beste dag før i dag: ${nf(rek.kr)} kr (${fmtD(rek.d)})` : ""}`);
+// estimat for året (Morten 04.11.2026): salg hittil i år t.o.m. i går + snitt per dag siste 60 hele dager × dager igjen av året (i dag med).
+// 60 d valgt fordi 30/60/90 d lå jevnt (2 683/2 577/2 479 kr/dag 04.11) og 90 d drar inn sommeren uten Meta-annonser. Ingen sesongjustering.
+const EST_DAGER = 60;
+const estCard = () => { const w = win(EST_DAGER), snitt = sum(w, "oms") / EST_DAGER, hittil = (shop.iAar ?? 0) - today.oms, aar = TODAY.slice(0, 4);
+  const igjen = Math.round((Date.UTC(+aar, 11, 31) - Date.UTC(+aar, +TODAY.slice(5, 7) - 1, +TODAY.slice(8, 10))) / 864e5) + 1, est = hittil + snitt * igjen;
+  return card(`Estimat ${aar}`, nf(est) + " kr", `hittil ${nf(hittil)} + ${nf(snitt)} kr/dag × ${igjen} d (snitt ${EST_DAGER} d) · årstakt ${nf(snitt * 365)}`, "c-salg",
+    `Rullende estimat for hele ${aar}, inkl. mva: salg hittil i år t.o.m. i går (${nf(hittil)} kr) pluss snittsalget per dag de siste ${EST_DAGER} hele dagene (${nf(snitt)} kr) ganget med dagene som er igjen av året inkludert i dag (${igjen}). Oppdateres hver time. Ingen justering for Black Friday, jul eller sesong. Årstakt = snitt per dag × 365, altså hva et helt år i dagens tempo gir.`); };
 const totaltCard = () => card("Salg totalt", nf(shop.totalt) + " kr", `${nf(shop.ordreTotalt)} ordre siden ${shop.forsteDag ? shop.forsteDag.slice(8, 10) + "." + shop.forsteDag.slice(5, 7) + "." + shop.forsteDag.slice(0, 4) : "start"} · i år ${nf(shop.iAar)} kr`, "c-salg", `All ordreverdi inkl. mva og frakt, betalte ordre, hele historikken (${nf(shop.ordreTotalt)} ordre). Hittil i ${TODAY.slice(0, 4)}: ${nf(shop.iAar)} kr fra ${nf(shop.ordreIAar)} ordre. Seeding og kansellerte ordre er ikke med.`);
 const salgCard = (n) => { const w = win(n); return card(`Salg ${n} d`, nf(sum(w, "oms")) + " kr", `${sum(w, "ordre")} ordre · ${sum(w, "nye")} nye`, "c-salg", `Ordreverdi inkl. mva siste ${n} hele dager t.o.m. i går, ${sum(w, "nye")} nye kunder`); };
 const totalCard = (n = 30, m = 7) => { const t = totalTall(n), t7 = totalTall(m);
@@ -637,7 +644,7 @@ const kanalTabell = (() => {
 // tallkortene i fire faner (Morten 03.11.2026); ⚠ på fanenavnet hvis et kort i fanen er utdatert
 const TABS = [
   ["res", "Resultat", resCard(30) + resCard(7) + innCard(30) + innUtCard(30)],
-  ["salg", "Salg", todayCard() + salgCard(7) + salgCard(30) + totaltCard()
+  ["salg", "Salg", todayCard() + salgCard(7) + salgCard(30) + totaltCard() + estCard()
     + card("Unike kunder", nf(shop.kunder), `+${sum(win(30), "nye")} nye siste 30 d`, "c-salg", "Kundeprofiler med minst én betalt ordre i hele historikken (uten test- og seeding-ordre)") + subCard],
   ["mf", "Markedsføring", adsCard(7) + adsCard(30) + totalCard() + merCard()],
   ["drift", "Drift", henvCard()
