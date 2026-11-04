@@ -1,5 +1,5 @@
 {
-  "_kilde": "Budsjett nov 2026–okt 2027 (budsjett-plain.html, sendt Anders 30.10.2026) og pace-okonomi/pace20/kostnader.json. Beløp per måned. Ikke med: lønn (ingen), uforutsett-buffer 5 000, merch/ambassadører (ikke målt), annonser og BML/Adtraction (ligger i markedskost).",
+  "_kilde": "Budsjett nov 2026–okt 2027 (budsjett-plain.html, sendt Anders 30.10.2026) og pace-okonomi/pace20/kostnader.json. Beløp per måned. Ikke med: uforutsett-buffer 5 000, merch/ambassadører (ikke målt), annonser og BML/Adtraction (ligger i markedskost).",
   "maaned": {
     "Programvare (Shopify, Klaviyo, Google Workspace, Typeform m.fl.)": 4200,
     "Slack": 480,

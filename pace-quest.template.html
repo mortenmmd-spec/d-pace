@@ -1080,7 +1080,7 @@ function charts() {
     el.innerHTML = `<div class="k">Salg per dag, 30 d <b>${nf(sum7)} kr siste 7 d</b></div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Salg per dag siste 30 dager">${axis(max, v => nf(v / 1000) + "k")}${bars}${line}${xlabels()}</svg><div class="legend"><span><i style="background:var(--blue)"></i>omsetning per dag (i dag ufullstendig)</span><span><i style="background:var(--ink-2)"></i>7-dagers snitt</span></div>`;
     el.querySelectorAll("rect[data-i]").forEach(r => { r.onmousemove = e => { const d = D[+r.dataset.i]; showTip(e, `<b>${lbl(d)}</b><br>${nf(d.oms)} kr · ${d.ordre} ordre · ${d.nye} nye kunder<br>sitron ${d.u1} · bringebær ${d.u2} sjaktler${d.meta !== null ? `<br>Meta ${nf(d.meta)} kr` : ""}`); }; r.onmouseleave = hideTip; });
   }
-  // 0) resultat per dag: dekningsbidrag − markedskost − faste kostnader (før lønn); søyler kan være negative
+  // 0) resultat per dag: dekningsbidrag − markedskost − faste kostnader; søyler kan være negative
   { const el = document.getElementById("chart-res");
     if (el) { const RV = D.map(d => d.res == null ? null : d.res);
       if (!RV.some(v => v !== null)) el.innerHTML = `<div class="k">Igjen per dag</div><div class="empty">Mangler faste kostnader (data/faste-kost.json).</div>`;
@@ -1094,7 +1094,7 @@ function charts() {
         const avg = RV.map((_, i) => { const w = RV.slice(Math.max(0, i - 6), i + 1).filter(v => v !== null); return w.length ? w.reduce((x, v) => x + v, 0) / w.length : null; });
         const line = `<polyline fill="none" stroke="var(--ink-2)" stroke-width="2" stroke-linejoin="round" points="${avg.slice(0, -1).map((v, i) => v === null ? "" : `${xOf(i)},${y(v)}`).filter(Boolean).join(" ")}"/>`;
         const sum7 = RV.slice(-8, -1).reduce((x, v) => x + (v || 0), 0);
-        el.innerHTML = `<div class="k">Igjen per dag etter alle kostnader, før lønn <b>${nf(sum7)} kr siste 7 d</b></div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Resultat per dag siste 30 dager">${ax}${bars}${line}${xlabels()}</svg><div class="legend"><span><i style="background:var(--good)"></i>pluss</span><span><i style="background:var(--critical)"></i>minus</span><span><i style="background:var(--ink-2)"></i>7-dagers snitt</span><span>lys søyle = noe kost anslått/ukjent, eller i dag (ufullstendig)</span></div>`;
+        el.innerHTML = `<div class="k">Igjen per dag etter alle kostnader <b>${nf(sum7)} kr siste 7 d</b></div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Resultat per dag siste 30 dager">${ax}${bars}${line}${xlabels()}</svg><div class="legend"><span><i style="background:var(--good)"></i>pluss</span><span><i style="background:var(--critical)"></i>minus</span><span><i style="background:var(--ink-2)"></i>7-dagers snitt</span><span>lys søyle = noe kost anslått/ukjent, eller i dag (ufullstendig)</span></div>`;
         el.querySelectorAll("rect[data-i]").forEach(r => { r.onmousemove = e => { const d = D[+r.dataset.i]; showTip(e, `<b>${lbl(d)}</b>${+r.dataset.i === D.length - 1 ? " (i dag, ufullstendig)" : ""}<br>inn ${nf(d.eks)} kr eks mva<br>− varer og frakt ${nf(d.eks - d.db)} · markedsføring ${nf(d.kost)} · faste ${nf(d.fast)}<br><b>igjen ${nf(d.res)} kr</b>${d.kostUfull ? "<br>⚠ noe markedskost ukjent (regnet som 0)" : ""}${d.fastAnslag ? "<br>360-tillegg anslått for måneden" : ""}`); }; r.onmouseleave = hideTip; }); } } }
   // 2) CAC totalt-trend (7-dagers rullerende): all markedskost / alle nye kunder; punkt bare når Meta-kost er kjent alle 7 dager
   { const el = document.getElementById("chart-cac");
