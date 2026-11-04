@@ -611,13 +611,26 @@ const kanalRad = (k, navn, periode, fra) => { if (!fra || fra > IGAAR) return `<
   const cac = t.nye === 0 ? `<span class="kt-m">ingen nye</span>` : t.nye < MIN_NYE ? `<span class="kt-m" title="for få kunder til å vurdere">(${nf(t.cac)} kr)</span>` : nf(t.cac) + " kr";
   const ratio = tom ? "–" : t.nye === 0 ? `<span class="kt-m">ingen nye</span>` : t.nye < MIN_NYE ? `<span class="kt-m">for få kunder</span>` : t.ratio == null ? "–" : `<b>${kr2(t.ratio)} kr</b>`;
   return `<tr><td>${navn}</td><td>${periode}</td><td>${brukt}</td><td>${tom ? "–" : t.nye}${t.sub ? ` <span class="kt-m">(${t.sub} abo)</span>` : ""}</td><td>${tom ? "–" : cac}</td><td>${ratio}</td></tr>`; };
+// Grunnlinje (Morten 04.11: «bygg det med det»): nye kunder per dag i perioden uten Meta-annonser, regnet med samme kundedefinisjon.
+// Ekstra kunder i vinduet = alle nye − grunnlinje × dager; Meta-kost per ekstra kunde og kr igjen per kr på de ekstra. Bare 7 og 30 d.
+const BASE_FRA = "2026-08-18", BASE_TIL = "2026-09-27";
+const nyeAlleDag = d => Object.values(shop.histDag?.[d]?.nyeK || {}).reduce((x, y) => x + y, 0), nyeSubDag = d => Object.values(shop.histDag?.[d]?.nyeSubK || {}).reduce((x, y) => x + y, 0);
+const BASE = (() => { let n = 0, m = 0, dager = 0; for (let d = BASE_FRA; d <= BASE_TIL; d = addDays(d, 1)) { n += nyeAlleDag(d); m += kostDag("meta", d) || 0; dager++; } return { n, dager, rate: n / dager, meta: m }; })();
+const ekstraRad = (periode, fra) => { let nye = 0, sub = 0, kost = 0, dager = 0, ukjent = 0;
+  for (let d = fra; d <= IGAAR; d = addDays(d, 1)) { const c = kostDag("meta", d); dager++; nye += nyeAlleDag(d); sub += nyeSubDag(d); if (c == null) ukjent++; else kost += c; }
+  const forv = BASE.rate * dager, ekstra = nye - forv, vSnitt = VK && nye ? (sub * VK.s + (nye - sub) * VK.u) / nye : null;
+  const merk = ukjent ? ` <span class="kt-m" title="${ukjent} d uten kjent Meta-kost">*</span>` : "";
+  const kunder = `+${nf(ekstra)} <span class="kt-m">(${nye} − ${nf(forv)} forventet)</span>`;
+  const per = ekstra <= 0 ? `<span class="kt-m">ingen ekstra</span>` : ekstra < MIN_NYE ? `<span class="kt-m" title="for få ekstra kunder til å vurdere">(${nf(kost / ekstra)} kr)</span>` : nf(kost / ekstra) + " kr";
+  const ratio = ekstra <= 0 ? `<span class="kt-m">ingen ekstra</span>` : ekstra < MIN_NYE ? `<span class="kt-m">for få kunder</span>` : vSnitt && kost > 0 ? `<b>${kr2(ekstra * vSnitt / kost)} kr</b>` : "–";
+  return `<tr class="kt-ekstra"><td>${periode === "7 d" ? "Meta, ekstra mot uten Meta" : ""}</td><td>${periode}</td><td>${nf(kost)} kr${merk}</td><td>${kunder}</td><td>${per}</td><td>${ratio}</td></tr>`; };
 const kanalTabell = (() => {
   const P = [["7 d", addDays(TODAY, -7)], ["30 d", addDays(TODAY, -30)]];
   const blokk = (k, navn) => P.map(([p, fra], i) => kanalRad(k, i ? "" : navn, p, KSTART[k] && KSTART[k] > fra ? KSTART[k] : fra)).join("")
     + kanalRad(k, "", KSTART[k] ? "siden " + fmtD(KSTART[k]) + "." + KSTART[k].slice(2, 4) : "total", KSTART[k] && KSTART[k] > HIST_FRA ? KSTART[k] : HIST_FRA);
   const org = P.map(([p, fra]) => { const t = kanalVerdi("org", fra, IGAAR); return `<tr><td>${p === "7 d" ? "Uten sporet kilde" : ""}</td><td>${p}</td><td class="kt-m">–</td><td>${t.nye}</td><td colspan="2" class="kt-m">nye kunder uten annonsespor</td></tr>`; }).join("");
-  const rows = blokk("meta", "Meta") + blokk("google", "Google Ads") + blokk("bml", "BML-podkast") + blokk("adtr", "Adtraction") + org;
-  const forkl = VK ? `Igjen per kr = forventet dekningsbidrag innen 180 dager fra nye kunder knyttet til kanalen, delt på det kanalen kostet. Verdien er observert fra modne kunder (første kjøp fra juni 2025, minst 180 dager gamle): startet med abonnement ${nf(VK.s)} kr (${VK.ns} kunder), uten abonnement ${nf(VK.u)} kr (${VK.nu} kunder). Over 1,00 kr = bidraget dekker reklamekostnaden, før faste kostnader. Under ${MIN_NYE} nye kunder vises ingen dom. «Knyttet til» = Shopify-sporing på første ordre (BML20-kode, Meta-klikk, Adtraction, Google-klikk); Shopify finner færre Meta-kjøp enn Metas piksel, så Meta-tallet er et gulv. BML-provisjonen gjelder også gjenkjøp. * = dager uten kjent kost er utelatt eller kosten er delvis anslått.` : "Kundeverdi mangler (kohortdata).";
+  const rows = blokk("meta", "Meta") + P.map(([p, fra]) => ekstraRad(p, fra)).join("") + blokk("google", "Google Ads") + blokk("bml", "BML-podkast") + blokk("adtr", "Adtraction") + org;
+  const forkl = VK ? `Igjen per kr = forventet dekningsbidrag innen 180 dager fra nye kunder knyttet til kanalen, delt på det kanalen kostet. Verdien er observert fra modne kunder (første kjøp fra juni 2025, minst 180 dager gamle): startet med abonnement ${nf(VK.s)} kr (${VK.ns} kunder), uten abonnement ${nf(VK.u)} kr (${VK.nu} kunder). Over 1,00 kr = bidraget dekker reklamekostnaden, før faste kostnader. Under ${MIN_NYE} nye kunder vises ingen dom. «Knyttet til» = Shopify-sporing på første ordre (BML20-kode, Meta-klikk, Adtraction, Google-klikk); Shopify finner færre Meta-kjøp enn Metas piksel, så Meta-tallet er et gulv. BML-provisjonen gjelder også gjenkjøp. * = dager uten kjent kost er utelatt eller kosten er delvis anslått. «Meta, ekstra mot uten Meta» = alle nye kunder i perioden minus det vi fikk uten Meta-annonser (${nf(BASE.n)} nye på ${BASE.dager} dager ${fmtD(BASE_FRA)}–${fmtD(BASE_TIL)}.${BASE_TIL.slice(2, 4)} = ${BASE.rate.toFixed(2).replace(".", ",")} per dag); fanger også kunder Shopify ikke klarer å spore, men forutsetter at alt annet (Google, BML, sesong) var likt. Igjen per kr bruker snittverdien for de nye kundene i perioden.` : "Kundeverdi mangler (kohortdata).";
   return `<section class="chart kanaltab"><div class="k">Reklamelinjer <b>for hver krone brukt: kr igjen innen 180 dager</b></div><div class="kt-wrap"><table class="kt"><tr><th>Kanal</th><th>Periode</th><th>Brukt</th><th>Nye kunder</th><th>Per ny kunde</th><th>Igjen per kr</th></tr>${rows}</table></div><div class="box-n">${forkl}</div></section>`;
 })();
 
@@ -653,7 +666,7 @@ const PERSONER = ["Anders", "Victoria", "Anna", "Martin", "Morten"];
 const fokusItems = tasks.filter(t => t.fokus && t.sec !== "Ferdig").sort((a, b) => (a.due || "9999") < (b.due || "9999") ? -1 : 1);
 const dueTxt = d => { if (!d) return `<span class="f-due f-miss">sett dato</span>`; const n = Math.round((Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) - Date.UTC(+TODAY.slice(0, 4), +TODAY.slice(5, 7) - 1, +TODAY.slice(8, 10))) / 864e5); return `<span class="f-due${n < 0 ? " f-late" : n <= 3 ? " f-soon" : ""}">${fmtD(d)}${n < 0 ? ` · ${-n} d over` : n === 0 ? " · i dag" : ` · ${n} d`}</span>`; };
 const fokusRows = PERSONER.map(pn => { const mine = fokusItems.filter(t => t.owner.split(" & ").includes(pn)); return `<div class="f-row"><div class="f-who">${pn}</div><div class="f-what">${mine.length ? mine.map(t => `<span class="f-item">${esc(t.txt)} ${dueTxt(t.due)}</span>`).join("") : `<span class="f-none">ingen fokusoppgave</span>`}</div></div>`; }).join("");
-const fokusHtml = `<div class="sec-h">Fokus nå <span class="sec-sub">én oppgave per person · settes med feltet «Fokus = Nå» på boardet</span></div><section class="fokus">${fokusRows}</section>`;
+const fokusHtml = `<div class="sec-h">Fokus nå <span class="sec-sub">én oppgave per person · settes med feltet «Fokus = Nå» på boardet</span></div><section class="fokus">${fokusRows}<div class="uke-status" id="uke-status"></div></section>`;
 
 // ---------- 7. Bygg HTML ----------
 let html = readFileSync(TEMPLATE, "utf8");
