@@ -251,7 +251,14 @@
   .g-task:hover { border-color: var(--blue); }
   .g-task h2 { margin: 0; font-size: 1.1rem; color: var(--ink); line-height: 1.35; }
   .g-body { margin-top: 8px; font-size: 0.85rem; color: var(--ink-2); white-space: pre-wrap; }
-  .g-ok { align-self: stretch; padding: 11px; font-size: 0.95rem; }
+  .g-ok { flex: 1; padding: 11px; font-size: 0.95rem; }
+  .g-nav { display: flex; gap: 8px; } .g-back { padding: 11px 14px; }
+  .g-acts { display: flex; flex-wrap: wrap; gap: 6px; } .g-acts .tag { margin: 0; font-size: 0.8rem; padding: 4px 10px; cursor: pointer; }
+  .g-acts.busy { opacity: .5; pointer-events: none; }
+  .g-task.done h2 { text-decoration: line-through; color: var(--ink-muted); }
+  .g-task .g-sec { margin-top: 8px; } .g-slettet { color: var(--ink-muted); }
+  .g-title[contenteditable="true"] { outline: 2px solid var(--blue); border-radius: 4px; padding: 0 3px; cursor: text; }
+  #pop { z-index: 95 !important; } #toast { z-index: 96; }
   #who .box { background: var(--surface-2); border: 1px solid var(--hairline); border-radius: 14px; padding: 22px; max-width: 360px; width: 100%; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
   #who h2 { margin: 0 0 14px; font-size: 1.05rem; color: var(--ink); }
   #who .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -653,7 +660,7 @@ function render() {
   // ukjente statuser (nye kolonner på boardet) vises sist
   const unknown = q.filter(t => !SECTIONS.includes(t.sec) && passes(t));
   for (const sec of [...new Set(unknown.map(t => t.sec))]) { const items = unknown.filter(t => t.sec === sec); const col = document.createElement("div"); col.className = "col"; col.innerHTML = `<h2>${esc(sec)}<span class="count">${items.length}</span></h2>`; for (const t of items) col.appendChild(taskCard(t)); board.appendChild(col); }
-  renderMiles(); renderRoles(); renderB2B(); renderCoins(); renderUke(); renderFokus(); renderHero(); renderAgenda(); renderOwnerSelect();
+  renderMiles(); renderRoles(); renderB2B(); renderCoins(); renderUke(); renderFokus(); visGjg(); renderHero(); renderAgenda(); renderOwnerSelect();
 }
 
 function renderFilters() {
@@ -813,22 +820,54 @@ function startGjennomgang() {
   const list = quests().filter(t => !isDone(t) && passesFor(t, me))
     .sort((a, b) => (b.fokus ? 1 : 0) - (a.fokus ? 1 : 0) || (ORD[a.sec] ?? 9) - (ORD[b.sec] ?? 9) || (a.due || "9999").localeCompare(b.due || "9999"));
   if (!list.length) { toast("Du har ingen åpne oppgaver"); bekreftUke(); return; }
-  gjg = { list, i: 0 }; document.getElementById("uke-modal").hidden = false; visGjg();
+  gjg = { ids: list.map(t => t.id), i: 0 }; document.getElementById("uke-modal").hidden = false; visGjg(true);
 }
-function visGjg() {
-  const m = document.getElementById("uke-modal"), t = gjg.list[gjg.i], n = gjg.list.length, siste = gjg.i + 1 === n;
-  const info = [esc(t.sec), t.fokus ? "🎯 fokus" : "", t.due ? `frist ${fmtDate(t.due)}${isOver(t) ? " (over frist)" : ""}` : "", t.owner !== me ? esc(t.owner) : ""].filter(Boolean).join(" · ");
-  m.querySelector(".box").innerHTML = `<div class="g-top"><span>Oppgave ${gjg.i + 1} av ${n}</span><button type="button" class="g-x" aria-label="Lukk uten å bekrefte">✕</button></div>`
-    + `<div class="g-bar"><i style="width:${gjg.i / n * 100}%"></i></div><div class="g-sec">${info}</div>`
-    + `<div class="g-task" title="Trykk for å gå videre"><h2>${esc(t.txt)}</h2>${t.body ? `<div class="g-body">${esc(t.body)}</div>` : ""}</div>`
-    + `<button type="button" class="btn primary g-ok">${siste ? "Sett ✓ · bekreft uka" : "Sett ✓ · neste"}</button>`;
-  const neste = () => { if (!siste) { gjg.i++; visGjg(); } else { lukkGjg(); bekreftUke(); } };
-  m.querySelector(".g-ok").onclick = neste; m.querySelector(".g-task").onclick = neste;
-  m.querySelector(".g-x").onclick = lukkGjg;
-  m.querySelector(".g-ok").focus();
+// samme endringer som på kortene: ferdig/gjenåpne, status, ansvarlig, frist, fokus, tittel, slett. Vinduet tegnes på nytt etter hver lagring (fra render()).
+function statusMenu(anchor, t) {
+  const pop = document.getElementById("pop");
+  pop.innerHTML = SECTIONS.map(s => `<button role="menuitem" class="${s === t.sec ? "cur" : ""}">${esc(s)}</button>`).join("");
+  pop.querySelectorAll("button").forEach(b => b.onclick = () => { closePop(); anchor.focus(); if (b.textContent !== t.sec) moveTask(t.id, b.textContent); });
+  openPop(pop, anchor); (pop.querySelector("button.cur") || pop.querySelector("button")).focus();
 }
-function lukkGjg() { gjg = null; document.getElementById("uke-modal").hidden = true; }
-document.addEventListener("keydown", e => { if (e.key === "Escape" && gjg) lukkGjg(); });
+function visGjg(fokuser = false) {
+  if (!gjg || editing) return;
+  const m = document.getElementById("uke-modal"), n = gjg.ids.length, siste = gjg.i + 1 === n, t = tasks.find(x => x.id === gjg.ids[gjg.i]);
+  const box = m.querySelector(".box");
+  const topp = `<div class="g-top"><span>Oppgave ${gjg.i + 1} av ${n}</span><button type="button" class="g-x" aria-label="Lukk uten å bekrefte">✕</button></div><div class="g-bar"><i style="width:${gjg.i / n * 100}%"></i></div>`;
+  const okKnapp = `<div class="g-nav">${gjg.i ? `<button type="button" class="btn g-back">← Forrige</button>` : ""}<button type="button" class="btn primary g-ok">${siste ? "Sett ✓ · bekreft uka" : "Sett ✓ · neste"}</button></div>`;
+  if (!t) { box.innerHTML = topp + `<div class="g-task"><h2 class="g-slettet">Oppgaven er slettet</h2></div>` + okKnapp; }
+  else {
+    const opptatt = busy.has(t.id), ferdig = isDone(t);
+    const info = [t.due ? `frist ${fmtDate(t.due)}${isOver(t) ? " (over frist)" : ""}` : "", t.owner !== me ? esc(t.owner) : ""].filter(Boolean).join(" · ");
+    box.innerHTML = topp
+      + `<div class="g-task${ferdig ? " done" : ""}" title="Trykk for å gå videre"><h2><span class="g-title">${esc(t.txt)}</span></h2>${t.body ? `<div class="g-body">${esc(t.body)}</div>` : ""}${info ? `<div class="g-sec">${info}</div>` : ""}</div>`
+      + `<div class="g-acts${opptatt ? " busy" : ""}">`
+      +   `<button type="button" class="tag act g-done">${ferdig ? "↺ Gjenåpne" : "✓ Ferdig"}</button>`
+      +   `<button type="button" class="tag act g-stat" title="Flytt">${esc(t.sec)} ▾</button>`
+      +   `<button type="button" class="tag act g-who" style="color:${OWNER_COLOR[t.owner] || "var(--ink-muted)"}" title="Bytt ansvarlig">👤 ${esc(t.owner)}</button>`
+      +   `<button type="button" class="tag act g-due${isOver(t) ? " over" : ""}" title="Sett frist">📅 ${t.due ? fmtDate(t.due) : "frist"}</button>`
+      +   `${ferdig ? "" : `<button type="button" class="tag act fok${t.fokus ? " on" : ""}" title="${t.fokus ? "Fjern fokus" : "Sett som fokusoppgave"}">🎯${t.fokus ? " fokus" : ""}</button>`}`
+      +   `<button type="button" class="tag act g-edit" title="Endre tittel">✏️ tittel</button>`
+      +   `<button type="button" class="tag act g-del" title="Slett kortet (kan angres)">🗑</button>`
+      + `</div>` + okKnapp;
+    const q = s => box.querySelector(s), stop = f => e => { e.stopPropagation(); f(e); };
+    q(".g-done").onclick = stop(() => toggleDone(t.id));
+    q(".g-stat").onclick = stop(e => statusMenu(e.currentTarget, t));
+    q(".g-who").onclick = stop(e => ownerMenu(e.currentTarget, t));
+    q(".g-due").onclick = stop(e => dueEditor(e.currentTarget, t));
+    if (q(".fok")) q(".fok").onclick = stop(() => setFokus(t.id, !t.fokus));
+    q(".g-edit").onclick = stop(() => startEdit(q(".g-title"), t));
+    q(".g-del").onclick = stop(() => deleteTask(t.id));
+    q(".g-task").onclick = () => { if (!editing && !popOpen) neste(); };
+  }
+  function neste() { if (!siste) { gjg.i++; visGjg(true); } else { lukkGjg(); bekreftUke(); } }
+  box.querySelector(".g-ok").onclick = neste;
+  if (box.querySelector(".g-back")) box.querySelector(".g-back").onclick = () => { gjg.i--; visGjg(true); };
+  box.querySelector(".g-x").onclick = lukkGjg;
+  if (fokuser) box.querySelector(".g-ok").focus();
+}
+function lukkGjg() { gjg = null; closePop(); document.getElementById("uke-modal").hidden = true; }
+document.addEventListener("keydown", e => { if (e.key === "Escape" && gjg && !popOpen && !editing) lukkGjg(); });
 async function bekreftUke() {
   const card = tasks.find(isUke); if (!live || ukeBusy || !card?.draft || !me) return;
   ukeBusy = true; const btn = document.getElementById("uke-btn"); if (btn) { btn.disabled = true; btn.textContent = "Lagrer …"; }
