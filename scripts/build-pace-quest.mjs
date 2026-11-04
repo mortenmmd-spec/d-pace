@@ -199,6 +199,17 @@ async function fetchShopify() {
   const rekord = Object.entries(perDag).reduce((b, [d, kr]) => kr > b.kr ? { d, kr: Math.round(kr) } : b, { d: "", kr: 0 });
   // abonnement fra Subscriptions-appen (ShopifyQL): aktive = startet − avsluttet i hele historikken.
   // Dagsmålingen av active_subscriptions (175 per 17.10) stemmer ikke med Shopifys egne startet/avsluttet-tall og brukes ikke. Valgfri.
+  // aktive abonnenter = kunder med abonnementsstatus ACTIVE i Shopify (pause og avsluttet ikke med). Morten 04.11.2026:
+  // «aktive aktive abonnementer». ShopifyQL startet − avsluttet (138) og active_subscriptions (170) teller pausede med.
+  let subStatus = null;
+  try { const st = {}; let after = null;
+    do { const r = await fetch(`https://${SHOP}/admin/api/${API}/graphql.json`, { method: "POST", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify({ query: "query($a: String) { customers(first: 250, after: $a) { pageInfo { hasNextPage endCursor } nodes { productSubscriberStatus } } }", variables: { a: after } }) });
+      const j = await r.json(); if (j.errors || !j.data) throw new Error(JSON.stringify(j.errors || j).slice(0, 200));
+      for (const c of j.data.customers.nodes) st[c.productSubscriberStatus] = (st[c.productSubscriberStatus] || 0) + 1;
+      after = j.data.customers.pageInfo.hasNextPage ? j.data.customers.pageInfo.endCursor : null;
+    } while (after);
+    subStatus = st;
+  } catch (e) { console.error("Abonnementsstatus utilgjengelig:", e.message); }
   let subActive = null, subStart = 0, subStop = 0, subAdd30 = 0, subCan30 = 0, subRekke = 0;
   try {
     const ql = async s => { const r = await fetch(`https://${SHOP}/admin/api/${API}/graphql.json`, { method: "POST", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify({ query: "query($s: String!) { shopifyqlQuery(query: $s) { tableData { rows } parseErrors } }", variables: { s } }) }); const d = (await r.json()).data?.shopifyqlQuery; if (!d || d.parseErrors?.length) throw new Error(d?.parseErrors?.[0] || "ShopifyQL-feil"); return d.tableData.rows[0] || {}; };
@@ -206,6 +217,7 @@ async function fetchShopify() {
     const d30 = await ql("FROM subscriptions SHOW subscriptions_added, subscriptions_canceled SINCE -30d UNTIL today");
     subStart = +all.subscriptions_added || 0; subStop = +all.subscriptions_canceled || 0; subAdd30 = +d30.subscriptions_added || 0; subCan30 = +d30.subscriptions_canceled || 0;
     if (subStart) subActive = subStart - subStop;
+    if (subStatus?.ACTIVE != null) subActive = subStatus.ACTIVE;
     // per dag siste 30 d: nye og avsluttede; aktive per dag regnes bakover fra dagens tall
     const r = await fetch(`https://${SHOP}/admin/api/${API}/graphql.json`, { method: "POST", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify({ query: "query($s: String!) { shopifyqlQuery(query: $s) { tableData { rows } parseErrors } }", variables: { s: `FROM subscriptions SHOW subscriptions_added, subscriptions_canceled TIMESERIES day SINCE ${DAYS[0]} UNTIL today` } }) });
     const rows = (await r.json()).data?.shopifyqlQuery?.tableData?.rows || [];
@@ -216,7 +228,7 @@ async function fetchShopify() {
     for (const w of weeks.reverse()) { if ((+w.subscriptions_added || 0) > (+w.subscriptions_canceled || 0)) subRekke++; else break; }
     if (subActive !== null) { let live = subActive; for (const d of [...DAYS].reverse()) { daily[d].subLive = live; live -= (daily[d].subAdd || 0) - (daily[d].subCan || 0); } }
   } catch (e) { console.error("ShopifyQL utilgjengelig:", e.message); }
-  return { daily, lager, geo, kunder, perKunde, perKundeEks, ukedag: ukedagSnitt, subActive, subStart, subStop, subAdd30, subCan30, subRekke, totalt, rekord, nyKunde30, subOrdreEks, subOrdreN: renOrders.length, ordreTotalt, forsteDag, iAar, ordreIAar, subRen42, subOrdre, nyeKunder: await fetchNyeKunder(SHOP, H), kohort, at: NOW.toISOString() };
+  return { daily, lager, geo, kunder, perKunde, perKundeEks, ukedag: ukedagSnitt, subActive, subStatus, subStart, subStop, subAdd30, subCan30, subRekke, totalt, rekord, nyKunde30, subOrdreEks, subOrdreN: renOrders.length, ordreTotalt, forsteDag, iAar, ordreIAar, subRen42, subOrdre, nyeKunder: await fetchNyeKunder(SHOP, H), kohort, at: NOW.toISOString() };
 }
 
 // nye kunder per Oslo-dag (førstegangsordre, Shopify kundereise): antall, abonnementsstartere og dekningsbidrag på første ordre,
@@ -497,7 +509,10 @@ const lagerCard = (navn, sku, key, bestfor, flavor) => {
 };
 const subNow = today.subAct, subNew30 = sum(win(30), "subNew"), subRen30 = sum(win(30), "subRen");
 const subCard = shop.subActive !== null
-  ? card("Aktive abonnement", nf(shop.subActive), `+${sum(series.slice(-30), "subAdd")} nye · −${sum(series.slice(-30), "subCan")} avsluttet (30 d)${shop.subRekke >= 2 ? ` · 🔥 ${shop.subRekke} uker på rad med vekst` : ""}`, "c-sub", `${nf(shop.subStart)} abonnement startet og ${nf(shop.subStop)} avsluttet totalt ifølge Shopify Subscriptions (Shopify-analyse).. Siste 30 d: ${sum(series.slice(-30), "subAdd")} nye, ${sum(series.slice(-30), "subCan")} avsluttet`)
+  ? card(shop.subStatus ? "Aktive abonnenter" : "Aktive abonnement", nf(shop.subActive), `${shop.subStatus ? `${nf(shop.subStatus.PAUSED || 0)} på pause · ` : ""}+${sum(series.slice(-30), "subAdd")} nye · −${sum(series.slice(-30), "subCan")} avsluttet (30 d)${shop.subRekke >= 2 ? ` · 🔥 ${shop.subRekke} uker på rad med vekst` : ""}`, "c-sub",
+    shop.subStatus
+      ? `Kunder med abonnementsstatus «aktiv» i Shopify. Pausede (${nf(shop.subStatus.PAUSED || 0)}) og avsluttede (${nf(shop.subStatus.CANCELLED || 0)}) er ikke med${shop.subStatus.FAILED ? `, heller ikke feilet betaling (${nf(shop.subStatus.FAILED)})` : ""}. Telles per kunde: en kunde med to aktive abonnement teller én gang. Shopifys egen «aktive abonnement» (avtaler, inkl. pause) er høyere. Nye/avsluttet 30 d fra Shopify-analyse.`
+      : `${nf(shop.subStart)} abonnement startet og ${nf(shop.subStop)} avsluttet totalt ifølge Shopify Subscriptions (Shopify-analyse). Siste 30 d: ${sum(series.slice(-30), "subAdd")} nye, ${sum(series.slice(-30), "subCan")} avsluttet`)
   : card("Kunder m/ abonnementsordre", nf(subNow), `+${subNew30} nye · ${subRen30} forny. (30 d)`, "c-sub", `Unike kunder med abonnementsordre siste 30 dager (ekte abonnementsstatus utilgjengelig)`);
 // abonnement per dag: aktive abonnement × snitt per fornyelse eks mva, fordelt på leveringsintervallet (alle planer = hver 6. uke)
 const SUB_DAGER = 42;
@@ -553,7 +568,7 @@ const datastatus = [`Shopify ${stamp}`, meta ? `${metaKilde} t.o.m. ${metaSist ?
 
 const note = `7 og 30 d = hele Oslo-dager t.o.m. i går; «Salg i dag» er dagen så langt. Salg = ordreverdi inkl. mva for ordre opprettet i perioden, etter refusjon, uten test- og seeding-ordre (Shopify ${stamp}). Planraden sammenlignes eks mva. Nye kunder = kundeprofiler opprettet i perioden med betalt ordre. `
   + (meta ? `Meta-kost = ${meta.source === "api" ? "Meta Marketing API per dag" : "kvitteringer i hei@getpace.no + daglig avlesning i Ads Manager"} (t.o.m. ${metaSist ? fmtD(metaSist) : "–"}). ` : `Meta-kost mangler: ${esc(metaErr)}. `)
-  + (shop.subActive !== null ? `Aktive abonnement = startet minus avsluttet i Shopify Subscriptions (Shopify-analyse). ` : "")
+  + (shop.subStatus ? `Aktive abonnenter = kunder med abonnementsstatus aktiv i Shopify (ikke pause eller avsluttet). Abonnementsgrafens linje er regnet bakover fra dagens tall med nye og avsluttede, pauser er ikke med i historikken. ` : shop.subActive !== null ? `Aktive abonnement = startet minus avsluttet i Shopify Subscriptions (Shopify-analyse). ` : "")
   + `CAC totalt = all markedskost (Meta + BML + Adtraction + Google) delt på alle nye kunder i samme periode. CAC per kanal = kanalens kostnad delt på nye kunder hvis første ordre er merket med kanalen (BML20-kode, Meta-klikk/__adtr_channel fb/ig, annen Adtraction-partner, gclid). Hovedtall 30 d, 7 d i underteksten. BML-kost = 30 % provisjon av varesalg eks mva + episodehonorar, Adtraction = 995/mnd + provisjon fra faktura, Google = kortbelastning per måned (manuelle månedsfiler; mangler = kost ukjent, regnes som 0 i totalen og flagges). `
   + `Lager = tilgjengelig hos 360 Logistics; tomdato ved takten siste 30 d. Kasse er bankbalanse lagt inn manuelt (sist ${T.kasse_dato}).`;
 const metaInfo = { built_at: NOW.toISOString(), shopify_at: shop.at, label: stamp, today: TODAY, meta_through: meta ? meta.coveredThrough : null, totalt: shop.totalt ?? null, daily: series.slice(-30), ukedag: shop.ukedag, geo: shop.geo, kart: { w: KART.w, h: KART.h, fylker: KART.fylker } };
