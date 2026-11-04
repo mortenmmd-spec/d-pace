@@ -493,8 +493,13 @@ const todayCard = () => card("Salg i dag", nf(today.oms) + " kr" + (slaatt ? " �
 const EST_DAGER = 60;
 const estCard = () => { const w = win(EST_DAGER), snitt = sum(w, "oms") / EST_DAGER, hittil = (shop.iAar ?? 0) - today.oms, aar = TODAY.slice(0, 4);
   const igjen = Math.round((Date.UTC(+aar, 11, 31) - Date.UTC(+aar, +TODAY.slice(5, 7) - 1, +TODAY.slice(8, 10))) / 864e5) + 1, est = hittil + snitt * igjen;
-  return card(`Estimat ${aar}`, nf(est) + " kr", `hittil ${nf(hittil)} + ${nf(snitt)} kr/dag × ${igjen} d (snitt ${EST_DAGER} d) · årstakt ${nf(snitt * 365)}`, "c-salg",
-    `Rullende estimat for hele ${aar}, inkl. mva: salg hittil i år t.o.m. i går (${nf(hittil)} kr) pluss snittsalget per dag de siste ${EST_DAGER} hele dagene (${nf(snitt)} kr) ganget med dagene som er igjen av året inkludert i dag (${igjen}). Oppdateres hver time. Ingen justering for Black Friday, jul eller sesong. Årstakt = snitt per dag × 365, altså hva et helt år i dagens tempo gir.`); };
+  return card(`Estimat ${aar}`, nf(est) + " kr", `hittil ${nf(hittil)} + ${nf(snitt)} kr/dag × ${igjen} d (snitt ${EST_DAGER} d)`, "c-salg",
+    `Rullende estimat for hele ${aar}, inkl. mva: salg hittil i år t.o.m. i går (${nf(hittil)} kr) pluss snittsalget per dag de siste ${EST_DAGER} hele dagene (${nf(snitt)} kr) ganget med dagene som er igjen av året inkludert i dag (${igjen}). Oppdateres hver time. Ingen justering for Black Friday, jul eller sesong.`); };
+// neste 12 mnd «med momentet vi har» (Morten 04.11.2026): siste 30 hele dager × 365 (nyeste takt), med endring mot de 30 dagene før.
+// Ingen lineær trendfremskriving: trenden nå er drevet av at Meta ble slått på igjen 29.09 (60-d-trend ga ~1,85 MNOK), og sommeren lå høyere.
+const tolvCard = () => { const n = sum(win(30), "oms") / 30, forrige = sum(series.slice(-61, -31), "oms") / 30, endr = forrige ? n / forrige - 1 : null, t60 = sum(win(60), "oms") / 60;
+  return card("Neste 12 mnd", nf(n * 365) + " kr", `dagens takt (30 d) ${nf(n)} kr/dag${endr != null ? ` · ${endr >= 0 ? "+" : "−"}${Math.abs(Math.round(endr * 100))} % mot 30 d før` : ""} · 60 d-takt ${nf(t60 * 365)}`, "c-salg",
+    `Salg inkl. mva de neste 12 månedene hvis vi holder takten fra de siste 30 hele dagene (${nf(n)} kr per dag × 365). De 30 dagene før var ${nf(forrige)} kr per dag. Ikke justert for sesong, Black Friday eller jul, og ingen fremskriving av vekst: økningen nå kommer mest av at Meta-annonsene startet igjen 29.09, og sommeren lå høyere. Med 60-dagers takt: ${nf(t60 * 365)} kr.`); };
 const totaltCard = () => card("Salg totalt", nf(shop.totalt) + " kr", `${nf(shop.ordreTotalt)} ordre siden ${shop.forsteDag ? shop.forsteDag.slice(8, 10) + "." + shop.forsteDag.slice(5, 7) + "." + shop.forsteDag.slice(0, 4) : "start"} · i år ${nf(shop.iAar)} kr`, "c-salg", `All ordreverdi inkl. mva og frakt, betalte ordre, hele historikken (${nf(shop.ordreTotalt)} ordre). Hittil i ${TODAY.slice(0, 4)}: ${nf(shop.iAar)} kr fra ${nf(shop.ordreIAar)} ordre. Seeding og kansellerte ordre er ikke med.`);
 const salgCard = (n) => { const w = win(n); return card(`Salg ${n} d`, nf(sum(w, "oms")) + " kr", `${sum(w, "ordre")} ordre · ${sum(w, "nye")} nye`, "c-salg", `Ordreverdi inkl. mva siste ${n} hele dager t.o.m. i går, ${sum(w, "nye")} nye kunder`); };
 const totalCard = (n = 30, m = 7) => { const t = totalTall(n), t7 = totalTall(m);
@@ -644,7 +649,7 @@ const kanalTabell = (() => {
 // tallkortene i fire faner (Morten 03.11.2026); ⚠ på fanenavnet hvis et kort i fanen er utdatert
 const TABS = [
   ["res", "Resultat", resCard(30) + resCard(7) + innCard(30) + innUtCard(30)],
-  ["salg", "Salg", todayCard() + salgCard(7) + salgCard(30) + totaltCard() + estCard()
+  ["salg", "Salg", todayCard() + salgCard(7) + salgCard(30) + totaltCard() + estCard() + tolvCard()
     + card("Unike kunder", nf(shop.kunder), `+${sum(win(30), "nye")} nye siste 30 d`, "c-salg", "Kundeprofiler med minst én betalt ordre i hele historikken (uten test- og seeding-ordre)") + subCard],
   ["mf", "Markedsføring", adsCard(7) + adsCard(30) + totalCard() + merCard()],
   ["drift", "Drift", henvCard()
