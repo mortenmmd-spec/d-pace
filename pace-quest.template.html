@@ -238,6 +238,20 @@
   #pop button:hover, #pop button:focus-visible { background: var(--surface); }
   #who { position: fixed; inset: 0; z-index: 80; background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
   #who[hidden] { display: none; }
+  #uke-modal { position: fixed; inset: 0; z-index: 85; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  #uke-modal[hidden] { display: none; }
+  .tag.fok { filter: grayscale(1); opacity: .55; } .tag.fok.on { filter: none; opacity: 1; border-color: var(--orange); color: var(--orange); } .tag.fok:hover { filter: none; opacity: 1; }
+  #uke-modal .box { background: var(--surface-2); border: 1px solid var(--hairline); border-radius: 14px; padding: 18px 20px 20px; max-width: 520px; width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 12px; max-height: 90vh; overflow: auto; }
+  .g-top { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: var(--ink-muted); }
+  .g-x { background: none; border: 0; color: var(--ink-muted); font-size: 1.1rem; cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+  .g-x:hover { color: var(--ink); background: var(--surface); }
+  .g-bar { height: 4px; background: var(--grid); border-radius: 2px; overflow: hidden; } .g-bar i { display: block; height: 100%; background: var(--blue); }
+  .g-sec { font-size: 0.78rem; color: var(--ink-2); }
+  .g-task { cursor: pointer; background: var(--surface); border: 1px solid var(--hairline); border-radius: 10px; padding: 14px 16px; }
+  .g-task:hover { border-color: var(--blue); }
+  .g-task h2 { margin: 0; font-size: 1.1rem; color: var(--ink); line-height: 1.35; }
+  .g-body { margin-top: 8px; font-size: 0.85rem; color: var(--ink-2); white-space: pre-wrap; }
+  .g-ok { align-self: stretch; padding: 11px; font-size: 0.95rem; }
   #who .box { background: var(--surface-2); border: 1px solid var(--hairline); border-radius: 14px; padding: 22px; max-width: 360px; width: 100%; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
   #who h2 { margin: 0 0 14px; font-size: 1.05rem; color: var(--ink); }
   #who .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -391,6 +405,7 @@
 </div>
 
 <div id="who" role="dialog" aria-modal="true" aria-labelledby="who-h" hidden><div class="box"><h2 id="who-h">Hvem er du?</h2><div class="opts" id="who-opts"></div></div></div>
+<div id="uke-modal" role="dialog" aria-modal="true" aria-label="Gjennomgang av oppgavene dine" hidden><div class="box"></div></div>
 <div id="pop" role="menu"></div>
 <div id="tip"></div>
 <div id="toast" role="status" aria-live="polite"><span id="toast-msg"></span><button id="toast-undo" hidden>Angre</button></div>
@@ -493,12 +508,12 @@ async function loadBoard() {
   if (seq !== loadSeq) return false; // en nyere lasting er i gang
   const f = n => fields.find(x => x.name === n);
   if (!f("Status") || !f("Ansvarlig")) throw new Error("Boardet mangler feltene Status/Ansvarlig");
-  project = { id: pid, statusField: f("Status"), ansvarligField: f("Ansvarlig"), dueField: f("Måldato") };
+  project = { id: pid, statusField: f("Status"), ansvarligField: f("Ansvarlig"), dueField: f("Måldato"), fokusField: f("Fokus") };
   const fresh = nodes.map(n => {
     const fv = Object.fromEntries(n.fieldValues.nodes.filter(v => v.field).map(v => [v.field.name, v.name ?? v.date]));
     const c = n.content || {};
     return { id: n.id, draft: c.__typename === "DraftIssue" ? c.id : "", body: c.body || "", txt: c.title || "(uten tittel)",
-      sec: fv["Status"] || "Idéer", owner: fv["Ansvarlig"] || "Ikke fordelt", strom: fv["Arbeidsstrøm"] || "", kat: fv["Kategori"] || "Oppgave", due: fv["Måldato"] || "" };
+      sec: fv["Status"] || "Idéer", owner: fv["Ansvarlig"] || "Ikke fordelt", strom: fv["Arbeidsstrøm"] || "", kat: fv["Kategori"] || "Oppgave", due: fv["Måldato"] || "", fokus: fv["Fokus"] === "Nå" };
   });
   // behold lokale verdier for kort som lagres akkurat nå
   tasks = fresh.map(t => busy.has(t.id) ? (tasks.find(x => x.id === t.id) || t) : t);
@@ -517,6 +532,7 @@ const setDateField = (itemId, iso) => {
     ? gql(`mutation($p: ID!, $i: ID!, $f: ID!, $d: Date!) { updateProjectV2ItemFieldValue(input: { projectId: $p, itemId: $i, fieldId: $f, value: { date: $d } }) { projectV2Item { id } } }`, { p: project.id, i: itemId, f: project.dueField.id, d: iso })
     : gql(`mutation($p: ID!, $i: ID!, $f: ID!) { clearProjectV2ItemFieldValue(input: { projectId: $p, itemId: $i, fieldId: $f }) { projectV2Item { id } } }`, { p: project.id, i: itemId, f: project.dueField.id });
 };
+const clearField = (itemId, field) => gql(`mutation($p: ID!, $i: ID!, $f: ID!) { clearProjectV2ItemFieldValue(input: { projectId: $p, itemId: $i, fieldId: $f }) { projectV2Item { id } } }`, { p: project.id, i: itemId, f: field.id });
 const updateDraft = (draftId, title, body) =>
   gql(`mutation($d: ID!, $t: String, $b: String) { updateProjectV2DraftIssue(input: { draftIssueId: $d, title: $t, body: $b }) { draftIssue { id } } }`, { d: draftId, t: title, b: body });
 
@@ -529,6 +545,12 @@ async function mutate(id, apply, revert, save, okMsg, undo) {
   busy.add(id); apply(t); render();
   try { await save(t); busy.delete(id); render(); if (okMsg) toast(okMsg, false, undo); return true; }
   catch (e) { revert(t); busy.delete(id); render(); toast("Lagring feilet: " + e.message, true); return false; }
+}
+
+// fokus: 🎯 på kortet setter/fjerner feltet Fokus = Nå på boardet (Morten 04.11.2026)
+function setFokus(id, on) {
+  if (!project?.fokusField) { toast("Boardet mangler feltet Fokus", true); return; }
+  mutate(id, x => x.fokus = on, x => x.fokus = !on, x => on ? setField(id, project.fokusField, "Nå") : clearField(id, project.fokusField), on ? "Satt som fokusoppgave 🎯" : "Fokus fjernet", () => setFokus(id, !on));
 }
 
 function moveTask(id, toSec, withUndo = true) {
@@ -631,7 +653,7 @@ function render() {
   // ukjente statuser (nye kolonner på boardet) vises sist
   const unknown = q.filter(t => !SECTIONS.includes(t.sec) && passes(t));
   for (const sec of [...new Set(unknown.map(t => t.sec))]) { const items = unknown.filter(t => t.sec === sec); const col = document.createElement("div"); col.className = "col"; col.innerHTML = `<h2>${esc(sec)}<span class="count">${items.length}</span></h2>`; for (const t of items) col.appendChild(taskCard(t)); board.appendChild(col); }
-  renderMiles(); renderRoles(); renderB2B(); renderCoins(); renderUke(); renderHero(); renderAgenda(); renderOwnerSelect();
+  renderMiles(); renderRoles(); renderB2B(); renderCoins(); renderUke(); renderFokus(); renderHero(); renderAgenda(); renderOwnerSelect();
 }
 
 function renderFilters() {
@@ -658,12 +680,13 @@ function taskCard(t, compact = false) {
   el.innerHTML =
     `<button class="box" title="Marker ferdig / gjenåpne" aria-label="Marker ferdig">✓</button>` +
     `<span class="txt"><span class="title" title="${live ? "Dobbeltklikk for å redigere" : ""}">${esc(t.txt)}</span><span class="body">${esc(t.body)}</span>` +
-    `${showWho ? who : ""}${strom}${showDue ? due : ""}</span>` + (live ? `<button class="del" title="Slett kortet (kan angres)" aria-label="Slett">🗑</button>` : "");
+    `${showWho ? who : ""}${strom}${showDue ? due : ""}${live && !isDone(t) ? `<button class="tag act fok${t.fokus ? " on" : ""}" title="${t.fokus ? "Fjern fokus" : "Sett som fokusoppgave"}" aria-label="${t.fokus ? "Fjern fokus" : "Sett som fokusoppgave"}">🎯${compact ? "" : t.fokus ? " fokus" : ""}</button>` : (t.fokus ? `<span class="tag fok on">🎯</span>` : "")}</span>` + (live ? `<button class="del" title="Slett kortet (kan angres)" aria-label="Slett">🗑</button>` : "");
   if (live) {
     el.draggable = true;
     el.querySelector(".box").onclick = () => toggleDone(t.id);
     const whoBtn = el.querySelector(".who"); if (whoBtn) whoBtn.onclick = e => ownerMenu(e.currentTarget, t);
     const dueBtn = el.querySelector(".due"); if (dueBtn) dueBtn.onclick = e => dueEditor(e.currentTarget, t);
+    const fokBtn = el.querySelector(".fok"); if (fokBtn) fokBtn.onclick = e => { e.stopPropagation(); setFokus(t.id, !t.fokus); };
     const delBtn = el.querySelector(".del"); if (delBtn) delBtn.onclick = e => { e.stopPropagation(); deleteTask(t.id); };
     const title = el.querySelector(".title");
     title.ondblclick = () => startEdit(title, t);
@@ -763,6 +786,14 @@ const isoUke = () => { const d = new Date(todayOslo() + "T12:00:00Z"), dow = (d.
   return { key: `${y}-W${String(w).padStart(2, "0")}`, n: w }; };
 const ukeSett = body => { const k = isoUke().key, s = {}; for (const l of coinLines(body)) { const m = l.match(/^(d{4}-Wd{2}) (S+) (.+)$/); if (m && m[1] === k && !s[m[2]]) s[m[2]] = m[3]; } return s; };
 let ukeBusy = false;
+// fokus-stripen tegnes på nytt fra boardet i live-modus, så endringer vises med en gang (bygget lager startversjonen)
+const FOKUS_PEOPLE = ["Anders", "Victoria", "Anna", "Martin", "Morten"];
+function renderFokus() {
+  const el = document.getElementById("fokus-rows"); if (!el || !live) return;
+  const today = todayOslo(), items = quests().filter(t => t.fokus && !isDone(t)).sort((a, b) => (a.due || "9999") < (b.due || "9999") ? -1 : 1);
+  const dueTxt = d => { if (!d) return `<span class="f-due f-miss">sett dato</span>`; const n = Math.round((Date.parse(d) - Date.parse(today)) / 864e5); return `<span class="f-due${n < 0 ? " f-late" : n <= 3 ? " f-soon" : ""}">${d.slice(8, 10)}.${d.slice(5, 7)}${n < 0 ? ` · ${-n} d over` : n === 0 ? " · i dag" : ` · ${n} d`}</span>`; };
+  el.innerHTML = FOKUS_PEOPLE.map(p => { const mine = items.filter(t => t.owner.split("&").map(s => s.trim()).includes(p)); return `<div class="f-row"><div class="f-who">${esc(p)}</div><div class="f-what">${mine.length ? mine.map(t => `<span class="f-item">${esc(t.txt)} ${dueTxt(t.due)}</span>`).join("") : `<span class="f-none">ingen fokusoppgave</span>`}</div></div>`; }).join("");
+}
 function renderUke() {
   const card = tasks.find(isUke), u = isoUke(), s = card ? ukeSett(card.body) : {};
   const st = document.getElementById("uke-status");
@@ -772,8 +803,32 @@ function renderUke() {
   if (!me) { b.innerHTML = `<span class="u-m">Velg hvem du er (nederst) for å bekrefte uka.</span>`; return; }
   b.innerHTML = s[me] ? `<span class="u-ok">✓ ${esc(me)}, du har gått gjennom oppgavene dine i uke ${u.n}</span>`
     : live ? `<button class="btn primary" id="uke-btn">✓ Jeg har gått gjennom oppgavene mine (uke ${u.n})</button>` : `<span class="u-m">Kobler til boardet …</span>`;
-  const btn = document.getElementById("uke-btn"); if (btn) btn.onclick = bekreftUke;
+  const btn = document.getElementById("uke-btn"); if (btn) btn.onclick = startGjennomgang;
 }
+// gjennomgang: én og én åpen oppgave i et vindu, «Sett ✓» for å gå videre; bekreftelsen lagres først etter siste oppgave (Morten 04.11.2026)
+let gjg = null;
+function startGjennomgang() {
+  if (!live || !me || ukeBusy) return;
+  const ORD = { "Pågår": 0, "Venter": 1, "Backlog": 2, "Idéer": 3 };
+  const list = quests().filter(t => !isDone(t) && passesFor(t, me))
+    .sort((a, b) => (b.fokus ? 1 : 0) - (a.fokus ? 1 : 0) || (ORD[a.sec] ?? 9) - (ORD[b.sec] ?? 9) || (a.due || "9999").localeCompare(b.due || "9999"));
+  if (!list.length) { toast("Du har ingen åpne oppgaver"); bekreftUke(); return; }
+  gjg = { list, i: 0 }; document.getElementById("uke-modal").hidden = false; visGjg();
+}
+function visGjg() {
+  const m = document.getElementById("uke-modal"), t = gjg.list[gjg.i], n = gjg.list.length, siste = gjg.i + 1 === n;
+  const info = [esc(t.sec), t.fokus ? "🎯 fokus" : "", t.due ? `frist ${fmtDate(t.due)}${isOver(t) ? " (over frist)" : ""}` : "", t.owner !== me ? esc(t.owner) : ""].filter(Boolean).join(" · ");
+  m.querySelector(".box").innerHTML = `<div class="g-top"><span>Oppgave ${gjg.i + 1} av ${n}</span><button type="button" class="g-x" aria-label="Lukk uten å bekrefte">✕</button></div>`
+    + `<div class="g-bar"><i style="width:${gjg.i / n * 100}%"></i></div><div class="g-sec">${info}</div>`
+    + `<div class="g-task" title="Trykk for å gå videre"><h2>${esc(t.txt)}</h2>${t.body ? `<div class="g-body">${esc(t.body)}</div>` : ""}</div>`
+    + `<button type="button" class="btn primary g-ok">${siste ? "Sett ✓ · bekreft uka" : "Sett ✓ · neste"}</button>`;
+  const neste = () => { if (!siste) { gjg.i++; visGjg(); } else { lukkGjg(); bekreftUke(); } };
+  m.querySelector(".g-ok").onclick = neste; m.querySelector(".g-task").onclick = neste;
+  m.querySelector(".g-x").onclick = lukkGjg;
+  m.querySelector(".g-ok").focus();
+}
+function lukkGjg() { gjg = null; document.getElementById("uke-modal").hidden = true; }
+document.addEventListener("keydown", e => { if (e.key === "Escape" && gjg) lukkGjg(); });
 async function bekreftUke() {
   const card = tasks.find(isUke); if (!live || ukeBusy || !card?.draft || !me) return;
   ukeBusy = true; const btn = document.getElementById("uke-btn"); if (btn) { btn.disabled = true; btn.textContent = "Lagrer …"; }

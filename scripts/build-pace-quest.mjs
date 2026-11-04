@@ -666,7 +666,7 @@ const PERSONER = ["Anders", "Victoria", "Anna", "Martin", "Morten"];
 const fokusItems = tasks.filter(t => t.fokus && t.sec !== "Ferdig").sort((a, b) => (a.due || "9999") < (b.due || "9999") ? -1 : 1);
 const dueTxt = d => { if (!d) return `<span class="f-due f-miss">sett dato</span>`; const n = Math.round((Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) - Date.UTC(+TODAY.slice(0, 4), +TODAY.slice(5, 7) - 1, +TODAY.slice(8, 10))) / 864e5); return `<span class="f-due${n < 0 ? " f-late" : n <= 3 ? " f-soon" : ""}">${fmtD(d)}${n < 0 ? ` · ${-n} d over` : n === 0 ? " · i dag" : ` · ${n} d`}</span>`; };
 const fokusRows = PERSONER.map(pn => { const mine = fokusItems.filter(t => t.owner.split(" & ").includes(pn)); return `<div class="f-row"><div class="f-who">${pn}</div><div class="f-what">${mine.length ? mine.map(t => `<span class="f-item">${esc(t.txt)} ${dueTxt(t.due)}</span>`).join("") : `<span class="f-none">ingen fokusoppgave</span>`}</div></div>`; }).join("");
-const fokusHtml = `<div class="sec-h">Fokus nå <span class="sec-sub">én oppgave per person · settes med feltet «Fokus = Nå» på boardet</span></div><section class="fokus">${fokusRows}<div class="uke-status" id="uke-status"></div></section>`;
+const fokusHtml = `<div class="sec-h">Fokus nå <span class="sec-sub">én oppgave per person · trykk 🎯 på en oppgave for å sette eller fjerne fokus</span></div><section class="fokus"><div id="fokus-rows">${fokusRows}</div><div class="uke-status" id="uke-status"></div></section>`;
 
 // ---------- 7. Bygg HTML ----------
 let html = readFileSync(TEMPLATE, "utf8");
