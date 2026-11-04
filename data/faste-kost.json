@@ -1,0 +1,15 @@
+{
+  "_kilde": "Budsjett nov 2026–okt 2027 (budsjett-plain.html, sendt Anders 30.10.2026) og pace-okonomi/pace20/kostnader.json. Beløp per måned. Ikke med: lønn (ingen), uforutsett-buffer 5 000, merch/ambassadører (ikke målt), annonser og BML/Adtraction (ligger i markedskost).",
+  "maaned": {
+    "Programvare (Shopify, Klaviyo, Google Workspace, Typeform m.fl.)": 4200,
+    "Slack": 480,
+    "DNB Regnskap": 400,
+    "DNB bankgebyrer": 150,
+    "Uni Micro": 350
+  },
+  "lagerleie_360": 4393,
+  "minimum_360": 10000,
+  "_minimum_360": "360 Logistics fakturerer minst 10 000/mnd for lagerleie + plukk samlet (faktura 110961). Plukk (25,25 + 4,04 emballasje per ordre + 3,03 per varelinje, faktura 112048) ligger allerede i DB per ordre, så bare tillegget opp til minimum regnes som fast kostnad.",
+  "plukk_per_ordre": 29.29,
+  "plukk_per_linje": 3.03
+}

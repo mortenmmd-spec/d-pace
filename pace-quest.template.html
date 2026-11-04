@@ -43,6 +43,7 @@
   * { margin: 0; box-sizing: border-box; }
   body { background: var(--page); color: var(--ink); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.45; padding: 24px 16px 64px; }
   .wrap { max-width: 1180px; margin: 0 auto; }
+  @media (min-width: 1300px) { .wrap { max-width: min(1680px, 100%); } }
   button { font: inherit; }
   button:focus-visible, input:focus-visible, [contenteditable]:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 
@@ -88,7 +89,8 @@
   /* fargekoding per korttype fjernet 30.10.2026 (Morten: vanskelig å se); alle kort nøytrale */
   .stat .k { font-size: 0.68rem; color: var(--ink-muted); text-transform: uppercase; letter-spacing: .06em; }
   .stat .v { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.02em; color: var(--ink); margin: 2px 0 0; font-variant-numeric: tabular-nums; line-height: 1.15; white-space: nowrap; }
-  .stat .s { font-size: 0.76rem; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 3px; }
+  .stat .s { font-size: 0.76rem; color: var(--ink-muted); margin-top: 3px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  @media (min-width: 1300px) { .stats { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); } }
   .sec-sub { text-transform: none; letter-spacing: 0; font-size: 0.72rem; color: var(--ink-muted); font-weight: 400; }
   .box-h b { color: var(--ink); font-size: 0.95rem; text-transform: none; letter-spacing: 0; margin-left: 8px; }
   .box { background: var(--surface); border: 1px solid var(--hairline); border-radius: 14px; padding: 12px 16px; }
@@ -99,8 +101,17 @@
   details.about summary::-webkit-details-marker { display: none; }
   details.about summary:hover { color: var(--ink-2); }
   details.about[open] summary { margin-bottom: 4px; }
+  .chart svg { max-height: 300px; display: block; margin: 0 auto; }
   .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr)); gap: 12px; margin: 0 0 10px; }
 
+  .kanaltab { margin: 0 0 12px; }
+  .kt-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .kt { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 8px; font-variant-numeric: tabular-nums; min-width: 560px; }
+  .kt th { text-align: left; font-weight: 500; color: var(--ink-muted); font-size: 0.72rem; padding: 4px 10px 6px 0; border-bottom: 1px solid var(--hairline); white-space: nowrap; }
+  .kt td { padding: 6px 10px 6px 0; border-bottom: 1px solid var(--hairline); color: var(--ink-2); white-space: nowrap; }
+  .kt td:first-child { color: var(--ink); font-weight: 600; }
+  .kt b { color: var(--ink); font-size: 0.9rem; }
+  .kt-m { color: var(--ink-muted); font-weight: 400; }
   .b2b { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 8px; }
   .b2b th { text-align: left; font-weight: 500; color: var(--ink-muted); font-size: 0.72rem; padding: 4px 10px 6px 0; border-bottom: 1px solid var(--hairline); }
   .b2b td { padding: 7px 10px 7px 0; border-bottom: 1px solid var(--hairline); vertical-align: top; color: var(--ink-2); }
@@ -309,7 +320,11 @@
   <!--FOKUS--><!--/FOKUS-->
   <div class="sec-h">Tall <span class="sec-sub" id="datastatus"><!--DATASTATUS--><!--/DATASTATUS--></span></div>
   <div class="tabs" id="tall-tabs" role="tablist" aria-label="Tall per kategori"><!--TABS--><!--/TABS--></div>
-  <div class="tab-panel" id="tab-salg" data-tab="salg" role="tabpanel">
+  <div class="tab-panel" id="tab-res" data-tab="res" role="tabpanel">
+    <section class="stats"><!--STATS_res--><!--/STATS_res--></section>
+    <section class="charts"><div class="chart" id="chart-res"></div></section>
+  </div>
+  <div class="tab-panel" id="tab-salg" data-tab="salg" role="tabpanel" hidden>
     <section class="stats"><!--STATS_salg--><!--/STATS_salg--></section>
     <section class="charts"><div class="chart" id="chart-sales"></div><div class="chart" id="chart-sub"></div><div class="chart" id="chart-wd"></div></section>
     <section class="chart" id="b2b" style="margin-bottom:10px"></section>
@@ -317,6 +332,7 @@
   <div class="tab-panel" id="tab-mf" data-tab="mf" role="tabpanel" hidden>
     <!--TABNOTE_mf--><!--/TABNOTE_mf-->
     <section class="stats"><!--STATS_mf--><!--/STATS_mf--></section>
+    <!--KANALTAB--><!--/KANALTAB-->
     <section class="charts"><div class="chart" id="chart-cac"></div></section>
   </div>
   <div class="tab-panel" id="tab-drift" data-tab="drift" role="tabpanel" hidden>
@@ -953,6 +969,22 @@ function charts() {
     el.innerHTML = `<div class="k">Salg per dag, 30 d <b>${nf(sum7)} kr siste 7 d</b></div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Salg per dag siste 30 dager">${axis(max, v => nf(v / 1000) + "k")}${bars}${line}${xlabels()}</svg><div class="legend"><span><i style="background:var(--blue)"></i>omsetning per dag (i dag ufullstendig)</span><span><i style="background:var(--ink-2)"></i>7-dagers snitt</span></div>`;
     el.querySelectorAll("rect[data-i]").forEach(r => { r.onmousemove = e => { const d = D[+r.dataset.i]; showTip(e, `<b>${lbl(d)}</b><br>${nf(d.oms)} kr · ${d.ordre} ordre · ${d.nye} nye kunder<br>sitron ${d.u1} · bringebær ${d.u2} sjaktler${d.meta !== null ? `<br>Meta ${nf(d.meta)} kr` : ""}`); }; r.onmouseleave = hideTip; });
   }
+  // 0) resultat per dag: dekningsbidrag − markedskost − faste kostnader (før lønn); søyler kan være negative
+  { const el = document.getElementById("chart-res");
+    if (el) { const RV = D.map(d => d.res == null ? null : d.res);
+      if (!RV.some(v => v !== null)) el.innerHTML = `<div class="k">Igjen per dag</div><div class="empty">Mangler faste kostnader (data/faste-kost.json).</div>`;
+      else { const vals = RV.filter(v => v !== null), hi = Math.max(0, ...vals), lo = Math.min(0, ...vals), pad = (hi - lo) * 0.08 || 1;
+        const top = hi + pad, bot = lo - pad, y = v => T + ih * (top - v) / (top - bot), y0 = y(0), bw = iw / D.length * 0.68;
+        const stp = [250, 500, 1000, 2000, 2500, 5000, 10000, 20000].find(s => (top - bot) / s <= 6) || 50000, ticks = []; for (let v = Math.ceil(bot / stp) * stp; v <= top; v += stp) ticks.push(v);
+        const ax = ticks.map(v => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)" stroke-width="1"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" font-size="10" fill="var(--ink-muted)">${nf(v)}</text>`).join("")
+          + `<line x1="${L}" x2="${W - R}" y1="${y0}" y2="${y0}" stroke="var(--ink-muted)" stroke-width="1.2"/>`;
+        const bars = D.map((d, i) => { const v = RV[i]; if (v === null) return ""; const today = i === D.length - 1, faint = today || d.resUsikker;
+          return `<rect data-i="${i}" x="${xOf(i) - bw / 2}" y="${T}" width="${bw}" height="${ih}" fill="transparent"/><rect x="${xOf(i) - bw / 2}" y="${Math.min(y(v), y0)}" width="${bw}" height="${Math.max(1, Math.abs(y(v) - y0))}" rx="2" pointer-events="none" fill="${v >= 0 ? "var(--good)" : "var(--critical)"}" opacity="${faint ? 0.45 : 1}"/>`; }).join("");
+        const avg = RV.map((_, i) => { const w = RV.slice(Math.max(0, i - 6), i + 1).filter(v => v !== null); return w.length ? w.reduce((x, v) => x + v, 0) / w.length : null; });
+        const line = `<polyline fill="none" stroke="var(--ink-2)" stroke-width="2" stroke-linejoin="round" points="${avg.slice(0, -1).map((v, i) => v === null ? "" : `${xOf(i)},${y(v)}`).filter(Boolean).join(" ")}"/>`;
+        const sum7 = RV.slice(-8, -1).reduce((x, v) => x + (v || 0), 0);
+        el.innerHTML = `<div class="k">Igjen per dag etter alle kostnader, før lønn <b>${nf(sum7)} kr siste 7 d</b></div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Resultat per dag siste 30 dager">${ax}${bars}${line}${xlabels()}</svg><div class="legend"><span><i style="background:var(--good)"></i>pluss</span><span><i style="background:var(--critical)"></i>minus</span><span><i style="background:var(--ink-2)"></i>7-dagers snitt</span><span>lys søyle = noe kost anslått/ukjent, eller i dag (ufullstendig)</span></div>`;
+        el.querySelectorAll("rect[data-i]").forEach(r => { r.onmousemove = e => { const d = D[+r.dataset.i]; showTip(e, `<b>${lbl(d)}</b>${+r.dataset.i === D.length - 1 ? " (i dag, ufullstendig)" : ""}<br>inn ${nf(d.eks)} kr eks mva<br>− varer og frakt ${nf(d.eks - d.db)} · markedsføring ${nf(d.kost)} · faste ${nf(d.fast)}<br><b>igjen ${nf(d.res)} kr</b>${d.kostUfull ? "<br>⚠ noe markedskost ukjent (regnet som 0)" : ""}${d.fastAnslag ? "<br>360-tillegg anslått for måneden" : ""}`); }; r.onmouseleave = hideTip; }); } } }
   // 2) CAC totalt-trend (7-dagers rullerende): all markedskost / alle nye kunder; punkt bare når Meta-kost er kjent alle 7 dager
   { const el = document.getElementById("chart-cac");
     const pts = D.map((d, i) => { if (i < 6) return null; const w = D.slice(i - 6, i + 1); if (w.some(r => r.meta === null)) return null; const s = w.reduce((x, r) => x + (r.kost || 0), 0), n = w.reduce((x, r) => x + r.nye, 0); return { s, n, days: w.length, ufull: w.some(r => r.kostUfull), cac: n ? s / n : null }; });
