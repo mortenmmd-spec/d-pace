@@ -165,7 +165,7 @@ async function fetchShopify() {
   // Kunder fra juni 2025 med full observasjonstid; dagens kostnader brukes også på eldre ordre.
   const kohort = { sub: { n: 0, db: 0 }, non: { n: 0, db: 0 } };
   { const per = {}; for (const o of hist.filter(ok).filter(o => amt(o) > 0 && o.customer?.id).sort((x, y) => Date.parse(x.created_at) - Date.parse(y.created_at))) (per[o.customer.id] ||= []).push(o);
-    for (const arr of Object.values(per)) { const f = Date.parse(arr[0].created_at); if (f < Date.parse("2025-06-01") || NOW - f < 180 * 864e5) continue;
+    for (const arr of Object.values(per)) { const f = Date.parse(arr[0].created_at); if (f < Date.parse("2025-06-01") || Date.parse(TODAY + "T00:00:00Z") - f < 180 * 864e5) continue;
       const g = kohort[tags(arr[0]).includes("subscription first order") ? "sub" : "non"]; g.n++; g.db += arr.filter(o => Date.parse(o.created_at) <= f + 180 * 864e5).reduce((x, o) => x + dbRest(o), 0); } }
   // salg per fylke fra leveringsadressens postnummer; bare aggregater forlater bygget (ingen adresser i HTML)
   const fylkeOf = zip => { const z = +zip; const r = KART.pn.find(([a, b]) => z >= a && z <= b); return r ? r[2] : null; };
