@@ -203,6 +203,10 @@ async function fetchShopify() {
   const ordreTotalt = okHist.length, forsteDag = okHist.map(o => osloDay(new Date(o.created_at))).sort()[0] || "";
   const iAar = Math.round(okHist.filter(o => osloDay(new Date(o.created_at)).slice(0, 4) === TODAY.slice(0, 4)).reduce((x, o) => x + amt(o), 0));
   const ordreIAar = okHist.filter(o => osloDay(new Date(o.created_at)).slice(0, 4) === TODAY.slice(0, 4)).length;
+  // solgte sjaktler (PACE01/PACE02) på samme ordregrunnlag som «Salg totalt»; varelinjer som er 100 % rabattert og refunderte enheter telles ikke
+  const sjaktlerBetalt = o => (o.line_items || []).filter(li => /^PACE0[12]$/.test(li.sku || "") && +li.price * li.quantity - (li.discount_allocations || []).reduce((x, d) => x + +d.amount, 0) > 0).reduce((x, li) => x + (li.current_quantity ?? li.quantity), 0);
+  const sjaktlerTotalt = okHist.reduce((x, o) => x + sjaktlerBetalt(o), 0);
+  const sjaktlerIAar = okHist.filter(o => osloDay(new Date(o.created_at)).slice(0, 4) === TODAY.slice(0, 4)).reduce((x, o) => x + sjaktlerBetalt(o), 0);
   const perDag = {};
   for (const o of okHist) { const d = osloDay(new Date(o.created_at)); if (d.slice(0, 4) === TODAY.slice(0, 4) && d < TODAY) perDag[d] = (perDag[d] || 0) + amt(o); }
   const rekord = Object.entries(perDag).reduce((b, [d, kr]) => kr > b.kr ? { d, kr: Math.round(kr) } : b, { d: "", kr: 0 });
@@ -237,7 +241,7 @@ async function fetchShopify() {
     for (const w of weeks.reverse()) { if ((+w.subscriptions_added || 0) > (+w.subscriptions_canceled || 0)) subRekke++; else break; }
     if (subActive !== null) { let live = subActive; for (const d of [...DAYS].reverse()) { daily[d].subLive = live; live -= (daily[d].subAdd || 0) - (daily[d].subCan || 0); } }
   } catch (e) { console.error("ShopifyQL utilgjengelig:", e.message); }
-  return { daily, lager, geo, kunder, perKunde, perKundeEks, ukedag: ukedagSnitt, histDag, subActive, subStatus, subStart, subStop, subAdd30, subCan30, subRekke, totalt, rekord, nyKunde30, subOrdreEks, subOrdreN: renOrders.length, ordreTotalt, forsteDag, iAar, ordreIAar, subRen42, subOrdre, nyeKunder: await fetchNyeKunder(SHOP, H), kohort, at: NOW.toISOString() };
+  return { daily, lager, geo, kunder, perKunde, perKundeEks, ukedag: ukedagSnitt, histDag, subActive, subStatus, subStart, subStop, subAdd30, subCan30, subRekke, totalt, sjaktlerTotalt, sjaktlerIAar, rekord, nyKunde30, subOrdreEks, subOrdreN: renOrders.length, ordreTotalt, forsteDag, iAar, ordreIAar, subRen42, subOrdre, nyeKunder: await fetchNyeKunder(SHOP, H), kohort, at: NOW.toISOString() };
 }
 
 // nye kunder per Oslo-dag (førstegangsordre, Shopify kundereise): antall, abonnementsstartere og dekningsbidrag på første ordre,
@@ -500,6 +504,7 @@ const estCard = () => { const w = win(EST_DAGER), snitt = sum(w, "oms") / EST_DA
 const tolvCard = () => { const n = sum(win(30), "oms") / 30, forrige = sum(series.slice(-61, -31), "oms") / 30, endr = forrige ? n / forrige - 1 : null, t60 = sum(win(60), "oms") / 60;
   return card("Neste 12 mnd", nf(n * 365) + " kr", `dagens takt (30 d) ${nf(n)} kr/dag${endr != null ? ` · ${endr >= 0 ? "+" : "−"}${Math.abs(Math.round(endr * 100))} % mot 30 d før` : ""} · 60 d-takt ${nf(t60 * 365)}`, "c-salg",
     `Salg inkl. mva de neste 12 månedene hvis vi holder takten fra de siste 30 hele dagene (${nf(n)} kr per dag × 365). De 30 dagene før var ${nf(forrige)} kr per dag. Ikke justert for sesong, Black Friday eller jul, og ingen fremskriving av vekst: økningen nå kommer mest av at Meta-annonsene startet igjen 29.09, og sommeren lå høyere. Med 60-dagers takt: ${nf(t60 * 365)} kr.`); };
+const sjaktlerCard = () => card("Sjaktler solgt totalt", nf(shop.sjaktlerTotalt) + " stk", `i år ${nf(shop.sjaktlerIAar)} stk · salg over 0 kr`, "c-salg", `Sjaktler solgt over 0 kr i hele historikken, på samme ordre som «Salg totalt». Flasker, gratis varelinjer og refunderte enheter er ikke med. Ordre registrert til 0 kr i Shopify er ikke med, heller ikke B2B som faktureres utenfor Shopify.`);
 const totaltCard = () => card("Salg totalt", nf(shop.totalt) + " kr", `${nf(shop.ordreTotalt)} ordre siden ${shop.forsteDag ? shop.forsteDag.slice(8, 10) + "." + shop.forsteDag.slice(5, 7) + "." + shop.forsteDag.slice(0, 4) : "start"} · i år ${nf(shop.iAar)} kr`, "c-salg", `All ordreverdi inkl. mva og frakt, betalte ordre, hele historikken (${nf(shop.ordreTotalt)} ordre). Hittil i ${TODAY.slice(0, 4)}: ${nf(shop.iAar)} kr fra ${nf(shop.ordreIAar)} ordre. Seeding og kansellerte ordre er ikke med.`);
 const salgCard = (n) => { const w = win(n); return card(`Salg ${n} d`, nf(sum(w, "oms")) + " kr", `${sum(w, "ordre")} ordre · ${sum(w, "nye")} nye`, "c-salg", `Ordreverdi inkl. mva siste ${n} hele dager t.o.m. i går, ${sum(w, "nye")} nye kunder`); };
 const totalCard = (n = 30, m = 7) => { const t = totalTall(n), t7 = totalTall(m);
@@ -649,7 +654,7 @@ const kanalTabell = (() => {
 // tallkortene i fire faner (Morten 03.11.2026); ⚠ på fanenavnet hvis et kort i fanen er utdatert
 const TABS = [
   ["res", "Resultat", resCard(30) + resCard(7) + innCard(30) + innUtCard(30)],
-  ["salg", "Salg", todayCard() + salgCard(7) + salgCard(30) + totaltCard() + estCard() + tolvCard()
+  ["salg", "Salg", todayCard() + salgCard(7) + salgCard(30) + totaltCard() + sjaktlerCard() + estCard() + tolvCard()
     + card("Unike kunder", nf(shop.kunder), `+${sum(win(30), "nye")} nye siste 30 d`, "c-salg", "Kundeprofiler med minst én betalt ordre i hele historikken (uten test- og seeding-ordre)") + subCard],
   ["mf", "Markedsføring", adsCard(7) + adsCard(30) + totalCard() + merCard()],
   ["drift", "Drift", henvCard()
