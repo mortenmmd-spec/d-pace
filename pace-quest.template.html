@@ -350,6 +350,7 @@
   </div>
   <div class="tab-panel" id="tab-drift" data-tab="drift" role="tabpanel" hidden>
     <section class="stats"><!--STATS_drift--><!--/STATS_drift--></section>
+    <section class="chart" id="avtaler" style="margin-bottom:10px"></section>
   </div>
   <details class="about"><summary>Om tallene ▾</summary><div id="stats-note"><!--STATSNOTE--><!--/STATSNOTE--></div></details>
   <div class="stale" id="stale" hidden></div>
@@ -451,10 +452,11 @@ const isDone = t => t.sec === "Ferdig";
 const isMile = t => t.kat === "Milepæl";
 const isRole = t => t.kat === "Rolle";
 const isB2B = t => /^b2b-kunder$/i.test((t.txt || "").trim());
+const isAvtaler = t => /^avtaler$/i.test((t.txt || "").trim());
 const isCoins = t => /^coins$/i.test((t.txt || "").trim());
 const isUke = t => /^ukesjekk$/i.test((t.txt || "").trim()); // logg: «2026-W45 Morten 2026-11-04 13:55»
 const isGoal = t => /^ukens mål$/i.test((t.txt || "").trim());
-const quests = () => tasks.filter(t => !isMile(t) && !isRole(t) && !isB2B(t) && !isCoins(t) && !isUke(t) && !isGoal(t));
+const quests = () => tasks.filter(t => !isMile(t) && !isRole(t) && !isB2B(t) && !isAvtaler(t) && !isCoins(t) && !isUke(t) && !isGoal(t));
 const isOver = t => !!t.due && !isDone(t) && t.due < todayOslo();
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const owners = () => project?.ansvarligField?.options.map(o => o.name) || OWNERS_FALLBACK;
@@ -645,7 +647,7 @@ function render() {
   // ukjente statuser (nye kolonner på boardet) vises sist
   const unknown = q.filter(t => !SECTIONS.includes(t.sec) && passes(t));
   for (const sec of [...new Set(unknown.map(t => t.sec))]) { const items = unknown.filter(t => t.sec === sec); const col = document.createElement("div"); col.className = "col"; col.innerHTML = `<h2>${esc(sec)}<span class="count">${items.length}</span></h2>`; for (const t of items) col.appendChild(taskCard(t)); board.appendChild(col); }
-  renderMiles(); renderRoles(); renderB2B(); renderCoins(); renderUke(); renderFokus(); visGjg(); renderHero(); renderOwnerSelect();
+  renderMiles(); renderRoles(); renderB2B(); renderAvtaler(); renderCoins(); renderUke(); renderFokus(); visGjg(); renderHero(); renderOwnerSelect();
 }
 
 function renderFilters() {
@@ -943,6 +945,16 @@ function renderB2B() {
   const rows = (card.body || "").split(/\r?\n/).map(l => l.split("|").map(s => s.trim())).filter(c => c.length >= 2 && c[0] && !/^én kunde per linje/i.test(c[0]));
   el.innerHTML = `<div class="k">B2B-kunder <b>${rows.length}</b><span class="sec-sub" style="margin-left:auto">rediger kortet «B2B-kunder» på boardet</span></div>`
     + (rows.length ? `<table class="b2b"><tr><th>Kunde</th><th>Status</th><th>Kontakt</th></tr>${rows.map(c => `<tr><td>${esc(c[0])}</td><td>${esc(c[1] || "")}</td><td>${esc(c[2] || "")}</td></tr>`).join("")}</table>` : `<div class="empty">Ingen kunder i kortet ennå.</div>`);
+}
+
+// AVTALER (fra kortet «Avtaler» på boardet, én avtale per linje: Partner | Type | Vilkår | Kode | Status)
+function renderAvtaler() {
+  const el = document.getElementById("avtaler"); if (!el) return;
+  const card = tasks.find(isAvtaler);
+  if (!card) { el.innerHTML = `<div class="k">Avtaler</div><div class="empty">Lag et kort som heter «Avtaler» på boardet.</div>`; return; }
+  const rows = (card.body || "").split(/\r?\n/).map(l => l.split("|").map(s => s.trim())).filter(c => c.length >= 2 && c[0] && !/^(partner|én avtale per linje)/i.test(c[0]));
+  el.innerHTML = `<div class="k">Avtaler <b>${rows.length}</b><span class="sec-sub" style="margin-left:auto">rediger kortet «Avtaler» på boardet</span></div>`
+    + (rows.length ? `<table class="b2b"><tr><th>Partner</th><th>Type</th><th>Vilkår</th><th>Kode</th><th>Status</th></tr>${rows.map(c => `<tr><td>${esc(c[0])}</td><td>${esc(c[1] || "")}</td><td>${esc(c[2] || "")}</td><td>${esc(c[3] || "")}</td><td>${esc(c[4] || "")}</td></tr>`).join("")}</table>` : `<div class="empty">Ingen avtaler i kortet ennå.</div>`);
 }
 
 function renderRoles() {
