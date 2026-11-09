@@ -362,7 +362,7 @@ async function gmailAuth() {
   if (!tj.access_token) throw new Error("Gmail: token-feil " + (tj.error || tr.status));
   return { Authorization: "Bearer " + tj.access_token };
 }
-const AUTO_FROM = /no-?reply|notification|mailer-daemon|facebookmail|business-updates\.facebook|@google\.com|@accounts\.google|@shopify\.com|@stripe\.com|@klarna|@vipps|@dnb\.no|@360logistics|@bring\.com|@posten\.no|@postnord|newsletter|nyhetsbrev|info@|support@|kundeservice@|hello@|team@|@linkedin|@meta\.com|@fiken|@tripletex|@github\.com/i;
+const AUTO_FROM = /no-?reply|notification|mailer-daemon|facebookmail|business-updates\.facebook|@google\.com|@accounts\.google|@shopify\.com|@stripe\.com|@klarna|@vipps|@dnb\.no|@360logistics|@bring\.com|@posten\.no|@postnord|newsletter|nyhetsbrev|info@|support@|kundeservice@|hello@|team@|@linkedin|@meta\.com|@fiken|@tripletex|@github\.com|production@adtraction\.com/i; // Adtraction månedsrapporter (Morten 09.11.2026)
 const OSS = /@getpace\.no/i; // hei@ og aliasene (morten@ osv.)
 // selve svarteksten i en melding (uten sitert tråd): text/plain, ellers html uten tagger; kuttes ved «skrev»/«wrote»-linjen og >-linjer
 async function svartekst(G, msgId) {
