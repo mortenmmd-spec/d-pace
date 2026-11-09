@@ -785,7 +785,7 @@ const FOKUS_PEOPLE = ["Anders", "Victoria", "Anna", "Martin", "Morten"];
 function renderFokus() {
   const el = document.getElementById("fokus-rows"); if (!el || !live) return;
   const today = todayOslo(), items = quests().filter(t => t.fokus && !isDone(t)).sort((a, b) => (a.due || "9999") < (b.due || "9999") ? -1 : 1);
-  const dueTxt = d => { if (!d) return `<span class="f-due f-miss">sett dato</span>`; const n = Math.round((Date.parse(d) - Date.parse(today)) / 864e5); return `<span class="f-due${n < 0 ? " f-late" : n <= 3 ? " f-soon" : ""}">${d.slice(8, 10)}.${d.slice(5, 7)}${n < 0 ? ` · ${-n} d over` : n === 0 ? " · i dag" : ` · ${n} d`}</span>`; };
+  const dueTxt = d => { if (!d) return ""; const n = Math.round((Date.parse(d) - Date.parse(today)) / 864e5); return `<span class="f-due${n < 0 ? " f-late" : n <= 3 ? " f-soon" : ""}">${d.slice(8, 10)}.${d.slice(5, 7)}${n < 0 ? ` · ${-n} d over` : n === 0 ? " · i dag" : ` · ${n} d`}</span>`; };
   el.innerHTML = FOKUS_PEOPLE.map(p => { const mine = items.filter(t => t.owner.split("&").map(s => s.trim()).includes(p)); return `<div class="f-row"><div class="f-who">${esc(p)}</div><div class="f-what">${mine.length ? mine.map(t => `<span class="f-item">${esc(t.txt)} ${dueTxt(t.due)}</span>`).join("") : `<span class="f-none">ingen fokusoppgave</span>`}</div></div>`; }).join("");
 }
 function renderUke() {
