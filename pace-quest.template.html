@@ -78,14 +78,9 @@
   .f-due { font-weight: 500; color: var(--ink-muted); font-size: 0.8rem; margin-left: 6px; }
   .f-due.f-soon { color: var(--warning); } .f-due.f-late { color: #e5534b; } .f-due.f-miss { color: var(--warning); font-style: italic; }
   .f-none { font-weight: 400; color: var(--ink-muted); font-size: 0.85rem; }
-  /* ---------- dagens gjøremål ---------- */
-  .d-row { display: flex; gap: 10px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--hairline); }
-  .d-row:last-child { border-bottom: 0; }
-  .d-box { flex: 0 0 auto; background: none; border: 1px solid var(--hairline); border-radius: 6px; color: var(--ink-muted); font: inherit; font-size: 0.8rem; width: 24px; height: 22px; padding: 0; cursor: default; text-align: center; }
-  button.d-box { cursor: pointer; } button.d-box:hover { color: var(--ink); border-color: var(--ink-muted); }
-  .d-txt { flex: 1; font-size: 0.95rem; font-weight: 600; color: var(--ink); }
-  .d-who { flex: 0 0 auto; font-size: 0.72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-muted); }
-  .d-row .f-due { margin-left: 0; }
+  /* ---------- dagens gjøremål (under kanban) ---------- */
+  .dagens-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 8px; margin: 0 0 18px; }
+  .dagens-list .empty { color: var(--ink-muted); font-size: 0.85rem; padding: 6px 0; }
   /* ---------- tall ---------- */
   .sec-h { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-2); margin: 22px 0 10px; display: flex; align-items: center; gap: 10px; }
   .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 0 0 12px; }
@@ -389,6 +384,8 @@
 
   <section class="board" id="board"></section>
   <div class="uke-bar" id="uke-bar"></div>
+  <div class="sec-h">Dagens gjøremål <span class="sec-sub">Morten og Anders · oppgaver med frist i dag eller passert</span></div>
+  <section class="dagens-list" id="dagens-rows"></section>
 
   <div class="sec-h miles-h">Milepæler</div>
   <section class="miles" id="miles"></section>
@@ -439,9 +436,9 @@ const SECTION_META = {
 };
 const OWNER_COLOR = {
   "Morten": "var(--blue)", "Martin": "var(--aqua)", "Victoria": "var(--magenta)", "Anders": "var(--aqua)", "Anna": "var(--orange)", "Anna & Victoria": "var(--magenta)",
-  "Morten & Martin": "var(--aqua)", "Morten & Victoria": "var(--magenta)", "Anders & Martin": "var(--aqua)", "Alle": "var(--ink-2)", "Ikke fordelt": "var(--ink-muted)",
+  "Morten & Martin": "var(--aqua)", "Morten & Victoria": "var(--magenta)", "Anders & Martin": "var(--aqua)", "Morten & Anders": "var(--aqua)", "Alle": "var(--ink-2)", "Ikke fordelt": "var(--ink-muted)",
 };
-const OWNERS_FALLBACK = ["Morten", "Victoria", "Martin", "Anders", "Anna", "Morten & Martin", "Morten & Victoria", "Anders & Martin", "Anna & Victoria", "Alle", "Ikke fordelt"];
+const OWNERS_FALLBACK = ["Morten", "Victoria", "Martin", "Anders", "Anna", "Morten & Martin", "Morten & Victoria", "Anders & Martin", "Anna & Victoria", "Morten & Anders", "Alle", "Ikke fordelt"];
 
 /* ============================================================
    STATE
@@ -791,13 +788,13 @@ const ukeSett = body => { const k = isoUke().key, s = {}; for (const l of coinLi
 let ukeBusy = false;
 // fokus-stripen tegnes på nytt fra boardet i live-modus, så endringer vises med en gang (bygget lager startversjonen)
 const FOKUS_PEOPLE = ["Anders", "Victoria", "Anna", "Martin", "Morten"];
-// dagens gjøremål (Morten 10.11.2026): oppgaver med frist i dag eller passert, ikke Ferdig; ✓ markerer ferdig
+// dagens gjøremål (Morten 10.11.2026): under kanban, bare Morten og Anders; vanlige oppgavekort med frist i dag eller passert, ikke Ferdig
+const DAGENS_PEOPLE = ["Morten", "Anders"];
 function renderDagens() {
-  const el = document.getElementById("dagens-rows"); if (!el || !live) return;
-  const today = todayOslo(), items = quests().filter(t => t.due && t.due <= today && !isDone(t) && t.kat === "Oppgave").sort((a, b) => a.due.localeCompare(b.due) || a.owner.localeCompare(b.owner));
-  const over = d => { const n = Math.round((Date.parse(today) - Date.parse(d)) / 864e5); return `<span class="f-due f-late">${d.slice(8, 10)}.${d.slice(5, 7)} · ${n} d over</span>`; };
-  el.innerHTML = items.length ? items.map(t => `<div class="d-row" data-id="${esc(t.id)}"><button class="d-box" title="Marker ferdig" aria-label="Marker ferdig">✓</button><span class="d-txt">${esc(t.txt)}</span><span class="d-who">${esc(t.owner)}</span>${t.due < today ? over(t.due) : ""}</div>`).join("") : `<div class="f-none" style="padding:8px 0">Ingen oppgaver med frist i dag</div>`;
-  el.querySelectorAll(".d-row").forEach(r => { r.querySelector(".d-box").onclick = () => toggleDone(r.dataset.id); });
+  const el = document.getElementById("dagens-rows"); if (!el) return;
+  const today = todayOslo(), items = quests().filter(t => t.due && t.due <= today && !isDone(t) && t.owner.split("&").some(s => DAGENS_PEOPLE.includes(s.trim()))).sort((a, b) => a.due.localeCompare(b.due));
+  el.innerHTML = items.length ? "" : `<div class="empty">Ingen oppgaver med frist i dag. Sett frist «I dag» på en oppgave for å legge den her.</div>`;
+  for (const t of items) el.appendChild(taskCard(t));
 }
 function renderFokus() {
   const el = document.getElementById("fokus-rows"); if (!el || !live) return;
