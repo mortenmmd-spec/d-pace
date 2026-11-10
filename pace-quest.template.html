@@ -78,6 +78,14 @@
   .f-due { font-weight: 500; color: var(--ink-muted); font-size: 0.8rem; margin-left: 6px; }
   .f-due.f-soon { color: var(--warning); } .f-due.f-late { color: #e5534b; } .f-due.f-miss { color: var(--warning); font-style: italic; }
   .f-none { font-weight: 400; color: var(--ink-muted); font-size: 0.85rem; }
+  /* ---------- dagens gjøremål ---------- */
+  .d-row { display: flex; gap: 10px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--hairline); }
+  .d-row:last-child { border-bottom: 0; }
+  .d-box { flex: 0 0 auto; background: none; border: 1px solid var(--hairline); border-radius: 6px; color: var(--ink-muted); font: inherit; font-size: 0.8rem; width: 24px; height: 22px; padding: 0; cursor: default; text-align: center; }
+  button.d-box { cursor: pointer; } button.d-box:hover { color: var(--ink); border-color: var(--ink-muted); }
+  .d-txt { flex: 1; font-size: 0.95rem; font-weight: 600; color: var(--ink); }
+  .d-who { flex: 0 0 auto; font-size: 0.72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-muted); }
+  .d-row .f-due { margin-left: 0; }
   /* ---------- tall ---------- */
   .sec-h { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-2); margin: 22px 0 10px; display: flex; align-items: center; gap: 10px; }
   .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 0 0 12px; }
@@ -647,7 +655,7 @@ function render() {
   // ukjente statuser (nye kolonner på boardet) vises sist
   const unknown = q.filter(t => !SECTIONS.includes(t.sec) && passes(t));
   for (const sec of [...new Set(unknown.map(t => t.sec))]) { const items = unknown.filter(t => t.sec === sec); const col = document.createElement("div"); col.className = "col"; col.innerHTML = `<h2>${esc(sec)}<span class="count">${items.length}</span></h2>`; for (const t of items) col.appendChild(taskCard(t)); board.appendChild(col); }
-  renderMiles(); renderRoles(); renderB2B(); renderAvtaler(); renderCoins(); renderUke(); renderFokus(); visGjg(); renderHero(); renderOwnerSelect();
+  renderMiles(); renderRoles(); renderB2B(); renderAvtaler(); renderCoins(); renderUke(); renderFokus(); renderDagens(); visGjg(); renderHero(); renderOwnerSelect();
 }
 
 function renderFilters() {
@@ -712,10 +720,11 @@ function ownerMenu(anchor, t) {
 function dueEditor(anchor, t) {
   const pop = document.getElementById("pop");
   pop.innerHTML = `<div style="padding:4px 6px;font-size:.8rem;color:var(--ink-2)">Frist</div><div style="padding:2px 6px"><input type="date" id="due-input" value="${esc(t.due)}" style="font:inherit;background:var(--surface);color:var(--ink);border:1px solid var(--hairline);border-radius:6px;padding:3px 6px"></div>` +
-    `<button id="due-ok">Lagre</button><button id="due-clear">Fjern frist</button><button id="due-cancel">Avbryt</button>`;
+    `<button id="due-ok">Lagre</button><button id="due-today">I dag (dagens gjøremål)</button><button id="due-clear">Fjern frist</button><button id="due-cancel">Avbryt</button>`;
   const inp = pop.querySelector("#due-input");
   pop.querySelector("#due-ok").onclick = () => { closePop(); setDue(t.id, inp.value); };
   pop.querySelector("#due-clear").onclick = () => { closePop(); setDue(t.id, ""); };
+  pop.querySelector("#due-today").onclick = () => { closePop(); setDue(t.id, todayOslo()); };
   pop.querySelector("#due-cancel").onclick = closePop;
   inp.onkeydown = e => { if (e.key === "Enter") { closePop(); setDue(t.id, inp.value); } };
   openPop(pop, anchor); inp.focus();
@@ -782,6 +791,14 @@ const ukeSett = body => { const k = isoUke().key, s = {}; for (const l of coinLi
 let ukeBusy = false;
 // fokus-stripen tegnes på nytt fra boardet i live-modus, så endringer vises med en gang (bygget lager startversjonen)
 const FOKUS_PEOPLE = ["Anders", "Victoria", "Anna", "Martin", "Morten"];
+// dagens gjøremål (Morten 10.11.2026): oppgaver med frist i dag eller passert, ikke Ferdig; ✓ markerer ferdig
+function renderDagens() {
+  const el = document.getElementById("dagens-rows"); if (!el || !live) return;
+  const today = todayOslo(), items = quests().filter(t => t.due && t.due <= today && !isDone(t) && t.kat === "Oppgave").sort((a, b) => a.due.localeCompare(b.due) || a.owner.localeCompare(b.owner));
+  const over = d => { const n = Math.round((Date.parse(today) - Date.parse(d)) / 864e5); return `<span class="f-due f-late">${d.slice(8, 10)}.${d.slice(5, 7)} · ${n} d over</span>`; };
+  el.innerHTML = items.length ? items.map(t => `<div class="d-row" data-id="${esc(t.id)}"><button class="d-box" title="Marker ferdig" aria-label="Marker ferdig">✓</button><span class="d-txt">${esc(t.txt)}</span><span class="d-who">${esc(t.owner)}</span>${t.due < today ? over(t.due) : ""}</div>`).join("") : `<div class="f-none" style="padding:8px 0">Ingen oppgaver med frist i dag</div>`;
+  el.querySelectorAll(".d-row").forEach(r => { r.querySelector(".d-box").onclick = () => toggleDone(r.dataset.id); });
+}
 function renderFokus() {
   const el = document.getElementById("fokus-rows"); if (!el || !live) return;
   const today = todayOslo(), items = quests().filter(t => t.fokus && !isDone(t)).sort((a, b) => (a.due || "9999") < (b.due || "9999") ? -1 : 1);

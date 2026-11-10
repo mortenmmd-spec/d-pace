@@ -691,7 +691,12 @@ const PERSONER = ["Anders", "Victoria", "Anna", "Martin", "Morten"];
 const fokusItems = tasks.filter(t => t.fokus && t.sec !== "Ferdig").sort((a, b) => (a.due || "9999") < (b.due || "9999") ? -1 : 1);
 const dueTxt = d => { if (!d) return ""; const n = Math.round((Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) - Date.UTC(+TODAY.slice(0, 4), +TODAY.slice(5, 7) - 1, +TODAY.slice(8, 10))) / 864e5); return `<span class="f-due${n < 0 ? " f-late" : n <= 3 ? " f-soon" : ""}">${fmtD(d)}${n < 0 ? ` · ${-n} d over` : n === 0 ? " · i dag" : ` · ${n} d`}</span>`; };
 const fokusRows = PERSONER.map(pn => { const mine = fokusItems.filter(t => t.owner.split(" & ").includes(pn)); return `<div class="f-row"><div class="f-who">${pn}</div><div class="f-what">${mine.length ? mine.map(t => `<span class="f-item">${esc(t.txt)} ${dueTxt(t.due)}</span>`).join("") : `<span class="f-none">ingen fokusoppgave</span>`}</div></div>`; }).join("");
-const fokusHtml = `<div class="sec-h">Fokus nå <span class="sec-sub">én oppgave per person · trykk 🎯 på en oppgave for å sette eller fjerne fokus</span></div><section class="fokus"><div id="fokus-rows">${fokusRows}</div><div class="uke-status" id="uke-status"></div></section>`;
+const fokusHtmlInner = `<div class="sec-h">Fokus nå <span class="sec-sub">én oppgave per person · trykk 🎯 på en oppgave for å sette eller fjerne fokus</span></div><section class="fokus"><div id="fokus-rows">${fokusRows}</div><div class="uke-status" id="uke-status"></div></section>`;
+
+// ---------- 6c. Dagens gjøremål (Morten 10.11.2026): oppgaver med frist i dag eller passert, ikke Ferdig ----------
+const dagensItems = tasks.filter(t => t.due && t.due <= TODAY && t.sec !== "Ferdig" && t.kat === "Oppgave").sort((a, b) => a.due.localeCompare(b.due) || a.owner.localeCompare(b.owner));
+const dagensRows = dagensItems.length ? dagensItems.map(t => `<div class="d-row"><span class="d-box">○</span><span class="d-txt">${esc(t.txt)}</span><span class="d-who">${esc(t.owner)}</span>${t.due < TODAY ? dueTxt(t.due) : ""}</div>`).join("") : `<div class="f-none" style="padding:8px 0">Ingen oppgaver med frist i dag</div>`;
+const fokusHtml = `<div class="sec-h">Dagens gjøremål <span class="sec-sub">oppgaver med frist i dag eller passert · sett frist «I dag» på en oppgave for å legge den her</span></div><section class="fokus dagens"><div id="dagens-rows">${dagensRows}</div></section>` + fokusHtmlInner;
 
 // ---------- 7. Bygg HTML ----------
 let html = readFileSync(TEMPLATE, "utf8");
