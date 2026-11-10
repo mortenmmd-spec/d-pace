@@ -121,6 +121,16 @@
   .b2b th { text-align: left; font-weight: 500; color: var(--ink-muted); font-size: 0.72rem; padding: 4px 10px 6px 0; border-bottom: 1px solid var(--hairline); }
   .b2b td { padding: 7px 10px 7px 0; border-bottom: 1px solid var(--hairline); vertical-align: top; color: var(--ink-2); }
   .b2b td:first-child { color: var(--ink); font-weight: 600; white-space: nowrap; }
+  .arshjul { margin-bottom: 10px; }
+  .arshjul > summary { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 10px; padding: 2px 0 4px; }
+  .arshjul > summary::-webkit-details-marker { display: none; }
+  .arshjul .arshjul-vis { margin-left: auto; }
+  .arshjul[open] .arshjul-vis { visibility: hidden; }
+  .arshjul-scroll { overflow-x: auto; }
+  .arshjul .b2b td:nth-child(2) { color: var(--ink); font-weight: 600; }
+  .arshjul .b2b td:first-child { font-weight: 400; color: var(--ink-2); }
+  .arshjul tr.passert td { opacity: .45; }
+  .arshjul tr.neste td { color: var(--ink); }
   @media (max-width: 640px) { .b2b tr { display: grid; grid-template-columns: 1fr; padding: 6px 0; border-bottom: 1px solid var(--hairline); } .b2b th { display: none; } .b2b td { border: 0; padding: 1px 0; } }
   .geo { display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 560px); gap: 28px; align-items: start; }
   @media (max-width: 700px) { .geo { grid-template-columns: 1fr; } .geo svg { max-width: 320px; margin: 0 auto; display: block; } }
@@ -392,6 +402,50 @@
 
   <div class="sec-h" id="roles-h">Roller (løpende ansvar)</div>
   <section class="roles" id="roles"></section>
+
+  <div class="sec-h" id="arshjul-h">Årshjul: arrangementer <span class="sec-sub">nov 2026 – nov 2027 · 20 stk · utkast</span></div>
+  <details class="chart arshjul" id="arshjul">
+    <summary><span class="k">Neste <b id="arshjul-neste"></b></span><span class="sec-sub arshjul-vis">vis alle ▾</span></summary>
+    <div class="arshjul-scroll">
+      <table class="b2b">
+        <tr><th>Dato</th><th>Arrangement</th><th>Sted</th><th>Form</th><th>Merknad</th></tr>
+        <tr data-slutt="2026-11-22" data-navn="Bislett 24-timers" data-dato="21.–22.11.26"><td>21.–22.11.26</td><td>Bislett 24-timers</td><td>Bislett</td><td>Ernæringsbidrag til løpere</td><td>150 ultraløpere, kort frist</td></tr>
+        <tr data-slutt="2027-01-17" data-navn="RunHub" data-dato="16.–17.01"><td>16.–17.01</td><td>RunHub</td><td>NOVA Spektrum</td><td>Stand</td><td>Ny løpe-/treningsmesse, påmelding åpen</td></tr>
+        <tr data-slutt="2027-03-14" data-navn="Camp Villmark" data-dato="12.–14.03"><td>12.–14.03</td><td>Camp Villmark</td><td>NOVA Spektrum</td><td>Stand</td><td>24 097 besøkende 2025, bindende påmelding</td></tr>
+        <tr data-slutt="2027-04-11" data-navn="Squadr Corporate Cup" data-dato="9.–11.04"><td>9.–11.04</td><td>Squadr Corporate Cup</td><td>Vallhall Arena</td><td>Drikke i restitusjonssonen</td><td>32 bedriftslag</td></tr>
+        <tr data-slutt="2027-04-24" data-navn="Sentrumsløpet" data-dato="24.04"><td>24.04</td><td>Sentrumsløpet</td><td>Oslo sentrum</td><td>Stand Spikersuppa</td><td>16 000 på 10 km 2026</td></tr>
+        <tr data-slutt="2027-05-01" data-navn="Råskinnet" data-dato="1.05"><td>1.05</td><td>Råskinnet</td><td>Sognsvann</td><td>Servering ved mål</td><td></td></tr>
+        <tr data-slutt="2027-05-08" data-navn="Holmenkollstafetten" data-dato="8.05"><td>8.05</td><td>Holmenkollstafetten</td><td>Bislett</td><td>Stand / bedriftslag</td><td>~80 000 deltakere</td></tr>
+        <tr data-slutt="2027-05-22" data-navn="KK-mila" data-dato="22.05"><td>22.05</td><td>KK-mila</td><td>Oslo</td><td>Stand + goodiebag</td><td></td></tr>
+        <tr data-slutt="2027-05-26" data-navn="Fornebuløpet" data-dato="ca. 26.05"><td>ca. 26.05</td><td>Fornebuløpet</td><td>Fornebu</td><td>Stand ved mål</td><td>2027-dato ikke publisert (2026: 27.05)</td></tr>
+        <tr data-slutt="2027-06-19" data-navn="Sommernattsløpet" data-dato="19.06"><td>19.06</td><td>Sommernattsløpet</td><td>Oslo sentrum</td><td>Stand ved mål</td><td></td></tr>
+        <tr data-slutt="2027-08-29" data-navn="NM sandvolleyball senior" data-dato="aug"><td>aug</td><td>NM sandvolleyball senior</td><td>Voldsløkka</td><td>Samarbeid via OSVB</td><td>2027-dato ikke publisert</td></tr>
+        <tr data-slutt="2027-09-03" data-navn="Studentslippet (SiO)" data-dato="aug"><td>aug</td><td>Studentslippet (SiO)</td><td>Oslo</td><td>Smaksprøver på aktivitet</td><td>2027-dato ikke publisert</td></tr>
+        <tr data-slutt="2027-09-04" data-navn="Jentemila" data-dato="3.–4.09"><td>3.–4.09</td><td>Jentemila</td><td>Bislett</td><td>Eksisterende relasjon</td><td>Samme helg som Toughest</td></tr>
+        <tr data-slutt="2027-09-04" data-navn="Toughest Oslo" data-dato="4.09"><td>4.09</td><td>Toughest Oslo</td><td>Holmenkollen</td><td>Partner, 18 m² stand + salg</td><td></td></tr>
+        <tr data-slutt="2027-09-18" data-navn="Oslo Maraton expo" data-dato="18.09"><td>18.09</td><td>Oslo Maraton expo</td><td>Rådhusplassen</td><td>Expo-stand</td><td>Maxim på drikkestasjonene</td></tr>
+        <tr data-slutt="2027-09-26" data-navn="HYROX Oslo" data-dato="sept"><td>sept</td><td>HYROX Oslo</td><td>Oslo</td><td>Sponsor/partner</td><td>2027-dato ikke publisert (2026: 25.–27.09)</td></tr>
+        <tr data-slutt="2027-09-30" data-navn="Treningskonferansen" data-dato="30.09"><td>30.09</td><td>Treningskonferansen</td><td>NOVA Spektrum</td><td>B2B-stand mot gymkjeder</td><td>Virke Arena</td></tr>
+        <tr data-slutt="2027-10-02" data-navn="IFBB NM fitness" data-dato="2.10"><td>2.10</td><td>IFBB NM fitness</td><td>Kolben, Kolbotn</td><td>Stand</td><td>Sesongpakke m/stand 10 000 kr</td></tr>
+        <tr data-slutt="2027-10-16" data-navn="Hytteplanmila" data-dato="16.10"><td>16.10</td><td>Hytteplanmila</td><td>Hole</td><td>Stand ved mål</td><td>Fuel of Norway i startpakken før</td></tr>
+        <tr data-slutt="2027-11-07" data-navn="Oslo Throwdown / WODLA Expo" data-dato="5.–7.11"><td>5.–7.11</td><td>Oslo Throwdown / WODLA Expo</td><td>Oslo</td><td>Vendor-stand</td><td>NOCCO partner hos WODLA</td></tr>
+      </table>
+    </div>
+    <div class="sec-sub" style="margin:6px 0 4px">Utelatt pga. konkurrerende sportsdrikk: Holmenkollmarsjen, Ecotrail, Nordmarka Skogsmaraton, Oslo Triathlon, NM padel, Rosa sløyfe. Barn som hovedmålgruppe: Norway Cup, Fredrikstad Cup.</div>
+  </details>
+  <script>
+// ÅRSHJUL: dim passerte arrangementer, vis neste i oppsummeringen
+(function () {
+  const idag = new Date().toISOString().slice(0, 10);
+  let neste = null;
+  for (const tr of document.querySelectorAll("#arshjul tr[data-slutt]")) {
+    if (tr.dataset.slutt < idag) tr.classList.add("passert");
+    else if (!neste) { neste = tr; tr.classList.add("neste"); }
+  }
+  const el = document.getElementById("arshjul-neste");
+  if (el) el.textContent = neste ? neste.dataset.navn + " · " + neste.dataset.dato : "ingen flere i perioden";
+})();
+  </script>
 
   <div class="coins" id="coins"></div>
 
