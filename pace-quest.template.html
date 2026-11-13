@@ -69,11 +69,12 @@
   .banner a { color: var(--blue); }
 
   /* ---------- fokus nå ---------- */
-  .fokus { background: var(--surface); border: 1px solid var(--hairline); border-radius: 14px; padding: 6px 16px; margin: 0 0 6px; }
-  .f-row { display: flex; gap: 14px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--hairline); }
-  .f-row:last-child { border-bottom: 0; }
-  .f-who { flex: 0 0 84px; font-size: 0.72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-muted); }
-  .f-what { flex: 1; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 0.95rem; font-weight: 600; color: var(--ink); }
+  /* kompakt: personene side om side, ikke én rad per person over hele bredden (Morten 13.11.2026) */
+  .fokus { background: var(--surface); border: 1px solid var(--hairline); border-radius: 14px; padding: 8px 14px; margin: 0 0 6px; }
+  #fokus-rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 6px 16px; }
+  .f-row { display: flex; flex-direction: column; gap: 2px; padding: 2px 0; min-width: 0; }
+  .f-who { font-size: 0.68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-muted); }
+  .f-what { display: flex; flex-direction: column; gap: 2px; font-size: 0.85rem; font-weight: 600; color: var(--ink); line-height: 1.3; }
   .f-item { white-space: normal; } .f-due { white-space: nowrap; }
   .f-due { font-weight: 500; color: var(--ink-muted); font-size: 0.8rem; margin-left: 6px; }
   .f-due.f-soon { color: var(--warning); } .f-due.f-late { color: #e5534b; } .f-due.f-miss { color: var(--warning); font-style: italic; }
