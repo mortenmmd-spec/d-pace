@@ -454,13 +454,13 @@ let kanalKost = { adtraction: { fast: 995, provisjon: {} }, google: {} };
 try { kanalKost = { ...kanalKost, ...JSON.parse(readFileSync(path.join(DIR, "data", "kanal-kost.json"), "utf8")) }; } catch {}
 // Google Ads-kostnad per dag fra Google Ads API (Morten 13.11.2026: automatisk som Shopify og Meta, ikke manuelt).
 // Token kommer fra GitHub Actions via Workload Identity Federation (ingen nøkkel lagret): tjenestekonto
-// pace-dashboard-ads@pace-dashboard-514620 med lesetilgang på Google Ads-kontoen 720-567-0683.
+// pace-dashboard-ads@pace-dashboard-514620 med lesetilgang på Google Ads-kontoen Pace Sport AS, kunde-ID 233-016-9045 (7205670683 i nettadressen er en intern ID, ikke kunde-ID).
 // API-tallene brukes for måneder som IKKE er lagt inn i kanal-kost.json (historikken der er «Net cost» fra fakturering).
 // Uten token (lokalt bygg) eller ved feil: som før, måneden er ukjent.
 let gAds = null;
 if (process.env.GOOGLE_ADS_TOKEN) {
   try {
-    const cid = env("GOOGLE_ADS_CUSTOMER", "7205670683"), V = env("GOOGLE_ADS_API_VERSION", "v25");
+    const cid = env("GOOGLE_ADS_CUSTOMER", "2330169045"), V = env("GOOGLE_ADS_API_VERSION", "v25");
     const r = await fetch(`https://googleads.googleapis.com/${V}/customers/${cid}/googleAds:searchStream`, { method: "POST",
       headers: { Authorization: "Bearer " + process.env.GOOGLE_ADS_TOKEN, "Content-Type": "application/json" },
       body: JSON.stringify({ query: `SELECT customer.currency_code, segments.date, metrics.cost_micros FROM customer WHERE segments.date BETWEEN '${addDays(TODAY, -120)}' AND '${TODAY}'` }) });
