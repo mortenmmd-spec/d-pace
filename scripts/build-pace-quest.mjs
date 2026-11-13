@@ -464,7 +464,7 @@ if (process.env.GOOGLE_ADS_TOKEN) {
     const r = await fetch(`https://googleads.googleapis.com/${V}/customers/${cid}/googleAds:searchStream`, { method: "POST",
       headers: { Authorization: "Bearer " + process.env.GOOGLE_ADS_TOKEN, "Content-Type": "application/json" },
       body: JSON.stringify({ query: `SELECT customer.currency_code, segments.date, metrics.cost_micros FROM customer WHERE segments.date BETWEEN '${addDays(TODAY, -120)}' AND '${TODAY}'` }) });
-    const txt = await r.text(); if (!r.ok) throw new Error("HTTP " + r.status + " " + txt.slice(0, 400));
+    const txt = await r.text(); if (!r.ok) throw new Error("HTTP " + r.status + " " + txt.replace(/s+/g, " ").slice(0, 1500));
     const daily = {}; let cur = "";
     for (const chunk of JSON.parse(txt)) for (const row of chunk.results || []) { cur = row.customer?.currencyCode || cur; daily[row.segments.date] = (daily[row.segments.date] || 0) + Number(row.metrics.costMicros || 0) / 1e6; }
     if (cur && cur !== "NOK") throw new Error("uventet valuta " + cur);
