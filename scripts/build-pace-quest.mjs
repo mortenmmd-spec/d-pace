@@ -658,19 +658,20 @@ const kanalTabell = (() => {
   const org = P.map(([p, fra]) => { const t = kanalVerdi("org", fra, IGAAR); return `<tr><td>${p === "7 d" ? "Uten sporet kilde" : ""}</td><td>${p}</td><td class="kt-m">–</td><td>${t.nye}</td><td colspan="2" class="kt-m">nye kunder uten annonsespor</td></tr>`; }).join("");
   const rows = blokk("meta", "Meta") + P.map(([p, fra]) => ekstraRad(p, fra)).join("") + blokk("google", "Google Ads") + blokk("bml", "BML-podkast") + blokk("adtr", "Adtraction") + org;
   const forkl = VK ? `Igjen per kr = forventet dekningsbidrag innen 180 dager fra nye kunder knyttet til kanalen, delt på det kanalen kostet. Verdien er observert fra modne kunder (første kjøp fra juni 2025, minst 180 dager gamle): startet med abonnement ${nf(VK.s)} kr (${VK.ns} kunder), uten abonnement ${nf(VK.u)} kr (${VK.nu} kunder). Over 1,00 kr = bidraget dekker reklamekostnaden, før faste kostnader. Under ${MIN_NYE} nye kunder vises ingen dom. «Knyttet til» = Shopify-sporing på første ordre (BML20-kode, Meta-klikk, Adtraction, Google-klikk); Shopify finner færre Meta-kjøp enn Metas piksel, så Meta-tallet er et gulv. BML-provisjonen gjelder også gjenkjøp. * = dager uten kjent kost er utelatt eller kosten er delvis anslått. «Meta, ekstra mot uten Meta» = alle nye kunder i perioden minus det vi fikk uten Meta-annonser (${nf(BASE.n)} nye på ${BASE.dager} dager ${fmtD(BASE_FRA)}–${fmtD(BASE_TIL)}.${BASE_TIL.slice(2, 4)} = ${BASE.rate.toFixed(2).replace(".", ",")} per dag); fanger også kunder Shopify ikke klarer å spore, men forutsetter at alt annet (Google, BML, sesong) var likt. Igjen per kr bruker snittverdien for de nye kundene i perioden.` : "Kundeverdi mangler (kohortdata).";
-  return `<section class="chart kanaltab"><div class="k">Reklamelinjer <b>for hver krone brukt: kr igjen innen 180 dager</b></div><div class="kt-wrap"><table class="kt"><tr><th>Kanal</th><th>Periode</th><th>Brukt</th><th>Nye kunder</th><th>Per ny kunde</th><th>Igjen per kr</th></tr>${rows}</table></div><div class="box-n">${forkl}</div></section>`;
+  return `<details class="chart kanaltab fold"><summary><span class="k">Reklamelinjer <b>for hver krone brukt: kr igjen innen 180 dager</b></span><span class="sec-sub fold-vis">vis ▾</span></summary><div class="kt-wrap"><table class="kt"><tr><th>Kanal</th><th>Periode</th><th>Brukt</th><th>Nye kunder</th><th>Per ny kunde</th><th>Igjen per kr</th></tr>${rows}</table></div><div class="box-n">${forkl}</div></details>`;
 })();
 
 // tallkortene i fire faner (Morten 03.11.2026); ⚠ på fanenavnet hvis et kort i fanen er utdatert
 const TABS = [
   ["res", "Resultat", resCard(30) + resCard(7) + innCard(30) + innUtCard(30)],
-  ["salg", "Salg", todayCard() + salgCard(7) + salgCard(30) + totaltCard() + sjaktlerCard() + estCard() + tolvCard()
-    + card("Unike kunder", nf(shop.kunder), `+${sum(win(30), "nye")} nye siste 30 d`, "c-salg", "Kundeprofiler med minst én betalt ordre i hele historikken (uten test- og seeding-ordre)") + subCard],
+  ["salg", "Salg", todayCard() + salgCard(7) + salgCard(30) + subCard], // fire hovedkort; resten under «Flere salgstall» (rydding 13.11.2026)
   ["mf", "Markedsføring", adsCard(7) + adsCard(30) + totalCard() + merCard()],
   ["drift", "Drift", henvCard()
     + card("Kasse", nf(T.kasse) + " kr", "bankbalanse lagt inn " + T.kasse_dato, "c-kasse", `Bankbalanse lagt inn manuelt ${T.kasse_dato}`)
     + lagerCard("sitron", "PACE01", "u1", T.sitron_bestfor, "Sitron & Lime") + lagerCard("bringebær", "PACE02", "u2", "", "Bringebær")],
 ];
+const salgFlere = totaltCard() + sjaktlerCard() + estCard() + tolvCard()
+  + card("Unike kunder", nf(shop.kunder), `+${sum(win(30), "nye")} nye siste 30 d`, "c-salg", "Kundeprofiler med minst én betalt ordre i hele historikken (uten test- og seeding-ordre)");
 const nCards = h => (h.match(/class="stat /g) || []).length;
 const tabsHtml = TABS.map(([k, navn, h], i) => { const ut = /class="stat [^"]*\butdatert\b/.test(h);
   return `<button type="button" class="tab" role="tab" data-tab="${k}" aria-controls="tab-${k}" aria-selected="${i ? "false" : "true"}"${ut ? ' title="Noen tall i fanen er ikke oppdatert"' : ""}>${navn}<span class="n">${nCards(h)}</span>${ut ? '<span class="warn">⚠</span>' : ""}</button>`; }).join("");
@@ -703,6 +704,7 @@ put(/\/\*__TASKS__\*\/[\s\S]*?\/\*__TASKS_END__\*\//, `/*__TASKS__*/ const SNAPS
 put(/\/\*__META__\*\/[\s\S]*?\/\*__META_END__\*\//, `/*__META__*/ const META = ${js(metaInfo)}; /*__META_END__*/`, "META");
 put(/\/\*__PAGE_TOKEN__\*\/[\s\S]*?\/\*__PAGE_TOKEN_END__\*\//, `/*__PAGE_TOKEN__*/ const PAGE_TOKEN = ${js(process.env.PACE_PAGE_TOKEN || "")}; /*__PAGE_TOKEN_END__*/`, "PAGE_TOKEN");
 for (const [k, , h] of TABS) put(new RegExp(`<!--STATS_${k}-->[\\s\\S]*?<!--\\/STATS_${k}-->`), `<!--STATS_${k}-->${h}<!--/STATS_${k}-->`, "STATS_" + k);
+put(/<!--STATS_salg2-->[\s\S]*?<!--\/STATS_salg2-->/, `<!--STATS_salg2-->${salgFlere}<!--/STATS_salg2-->`, "STATS_salg2");
 put(/<!--TABS-->[\s\S]*?<!--\/TABS-->/, `<!--TABS-->${tabsHtml}<!--/TABS-->`, "TABS");
 put(/<!--TABNOTE_mf-->[\s\S]*?<!--\/TABNOTE_mf-->/, `<!--TABNOTE_mf-->${kpiNote}<!--/TABNOTE_mf-->`, "TABNOTE_mf");
 put(/<!--KANALTAB-->[\s\S]*?<!--\/KANALTAB-->/, `<!--KANALTAB-->${kanalTabell}<!--/KANALTAB-->`, "KANALTAB");

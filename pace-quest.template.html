@@ -245,7 +245,22 @@
   .col.compact .task .tag { margin: 0; flex: none; padding: 0 6px; font-size: 0.68rem; }
   .col.compact .task .del { position: static; flex: none; align-self: center; }  /* i flyten, så 🗑 ikke ligger over 👤/frist */
   /* Backlog får dobbel bredde på store skjermer, så linjene holder seg korte */
-  @media (min-width: 1000px) { #board { grid-template-columns: minmax(160px, 1fr) minmax(320px, 2fr) repeat(3, minmax(160px, 1fr)); } }
+  /* rydding 13.11.2026 (Morten): maks 5 kort per kolonne + «Vis alle», Backlog lik bredde, sammenleggbare tabeller, roller/årshjul i egen visning */
+  .more { display: block; width: 100%; background: none; border: 1px dashed var(--hairline); color: var(--ink-2); border-radius: 8px; padding: 5px 8px; font-size: 0.78rem; cursor: pointer; margin-top: 4px; }
+  .more:hover { border-color: var(--ink-muted); color: var(--ink); }
+  .col.compact .task .del { opacity: 0; } .col.compact .task:hover .del, .col.compact .task:focus-within .del { opacity: .8; }
+  @media (hover: none) { .col.compact .task .del { opacity: .5; } }
+  details.fold > summary { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 10px; padding: 2px 0 4px; }
+  details.fold > summary::-webkit-details-marker { display: none; }
+  details.fold .fold-vis { margin-left: auto; } details.fold[open] .fold-vis { visibility: hidden; }
+  details.fold:not(.chart) { margin: 0 0 12px; } details.fold:not(.chart) > summary { padding: 4px 2px 10px; }
+  details.fold > summary .k { font-size: 0.72rem; color: var(--ink-muted); text-transform: uppercase; letter-spacing: .04em; display: flex; gap: 10px; align-items: baseline; }
+  .toolrow { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 12px; } .toolrow .toolbar { flex: 1; margin: 0; }
+  #add-open { display: none; flex: none; } body.live #add-open { display: inline-block; }
+  body.live .add-bar:not(.open) { display: none; }
+  .me-sel { font: inherit; font-size: 0.85rem; color: var(--ink); background: var(--surface); border: 1px solid var(--hairline); border-radius: 999px; padding: 5px 10px; }
+  body.team #main-view { display: none; } body:not(.team) #team-view { display: none; }
+  #goal.goal { margin: 0 0 12px; max-width: none; }
   .empty { font-size: 0.8rem; color: var(--ink-muted); font-style: italic; padding: 6px 2px; }
 
   /* ---------- popover ---------- */
@@ -334,6 +349,8 @@
         <button id="token-clear" class="linkbtn" hidden>Koble fra</button></small>
     </h1>
     <div class="hdr-actions">
+      <select id="coin-me" class="me-sel" aria-label="Hvem er du?" title="Hvem er du?"></select>
+      <button class="btn" id="team-btn" aria-pressed="false">Roller og årshjul</button>
       <button class="btn" id="uke-btn" disabled>Gjennomgang</button>
       <button class="btn" id="reload-btn" title="Hent boardet på nytt" hidden>Oppdater</button>
     </div>
@@ -346,8 +363,9 @@
     <button class="btn primary" id="token-save">Koble til</button>
   </div>
 
+  <div id="main-view">
   <!--FOKUS--><!--/FOKUS-->
-  <div class="sec-h">Tall <span class="sec-sub" id="datastatus"><!--DATASTATUS--><!--/DATASTATUS--></span></div>
+  <div class="sec-h">Tall</div>
   <div class="tabs" id="tall-tabs" role="tablist" aria-label="Tall per kategori"><!--TABS--><!--/TABS--></div>
   <div class="tab-panel" id="tab-res" data-tab="res" role="tabpanel">
     <section class="stats"><!--STATS_res--><!--/STATS_res--></section>
@@ -355,8 +373,13 @@
   </div>
   <div class="tab-panel" id="tab-salg" data-tab="salg" role="tabpanel" hidden>
     <section class="stats"><!--STATS_salg--><!--/STATS_salg--></section>
-    <section class="charts"><div class="chart" id="chart-sales"></div><div class="chart" id="chart-sub"></div><div class="chart" id="chart-wd"></div></section>
-    <section class="chart" id="b2b" style="margin-bottom:10px"></section>
+    <section class="charts"><div class="chart" id="chart-sales"></div></section>
+    <details class="fold" id="salg-flere">
+      <summary><span class="k">Flere salgstall</span><span class="sec-sub fold-vis">vis ▾</span></summary>
+      <section class="stats"><!--STATS_salg2--><!--/STATS_salg2--></section>
+      <section class="charts"><div class="chart" id="chart-sub"></div><div class="chart" id="chart-wd"></div></section>
+    </details>
+    <details class="chart fold" id="b2b" style="margin-bottom:10px"></details>
   </div>
   <div class="tab-panel" id="tab-mf" data-tab="mf" role="tabpanel" hidden>
     <!--TABNOTE_mf--><!--/TABNOTE_mf-->
@@ -366,28 +389,14 @@
   </div>
   <div class="tab-panel" id="tab-drift" data-tab="drift" role="tabpanel" hidden>
     <section class="stats"><!--STATS_drift--><!--/STATS_drift--></section>
-    <section class="chart" id="avtaler" style="margin-bottom:10px"></section>
+    <details class="chart fold" id="avtaler" style="margin-bottom:10px"></details>
   </div>
-  <details class="about"><summary>Om tallene ▾</summary><div id="stats-note"><!--STATSNOTE--><!--/STATSNOTE--></div></details>
+  <details class="about"><summary id="about-sum">Om tallene ▾</summary><div id="datastatus" style="margin-bottom:6px"><!--DATASTATUS--><!--/DATASTATUS--></div><div id="stats-note"><!--STATSNOTE--><!--/STATSNOTE--></div></details>
   <div class="stale" id="stale" hidden></div>
 
-  <section class="hero">
-    <div class="ring-box">
-      <svg viewBox="0 0 132 132">
-        <circle class="ring-track" cx="66" cy="66" r="56" fill="none" stroke-width="12"/>
-        <circle class="ring-fill" id="ring" cx="66" cy="66" r="56" fill="none" stroke-width="12" stroke-dasharray="351.86" stroke-dashoffset="351.86"/>
-      </svg>
-      <div class="ring-label"><b id="pct">0%</b><span>ferdig</span></div>
-    </div>
-    <div>
-      <div class="sum-title" id="sum-title"></div>
-      <div class="sum-sub" id="sum-sub"></div>
-      <div class="sum-meta" id="sum-meta"></div>
-      <div class="goal" id="goal" hidden></div>
-    </div>
-  </section>
+  <div class="goal" id="goal" hidden></div>
 
-  <div class="toolbar" id="filters"></div>
+  <div class="toolrow"><div class="toolbar" id="filters"></div><button class="btn" id="add-open" title="Ny oppgave (tast N)">+ Oppgave</button></div>
 
   <div class="add-bar">
     <input id="new-task" placeholder="Ny oppgave … (Enter legger i Idéer, tast N for å hoppe hit)" maxlength="200">
@@ -402,6 +411,9 @@
   <div class="sec-h miles-h">Milepæler</div>
   <section class="miles" id="miles"></section>
 
+  </div><!-- /main-view -->
+
+  <div id="team-view">
   <div class="sec-h" id="roles-h">Roller (løpende ansvar)</div>
   <section class="roles" id="roles"></section>
 
@@ -449,10 +461,10 @@
 })();
   </script>
 
-  <div class="coins" id="coins"></div>
+  </div><!-- /team-view -->
 
   <footer>
-    Dra kort mellom kolonnene, huk av, klikk 👤 for ansvarlig og 📅 for frist, dobbeltklikk tittelen for å redigere. Endringer lagres direkte på GitHub-boardet.
+    Dra kort mellom kolonnene, huk av, klikk 👤 for ansvarlig, dobbeltklikk tittelen for å redigere. Endringer lagres direkte på GitHub-boardet.
     Tastatur: <kbd>N</kbd> ny oppgave · <kbd>Esc</kbd> lukk.
     Tallene bygges automatisk hver time 06–23; sist bygget <b><!--SYNC--><!--/SYNC--></b>.
   </footer>
@@ -476,6 +488,8 @@ const FILTER_KEY = "pace-filter";
 const SECTIONS = ["Idéer", "Backlog", "Pågår", "Venter", "Ferdig", "Dagens gjøremål"];
 const UNDER = ["Dagens gjøremål"];      // egne bokser under kanban (Morten 10.11.2026)
 const COMPACT = ["Idéer", "Backlog"];   // vises som kompakte linjer
+const MAXVIS = 5;                       // kort per kolonne før «Vis alle» (Morten 13.11.2026)
+const expanded = new Set();             // kolonner som er utvidet i denne økten
 // Innebygd token (kun project-scope, settes av build-scriptet). Tom streng = brukeren må lime inn egen.
 /*__PAGE_TOKEN__*/ const PAGE_TOKEN = ""; /*__PAGE_TOKEN_END__*/
 const getToken = () => PAGE_TOKEN || localStorage.getItem(TOKEN_KEY);
@@ -701,7 +715,10 @@ function render() {
     col.className = "col" + (compact ? " compact" : "");
     col.innerHTML = `<h2><span class="dot" style="background:${meta.color}"></span>${esc(name)}<span class="count">${items.length}</span></h2>`;
     if (!items.length) col.insertAdjacentHTML("beforeend", `<div class="empty">${meta.empty}</div>`);
-    for (const t of items) col.appendChild(taskCard(t, compact));
+    const kutt = !UNDER.includes(name) && items.length > MAXVIS;
+    for (const t of (kutt && !expanded.has(name) ? items.slice(0, MAXVIS) : items)) col.appendChild(taskCard(t, compact));
+    if (kutt) { const m = document.createElement("button"); m.type = "button"; m.className = "more"; m.textContent = expanded.has(name) ? "Vis færre ▴" : `Vis alle ${items.length} ▾`;
+      m.onclick = () => { expanded.has(name) ? expanded.delete(name) : expanded.add(name); render(); }; col.appendChild(m); }
     if (live) {
       col.addEventListener("dragover", e => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; col.classList.add("drop-hint"); });
       col.addEventListener("dragleave", e => { if (!col.contains(e.relatedTarget)) col.classList.remove("drop-hint"); });
@@ -718,8 +735,8 @@ function render() {
 function renderFilters() {
   const el = document.getElementById("filters");
   const q = quests().filter(t => !isDone(t)); // tellerne gjelder åpne oppgaver
-  const names = ["Alle", ...owners().filter(n => n !== "Alle" && !n.includes("&")), "Over frist"];
   const count = n => q.filter(t => passesFor(t, n)).length;
+  const names = ["Alle", ...owners().filter(n => n !== "Alle" && !n.includes("&")), ...(count("Over frist") || filter === "Over frist" ? ["Over frist"] : [])]; // frister er ikke tatt i bruk ennå
   el.innerHTML = names.map(n => `<button class="chip${filter === n ? " on" : ""}" data-f="${esc(n)}" title="Åpne oppgaver">${esc(n)}<span class="n">${count(n)}</span></button>`).join("");
   el.querySelectorAll(".chip").forEach(b => b.onclick = () => { filter = b.dataset.f; try { localStorage.setItem(FILTER_KEY, filter); } catch {} render(); });
 }
@@ -728,9 +745,9 @@ function taskCard(t, compact = false) {
   const el = document.createElement("div");
   el.className = "task" + (isDone(t) ? " done" : "") + (isOver(t) ? " overdue" : "") + (busy.has(t.id) ? " busy" : "");
   // kompakt: ingen arbeidsstrøm, frist bare hvis satt, ansvarlig bare når den ikke er filteret
-  const strom = t.strom && !compact ? `<span class="tag">${esc(t.strom)}</span>` : "";
+  const strom = ""; // arbeidsstrøm vises bare i Gjennomgang (rydding 13.11.2026)
   const due = `<button class="tag due act${isOver(t) ? " over" : ""}" title="Sett frist">📅 ${t.due ? fmtDate(t.due) + (isOver(t) ? " !" : "") : (live ? "frist" : "–")}</button>`;
-  const showDue = compact ? !!t.due : (t.due || live);
+  const showDue = !!t.due; // frist vises bare når den er satt; settes i Gjennomgang
   // kompakt + ansvarlig = filteret: bare 👤 (navnet er unødvendig), men knappen skal alltid finnes så eier kan byttes
   const whoSlim = compact && filter === t.owner;
   const showWho = live || !whoSlim;
@@ -860,10 +877,10 @@ function renderUke() {
   const btn = document.getElementById("uke-btn");
   btn.disabled = !(live && me && card);
   btn.textContent = s[me] ? "✓ Gjennomgang" : "Gjennomgang";
-  btn.title = !live ? "Kobler til boardet" : !me ? "Velg hvem du er (nederst) først" : `Gå gjennom oppgavene dine, uke ${u.n}`;
+  btn.title = !live ? "Kobler til boardet" : !me ? "Velg hvem du er (øverst) først" : `Gå gjennom oppgavene dine, uke ${u.n}`;
   const b = document.getElementById("uke-bar"); if (!b) return;
   if (!card) { b.innerHTML = `<span class="u-m">Lag et kort som heter «Ukesjekk» på boardet.</span>`; return; }
-  if (!me) { b.innerHTML = `<span class="u-m">Velg hvem du er (nederst) for å bekrefte uka.</span>`; return; }
+  if (!me) { b.innerHTML = `<span class="u-m">Velg hvem du er (øverst) for å bekrefte uka.</span>`; return; }
   b.innerHTML = s[me] ? `<span class="u-ok">✓ ${esc(me)}, du har gått gjennom oppgavene dine i uke ${u.n}</span>`
     : live ? "" : `<span class="u-m">Kobler til boardet …</span>`;
 }
@@ -937,13 +954,11 @@ async function bekreftUke() {
   finally { ukeBusy = false; renderUke(); }
 }
 
+// coins-linjen er fjernet fra siden (Morten 13.11.2026); «hvem er du» ligger i toppen. Loggen i kortet «Coins» føres fortsatt.
 function renderCoins() {
-  const el = document.getElementById("coins"), card = tasks.find(isCoins);
-  if (!card) { el.innerHTML = ""; return; }
-  const s = coinScores(card.body);
-  const list = COIN_PEOPLE.slice().sort((a, b) => s[b] - s[a]).map(p => `${crown(p)}${esc(p)} <b>${s[p]}</b>`).join(" · ");
-  el.innerHTML = `<span>🪙 ${list}</span><span>1 per dag du er innom, 1 per ferdig oppgave · du er <select id="coin-me" aria-label="Hvem er du?"><option value="">velg</option>${COIN_PEOPLE.map(p => `<option${p === me ? " selected" : ""}>${esc(p)}</option>`).join("")}</select></span>`;
-  el.querySelector("#coin-me").onchange = e => setMe(e.target.value);
+  const sel = document.getElementById("coin-me"); if (!sel) return;
+  sel.innerHTML = `<option value="">Hvem er du?</option>${COIN_PEOPLE.map(p => `<option${p === me ? " selected" : ""}>${esc(p)}</option>`).join("")}`;
+  sel.onchange = e => setMe(e.target.value);
 }
 function setMe(name) {
   me = name; try { localStorage.setItem(ME_KEY, me); } catch {}
@@ -1006,9 +1021,9 @@ async function awardCoins() {
 function renderB2B() {
   const el = document.getElementById("b2b"); if (!el) return;
   const card = tasks.find(isB2B);
-  if (!card) { el.innerHTML = `<div class="k">B2B-kunder</div><div class="empty">Lag et kort som heter «B2B-kunder» på boardet.</div>`; return; }
+  if (!card) { el.innerHTML = `<summary><span class="k">B2B-kunder</span></summary><div class="empty">Lag et kort som heter «B2B-kunder» på boardet.</div>`; return; }
   const rows = (card.body || "").split(/\r?\n/).map(l => l.split("|").map(s => s.trim())).filter(c => c.length >= 2 && c[0] && !/^én kunde per linje/i.test(c[0]));
-  el.innerHTML = `<div class="k">B2B-kunder <b>${rows.length}</b><span class="sec-sub" style="margin-left:auto">rediger kortet «B2B-kunder» på boardet</span></div>`
+  el.innerHTML = `<summary><span class="k">B2B-kunder <b>${rows.length}</b></span><span class="sec-sub fold-vis">vis ▾</span></summary><div class="sec-sub">rediger kortet «B2B-kunder» på boardet</div>`
     + (rows.length ? `<table class="b2b"><tr><th>Kunde</th><th>Status</th><th>Kontakt</th></tr>${rows.map(c => `<tr><td>${esc(c[0])}</td><td>${esc(c[1] || "")}</td><td>${esc(c[2] || "")}</td></tr>`).join("")}</table>` : `<div class="empty">Ingen kunder i kortet ennå.</div>`);
 }
 
@@ -1016,9 +1031,9 @@ function renderB2B() {
 function renderAvtaler() {
   const el = document.getElementById("avtaler"); if (!el) return;
   const card = tasks.find(isAvtaler);
-  if (!card) { el.innerHTML = `<div class="k">Avtaler</div><div class="empty">Lag et kort som heter «Avtaler» på boardet.</div>`; return; }
+  if (!card) { el.innerHTML = `<summary><span class="k">Avtaler</span></summary><div class="empty">Lag et kort som heter «Avtaler» på boardet.</div>`; return; }
   const rows = (card.body || "").split(/\r?\n/).map(l => l.split("|").map(s => s.trim())).filter(c => c.length >= 2 && c[0] && !/^(partner|én avtale per linje)/i.test(c[0]));
-  el.innerHTML = `<div class="k">Avtaler <b>${rows.length}</b><span class="sec-sub" style="margin-left:auto">rediger kortet «Avtaler» på boardet</span></div>`
+  el.innerHTML = `<summary><span class="k">Avtaler <b>${rows.length}</b></span><span class="sec-sub fold-vis">vis ▾</span></summary><div class="sec-sub">rediger kortet «Avtaler» på boardet</div>`
     + (rows.length ? `<table class="b2b"><tr><th>Partner</th><th>Type</th><th>Vilkår</th><th>Kode</th><th>Status</th></tr>${rows.map(c => `<tr><td>${esc(c[0])}</td><td>${esc(c[1] || "")}</td><td>${esc(c[2] || "")}</td><td>${esc(c[3] || "")}</td><td>${esc(c[4] || "")}</td></tr>`).join("")}</table>` : `<div class="empty">Ingen avtaler i kortet ennå.</div>`);
 }
 
@@ -1062,19 +1077,7 @@ function renderRoles() {
   }
 }
 
-function renderHero() {
-  const q = quests(), n = q.filter(isDone).length, total = q.length || 1;
-  const frac = n / total;
-  document.getElementById("pct").textContent = Math.round(100 * frac) + "%";
-  document.getElementById("ring").style.strokeDashoffset = 351.86 * (1 - frac);
-  const by = s => q.filter(t => t.sec === s).length;
-  document.getElementById("sum-title").textContent = `${n} av ${q.length} oppgaver ferdig`;
-  document.getElementById("sum-sub").textContent = `${by("Pågår")} pågår · ${by("Backlog")} i backlog · ${by("Venter")} venter · ${by("Idéer")} idéer`;
-  const over = q.filter(isOver).length;
-  const built = META.label ? ` · tall bygget ${META.label}` : "";
-  document.getElementById("sum-meta").innerHTML = (over ? `<b class="bad">${over} over frist</b>` : "Ingen over frist") + esc(built);
-  renderGoal();
-}
+function renderHero() { renderGoal(); } // ring og statusoppramsing fjernet 13.11.2026; bare ukens fellesmål står igjen
 // ukens fellesmål fra kortet «Ukens mål»: linje 1 = målet, linjen «strøm: X» = hvilke oppgaver som teller (Arbeidsstrøm)
 function renderGoal() {
   const el = document.getElementById("goal"), card = tasks.find(isGoal);
@@ -1242,11 +1245,16 @@ function setMode(mode, msg) {
 document.getElementById("token-clear").onclick = () => { localStorage.removeItem(TOKEN_KEY); tasks = SNAPSHOT.slice(); project = null; setMode("off", "🔒 koblet fra"); render(); };
 document.getElementById("reload-btn").onclick = async () => { try { if (await loadBoard()) { render(); toast("Boardet oppdatert"); } } catch (e) { toast("Kunne ikke hente boardet: " + e.message, true); } };
 document.getElementById("uke-btn").onclick = startGjennomgang;
+// Roller og årshjul i egen visning (rydding 13.11.2026)
+document.getElementById("team-btn").onclick = e => { const on = document.body.classList.toggle("team"); e.currentTarget.setAttribute("aria-pressed", on); e.currentTarget.textContent = on ? "← Tilbake" : "Roller og årshjul"; window.scrollTo(0, 0); };
+const openAdd = () => { const bar = document.querySelector(".add-bar"); bar.classList.add("open"); document.getElementById("new-task").focus(); };
+document.getElementById("add-open").onclick = () => { const bar = document.querySelector(".add-bar"); if (bar.classList.contains("open")) bar.classList.remove("open"); else openAdd(); };
+(function aboutSum() { const s = document.getElementById("about-sum"), d = document.getElementById("datastatus"); if (s) s.textContent = `${d && d.textContent.includes("⚠") ? "⚠ " : ""}Oppdatert ${META.label || ""} · om tallene ▾`; })();
 document.addEventListener("keydown", e => {
   const typing = /INPUT|SELECT|TEXTAREA/.test(e.target.tagName) || e.target.isContentEditable;
   if (e.key === "Escape") { closePop(); hideToast(); if (document.activeElement) document.activeElement.blur(); return; }
   if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
-  if (e.key === "n" || e.key === "N") { if (live) { e.preventDefault(); document.getElementById("new-task").focus(); } }
+  if (e.key === "n" || e.key === "N") { if (live) { e.preventDefault(); openAdd(); } }
 });
 (function staleCheck() {
   if (!META.shopify_at) return;
