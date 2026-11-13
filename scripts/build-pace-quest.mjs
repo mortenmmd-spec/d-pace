@@ -473,10 +473,10 @@ for (const r of series) r.db = Math.round(Object.values(r.dbOK || {}).reduce((x,
 const merTall = n => { const w = win(n); const kost = sum(w, "kost"), eks = sum(w, "eks"), db = sum(w, "db"); return { kost, eks, db, andel: eks ? kost / eks : null, netto: db - kost, ufull: w.some(r => r.kostUfull) }; };
 const pct = v => v == null ? "–" : Math.round(v * 100) + " %";
 const merCard = (n = 30, m = 7) => { const t = merTall(n), t7 = merTall(m);
-  return mcard(`Markedskost / omsetning ${n} d`, pct(t.andel), `${t.ufull ? "⚠ noe kost ukjent · " : ""}${m} d: ${pct(t7.andel)} · ${n} d: ${nf(t.kost)} kr / ${nf(t.eks)} kr eks mva`, "c-cac",
+  return mcard(`Markedskost / omsetning ${n} d`, pct(t.andel), `${m} d: ${pct(t7.andel)} · ${n} d: ${nf(t.kost)} kr / ${nf(t.eks)} kr eks mva`, "c-cac",
     `All markedskost (Meta + BML + Adtraction + Google Ads) delt på ALL omsetning eks mva siste ${n} hele dager, også gjenkjøp og abonnement. Trenger ingen kanalmerking og påvirkes ikke av sporingsfeil. ${t.ufull ? "Noe kanalkost er ukjent og regnet som 0, så andelen er et gulv. " : ""}${m} d i underteksten.`); };
 const nettoCard = (n = 30, m = 7) => { const t = merTall(n), t7 = merTall(m);
-  return mcard(`DB etter markedsføring ${n} d`, nf(t.netto) + " kr", `${t.ufull ? "⚠ noe kost ukjent · " : ""}${m} d: ${nf(t7.netto)} kr · ${n} d: DB ${nf(t.db)} − kost ${nf(t.kost)}`, "c-cac",
+  return mcard(`DB etter markedsføring ${n} d`, nf(t.netto) + " kr", `${m} d: ${nf(t7.netto)} kr · ${n} d: DB ${nf(t.db)} − kost ${nf(t.kost)}`, "c-cac",
     `Dekningsbidrag fra ALLE ordre siste ${n} hele dager (salg eks mva − varer, plukk, frakt, gebyr, per ordre) minus all markedskost (Meta + BML + Adtraction + Google Ads). Under 0 = markedsføringen koster mer enn alt salget gir i bidrag. Faste kostnader (360-minimum, programvare) er ikke med. ${t.ufull ? "Noe kanalkost er ukjent og regnet som 0, så tallet er et tak. " : ""}${m} d i underteksten.`); };
 // CAC totalt: all markedskost i vinduet / alle nye kunder i vinduet
 const totalTall = n => { const w = win(n); const mangler = new Set(); let anslag = false, adtrAnslag = false;
@@ -497,7 +497,7 @@ const kanalCard = (k, n = 30, m = 7) => { const t = kanalTall(k, n), t7 = kanalT
 // Meta-data som ikke er oppdatert t.o.m. i går: kortene merkes synlig (stiplet ramme + tekst), tallene vises likevel
 const metaSist = series.filter(r => r.meta !== null).map(r => r.d).pop() || null;
 const metaStale = !metaSist || metaSist < addDays(TODAY, -1);
-const staleTxt = metaStale ? ` · ⚠ IKKE OPPDATERT: Meta mangler fra ${metaSist ? fmtD(addDays(metaSist, 1)) : "start"}` : "";
+const staleTxt = ""; // se datastatus
 const mcard = (k, v, s, cls, tip) => card(k, v, s + staleTxt, cls + (metaStale ? " utdatert" : ""), (tip || "") + (metaStale ? ` ADVARSEL: Meta-annonsekost mangler fra ${metaSist ? fmtD(addDays(metaSist, 1)) : "start"}; tallet er ikke oppdatert.` : ""));
 const card = (k, v, s, cls, tip) => `<div class="stat ${cls}" title="${esc(tip || "")}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
 const rek = shop.rekord?.kr ? shop.rekord : null, slaatt = rek && today.oms > rek.kr;
@@ -518,7 +518,7 @@ const sjaktlerCard = () => card("Sjaktler solgt totalt", nf(shop.sjaktlerTotalt)
 const totaltCard = () => card("Salg totalt", nf(shop.totalt) + " kr", `${nf(shop.ordreTotalt)} ordre + ${shop.b2bTotalt.salg} B2B siden ${shop.forsteDag ? shop.forsteDag.slice(8, 10) + "." + shop.forsteDag.slice(5, 7) + "." + shop.forsteDag.slice(0, 4) : "start"} · i år ${nf(shop.iAar)} kr`, "c-salg", `All ordreverdi inkl. mva og frakt, betalte ordre, hele historikken (${nf(shop.ordreTotalt)} ordre), pluss ${nf(shop.b2bTotalt.kr)} kr B2B fakturert utenfor Shopify (${shop.b2bTotalt.salg} salg etter avtalt pris). Hittil i ${TODAY.slice(0, 4)}: ${nf(shop.iAar)} kr fra ${nf(shop.ordreIAar)} ordre og B2B. Seeding og kansellerte ordre er ikke med.`);
 const salgCard = (n) => { const w = win(n); return card(`Salg ${n} d`, nf(sum(w, "oms") + sum(w, "b2bKr")) + " kr", `${nf(sum(w, "sj"))} sjaktler · ${sum(w, "ordre")} ordre${sum(w, "b2bN") ? ` + ${sum(w, "b2bN")} B2B` : ""} · ${sum(w, "nye")} nye`, "c-salg", `Sjaktler solgt inkl. B2B (${nf(sum(w, "b2bStk"))} stk B2B) og salg inkl. mva siste ${n} hele dager t.o.m. i går: ordre ${nf(sum(w, "oms"))} kr + B2B ${nf(sum(w, "b2bKr"))} kr, ${sum(w, "nye")} nye kunder`); };
 const totalCard = (n = 30, m = 7) => { const t = totalTall(n), t7 = totalTall(m);
-  return mcard(`CAC totalt ${n} d`, kr(t), `${t.mangler.length ? `⚠ mangler ${t.mangler.join(", ")} · ` : ""}${m} d: ${kr(t7)} (${t7.nye} nye) · ${n} d: ${nf(t.kost)} kr / ${t.nye} nye`, "c-cac",
+  return mcard(`CAC totalt ${n} d`, kr(t), `${m} d: ${kr(t7)} (${t7.nye} nye) · ${n} d: ${nf(t.kost)} kr / ${t.nye} nye`, "c-cac",
     `All markedskost siste ${n} hele dager (Meta + BML provisjon og episodehonorar + Adtraction + Google Ads) delt på alle nye kunder i samme periode, uansett kanal. ${t.mangler.length ? `Kostnad mangler for ${t.mangler.join(", ")} på én eller flere dager og er regnet som 0, så tallet er et gulv. ` : ""}${t.anslag ? "BML-honorar for måneder uten oppgjør er anslått til 3 000 kr/mnd. " : ""}${t.adtrAnslag ? "Adtraction-provisjon for måneder uten faktura er anslått fra ordrene. " : ""}${m} d i underteksten.`); };
 // annonsekost: Meta-forbruk på fakturerte dager i vinduet; kr/dag over de samme dagene
 const adsCard = (n) => { if (!meta) return mcard(`Annonser ${n} d`, "–", "Meta-data mangler", "c-ads", metaErr); const w = win(n).filter(r => r.meta !== null); const s = sum(w, "meta");
@@ -601,7 +601,7 @@ for (const r of series) { const ym = r.d.slice(0, 7), t = tillegg360[ym];
   r.resUsikker = r.kostUfull || r.fastAnslag; }
 const resTall = n => { const w = win(n); const inn = sum(w, "eks"), db = sum(w, "db"), mk = sum(w, "kost"), fast = sum(w, "fast");
   return { inn, varer: inn - db, mk, fast, ut: inn - db + mk + fast, igjen: db - mk - fast, usikker: w.some(r => r.resUsikker), mkUfull: w.some(r => r.kostUfull), fastAnslag: w.some(r => r.fastAnslag) }; };
-const usikkerTxt = t => t.mkUfull ? "⚠ noe markedskost ukjent · " : t.fastAnslag ? "360-tillegg anslått · " : "";
+const usikkerTxt = t => ""; // varsler på kortene fjernet (Morten 13.11.2026); mangler står i datastatus
 const RES_TIP = "Inn = salg eks mva. Ut = varer, plukk, frakt og betalingsgebyr per ordre + all markedsføring (Meta, Google, BML, Adtraction) + faste kostnader fra budsjettet (programvare, Slack, DNB Regnskap, bankgebyr, Uni Micro, 360 lagerleie og tillegget opp til 360-minimum på 10 000/mnd), fordelt likt på dagene. Varekost er standardkost 51,29 kr per sjaktel, ikke faktiske innkjøp, og dette er ikke kontantstrøm (mva, varekjøp og engangsposter er ikke med). Ukjent markedskost er regnet som 0 og flagget.";
 const resCard = n => { const t = resTall(n);
   return mcard(`Igjen ${n} d`, nf(t.igjen) + " kr", `${usikkerTxt(t)}inn ${nf(t.inn)} · ut ${nf(t.ut)}`, "c-kasse", RES_TIP); };
@@ -673,14 +673,13 @@ const TABS = [
 const salgFlere = totaltCard() + sjaktlerCard() + estCard() + tolvCard()
   + card("Unike kunder", nf(shop.kunder), `+${sum(win(30), "nye")} nye siste 30 d`, "c-salg", "Kundeprofiler med minst én betalt ordre i hele historikken (uten test- og seeding-ordre)");
 const nCards = h => (h.match(/class="stat /g) || []).length;
-const tabsHtml = TABS.map(([k, navn, h], i) => { const ut = /class="stat [^"]*\butdatert\b/.test(h);
-  return `<button type="button" class="tab" role="tab" data-tab="${k}" aria-controls="tab-${k}" aria-selected="${i ? "false" : "true"}"${ut ? ' title="Noen tall i fanen er ikke oppdatert"' : ""}>${navn}<span class="n">${nCards(h)}</span>${ut ? '<span class="warn">⚠</span>' : ""}</button>`; }).join("");
+const tabsHtml = TABS.map(([k, navn, h], i) => `<button type="button" class="tab" role="tab" data-tab="${k}" aria-controls="tab-${k}" aria-selected="${i ? "false" : "true"}">${navn}</button>`).join("");
 // KPI-definisjonene er ikke låst (Mortens forslag 01.11 ubesvart av Anders per 03.11); sett true når de er avtalt
 const KPI_AVTALT = false;
-const kpiNote = KPI_AVTALT ? "" : `<div class="tab-note">⚠ KPI-definisjonene er ikke avtalt ennå (Morten og Anders). Tallene kan endre seg når målene er låst.</div>`;
+const kpiNote = ""; // merknaden om uavtalte KPI-er er fjernet fra siden (Morten 13.11.2026)
 
 // datastatus: hvor ferske tallene er per kilde
-const datastatus = [`Shopify ${stamp}`, meta ? `${metaKilde} t.o.m. ${metaSist ? fmtD(metaSist) : "–"}${metaStale ? " ⚠ IKKE OPPDATERT" : ""}` : "Meta mangler ⚠", `bankbalanse ${T.kasse_dato}`, plan ? `Pace 2.0-plan ${fmtD(plan.built)}` : "plan mangler"].join(" · ");
+const datastatus = [`Shopify ${stamp}`, meta ? `${metaKilde} t.o.m. ${metaSist ? fmtD(metaSist) : "–"}${metaStale ? " (ikke oppdatert)" : ""}` : "Meta mangler", `bankbalanse ${T.kasse_dato}`, plan ? `Pace 2.0-plan ${fmtD(plan.built)}` : "plan mangler", ...(win(30).some(r => r.kostUfull) ? ["markedskost ufullstendig siste 30 d"] : [])].join(" · ");
 
 const note = `7 og 30 d = hele Oslo-dager t.o.m. i går; «Salg i dag» er dagen så langt. Salg = ordreverdi inkl. mva for ordre opprettet i perioden, etter refusjon, uten test- og seeding-ordre (Shopify ${stamp}). Planraden sammenlignes eks mva. Nye kunder = kundeprofiler opprettet i perioden med betalt ordre. `
   + (meta ? `Meta-kost = ${meta.source === "api" ? "Meta Marketing API per dag" : "kvitteringer i hei@getpace.no + daglig avlesning i Ads Manager"} (t.o.m. ${metaSist ? fmtD(metaSist) : "–"}). ` : `Meta-kost mangler: ${esc(metaErr)}. `)
