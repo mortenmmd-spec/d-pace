@@ -3,10 +3,16 @@
   "adtraction": {
     "fast": 995,
     "provisjon": {
+      "2026-03": 64.27,
       "2026-04": 977.5,
-      "2026-09": 617,
-      "2026-10": null
-    }
+      "2026-05": 1347.67,
+      "2026-06": 594.46,
+      "2026-07": 645.86,
+      "2026-08": 313.94,
+      "2026-09": 617.07,
+      "2026-10": 427.38
+    },
+    "note": "Provisjon eks mva per måned (0 % mva). Faktura lest: april 166711 (977,50), mai 168337 (1 347,67), oktober 180525 (427,38). Mars, juni, juli, august og september er fakturatotal fra Adtractions betalingspåminnelser på hei@ minus fast avgift 995 (1 059,27 / 1 589,46 / 1 640,86 / 1 308,94 / 1 612,07). Lagt inn 13.11.2026. November faktureres 01.12."
   },
   "google": {
     "2026-04": 2102.75,
