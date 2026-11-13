@@ -65,6 +65,7 @@
   /* ---------- setup-banner (kun uten innebygd token) ---------- */
   .banner { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--warning); border-radius: 12px; padding: 12px 16px; margin-top: 14px; font-size: 0.85rem; color: var(--ink-2); }
   .banner[hidden] { display: none; }
+  #setup { display: none !important; } /* engangsoppsett-boksen vises aldri (Morten 13.11.2026); siden har innebygd token */
   .banner input { flex: 1; min-width: 220px; background: var(--surface-2); color: var(--ink); border: 1px solid var(--hairline); border-radius: 8px; padding: 7px 10px; font: inherit; }
   .banner a { color: var(--blue); }
 
