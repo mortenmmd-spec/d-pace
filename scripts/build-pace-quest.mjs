@@ -145,7 +145,9 @@ async function fetchShopify() {
   const ren42 = renOrders.filter(o => o.day >= addDays(TODAY, -42) && o.day < TODAY);
   // betalende abonnenter = unike kunder med abonnementsordre (første eller fornyelse) i samme syklus
   const sub42 = allOk.filter(o => isSub(o) && o.day >= addDays(TODAY, -42) && o.day < TODAY);
-  const subRen42 = { n: ren42.length, kunder: new Set(ren42.map(o => o.customer?.id).filter(Boolean)).size, betalende: new Set(sub42.map(o => o.customer?.id).filter(Boolean)).size, eks: ren42.reduce((x, o) => x + amt(o) - (+o.current_total_tax || 0), 0) };
+  const subRen42 = { n: ren42.length, kunder: new Set(ren42.map(o => o.customer?.id).filter(Boolean)).size, betalende: new Set(sub42.map(o => o.customer?.id).filter(Boolean)).size, eks: ren42.reduce((x, o) => x + amt(o) - (+o.current_total_tax || 0), 0),
+    // sjaktler sendt i abonnementsordre (første + fornyelser) siste 42 hele dager = én leveringssyklus. Morten 13.11.2026: vis esker, ikke bare personer.
+    esker: Object.fromEntries(["PACE01", "PACE02"].map(sku => [sku, sub42.reduce((x, o) => x + liveLines(o).filter(li => li.sku === sku).reduce((y, li) => y + (li.current_quantity ?? li.quantity), 0), 0)])) };
   // lager per lokasjon (360 Logistics), ikke aggregatet
   const products = await getAll(`https://${SHOP}/admin/api/${API}/products.json?limit=250&fields=id,title,variants`, "products");
   const items = {};
@@ -543,7 +545,7 @@ const lagerCard = (navn, sku, key, bestfor, flavor) => {
 };
 const subNow = today.subAct, subNew30 = sum(win(30), "subNew"), subRen30 = sum(win(30), "subRen");
 const subCard = shop.subActive !== null
-  ? card(shop.subStatus ? "Aktive abonnenter" : "Aktive abonnement", nf(shop.subActive), `${shop.subStatus ? `${nf(shop.subStatus.PAUSED || 0)} på pause · ` : ""}+${sum(series.slice(-30), "subAdd")} nye · −${sum(series.slice(-30), "subCan")} avsluttet (30 d)${shop.subRekke >= 2 ? ` · 🔥 ${shop.subRekke} uker på rad med vekst` : ""}`, "c-sub",
+  ? card(shop.subStatus ? "Aktive abonnenter" : "Aktive abonnement", nf(shop.subActive), `${shop.subRen42?.esker ? `${nf(shop.subRen42.esker.PACE01 + shop.subRen42.esker.PACE02)} esker sendt per 6 uker (${nf(shop.subRen42.esker.PACE01)} Sitron & Lime, ${nf(shop.subRen42.esker.PACE02)} Bringebær) · ` : ""}${shop.subStatus ? `${nf(shop.subStatus.PAUSED || 0)} på pause · ` : ""}+${sum(series.slice(-30), "subAdd")} nye · −${sum(series.slice(-30), "subCan")} avsluttet (30 d)${shop.subRekke >= 2 ? ` · 🔥 ${shop.subRekke} uker på rad med vekst` : ""}`, "c-sub",
     shop.subStatus
       ? `Kunder med abonnementsstatus «aktiv» i Shopify. Pausede (${nf(shop.subStatus.PAUSED || 0)}) og avsluttede (${nf(shop.subStatus.CANCELLED || 0)}) er ikke med${shop.subStatus.FAILED ? `, heller ikke feilet betaling (${nf(shop.subStatus.FAILED)})` : ""}. Telles per kunde: en kunde med to aktive abonnement teller én gang. Shopifys egen «aktive abonnement» (avtaler, inkl. pause) er høyere. Nye/avsluttet 30 d fra Shopify-analyse.`
       : `${nf(shop.subStart)} abonnement startet og ${nf(shop.subStop)} avsluttet totalt ifølge Shopify Subscriptions (Shopify-analyse). Siste 30 d: ${sum(series.slice(-30), "subAdd")} nye, ${sum(series.slice(-30), "subCan")} avsluttet`)
