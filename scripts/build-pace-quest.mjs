@@ -448,10 +448,33 @@ let plan = null;
 try { plan = readPlan(env("STATICRYPT_PASSWORD", "")); } catch (e) { console.error("Pace 2.0-plan utilgjengelig:", e.message); }
 
 // ---------- 5b. Kanalkost (manuell månedsfil) ----------
+const daysInMonth = ym => new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)).getUTCDate();
 // data/kanal-kost.json: {"adtraction":{"fast":995,"provisjon":{"YYYY-MM":kr|null}},"google":{"YYYY-MM":kr|null}} eks mva. null/mangler = ukjent (ikke 0).
 let kanalKost = { adtraction: { fast: 995, provisjon: {} }, google: {} };
 try { kanalKost = { ...kanalKost, ...JSON.parse(readFileSync(path.join(DIR, "data", "kanal-kost.json"), "utf8")) }; } catch {}
-const daysInMonth = ym => new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)).getUTCDate();
+// Google Ads-kostnad per dag fra Google Ads API (Morten 13.11.2026: automatisk som Shopify og Meta, ikke manuelt).
+// Token kommer fra GitHub Actions via Workload Identity Federation (ingen nøkkel lagret): tjenestekonto
+// pace-dashboard-ads@pace-dashboard-514620 med lesetilgang på Google Ads-kontoen 720-567-0683.
+// API-tallene brukes for måneder som IKKE er lagt inn i kanal-kost.json (historikken der er «Net cost» fra fakturering).
+// Uten token (lokalt bygg) eller ved feil: som før, måneden er ukjent.
+let gAds = null;
+if (process.env.GOOGLE_ADS_TOKEN) {
+  try {
+    const cid = env("GOOGLE_ADS_CUSTOMER", "7205670683"), V = env("GOOGLE_ADS_API_VERSION", "v25");
+    const r = await fetch(`https://googleads.googleapis.com/${V}/customers/${cid}/googleAds:searchStream`, { method: "POST",
+      headers: { Authorization: "Bearer " + process.env.GOOGLE_ADS_TOKEN, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: `SELECT customer.currency_code, segments.date, metrics.cost_micros FROM customer WHERE segments.date BETWEEN '${addDays(TODAY, -120)}' AND '${TODAY}'` }) });
+    const txt = await r.text(); if (!r.ok) throw new Error("HTTP " + r.status + " " + txt.slice(0, 400));
+    const daily = {}; let cur = "";
+    for (const chunk of JSON.parse(txt)) for (const row of chunk.results || []) { cur = row.customer?.currencyCode || cur; daily[row.segments.date] = (daily[row.segments.date] || 0) + Number(row.metrics.costMicros || 0) / 1e6; }
+    if (cur && cur !== "NOK") throw new Error("uventet valuta " + cur);
+    gAds = { daily, fra: addDays(TODAY, -120), til: TODAY };
+    const mnd = {}; for (const [d, v] of Object.entries(daily)) mnd[d.slice(0, 7)] = (mnd[d.slice(0, 7)] || 0) + v;
+    console.log("Google Ads API per måned:", Object.entries(mnd).sort().map(([m, v]) => `${m} ${Math.round(v)}${kanalKost.google?.[m] != null ? " (manuelt " + Math.round(kanalKost.google[m]) + ")" : ""}`).join(" | "));
+  } catch (e) { console.error("Google Ads API utilgjengelig:", e.message); }
+}
+const googleDag = d => kanalKost.google?.[d.slice(0, 7)] != null ? kanalKost.google[d.slice(0, 7)] / daysInMonth(d.slice(0, 7))
+  : gAds && d >= gAds.fra && d <= gAds.til ? (gAds.daily[d] || 0) : null;
 const perDag = (tab, d) => { const v = tab?.[d.slice(0, 7)]; return v == null ? null : v / daysInMonth(d.slice(0, 7)); };
 const bmlFastDag = d => perDag(kanalKost.bml?.fast, d); // null = ukjent for måneden
 // Adtraction per dag = fast/dager i mnd + provisjon fra faktura; mangler fakturaen brukes anslaget fra ordrene (adtrProv) og dagen flagges
@@ -459,7 +482,7 @@ const adtrFaktura = d => kanalKost.adtraction?.provisjon?.[d.slice(0, 7)] != nul
 const adtrDag = (d, est) => (kanalKost.adtraction?.fast ?? 995) / daysInMonth(d.slice(0, 7)) + (adtrFaktura(d) ? perDag(kanalKost.adtraction.provisjon, d) : (est || 0));
 
 // ---------- 6. Tall ----------
-const series = DAYS.map(d => { const x = shop.daily[d]; const covered = meta && d <= meta.coveredThrough; return { d, ordre: x.ordre, sj: (x.sj || 0) + (x.b2bStk || 0), b2bStk: x.b2bStk || 0, b2bN: x.b2bN || 0, b2bKr: x.b2bKr || 0, oms: Math.round(x.oms * 100) / 100, eks: Math.round(x.eks * 100) / 100, nye: x.nye, u1: x.u1, u2: x.u2, subNew: x.subNew, subRen: x.subRen, subAdd: x.subAdd ?? null, subCan: x.subCan ?? null, subLive: x.subLive ?? null, meta: meta && meta.source !== "api" && meta.manual[d] != null ? Math.round(meta.manual[d] * 100) / 100 : covered ? Math.round((meta.daily[d] || 0) * 100) / 100 : (meta && meta.manual[d] != null ? Math.round(meta.manual[d] * 100) / 100 : null), manuell: !!(meta && meta.source !== "api" && meta.manual[d] != null), bml: Math.round(x.bmlKost * 100) / 100, adtr: adtrDag(d, x.adtrProv), adtrAnslag: !adtrFaktura(d),google: perDag(kanalKost.google, d), nyeK: x.nyeK, dbK: x.dbK, ordreK: x.ordreK, dbOK: x.dbOK }; });
+const series = DAYS.map(d => { const x = shop.daily[d]; const covered = meta && d <= meta.coveredThrough; return { d, ordre: x.ordre, sj: (x.sj || 0) + (x.b2bStk || 0), b2bStk: x.b2bStk || 0, b2bN: x.b2bN || 0, b2bKr: x.b2bKr || 0, oms: Math.round(x.oms * 100) / 100, eks: Math.round(x.eks * 100) / 100, nye: x.nye, u1: x.u1, u2: x.u2, subNew: x.subNew, subRen: x.subRen, subAdd: x.subAdd ?? null, subCan: x.subCan ?? null, subLive: x.subLive ?? null, meta: meta && meta.source !== "api" && meta.manual[d] != null ? Math.round(meta.manual[d] * 100) / 100 : covered ? Math.round((meta.daily[d] || 0) * 100) / 100 : (meta && meta.manual[d] != null ? Math.round(meta.manual[d] * 100) / 100 : null), manuell: !!(meta && meta.source !== "api" && meta.manual[d] != null), bml: Math.round(x.bmlKost * 100) / 100, adtr: adtrDag(d, x.adtrProv), adtrAnslag: !adtrFaktura(d),google: googleDag(d), nyeK: x.nyeK, dbK: x.dbK, ordreK: x.ordreK, dbOK: x.dbOK }; });
 const today = series[series.length - 1];
 const win = n => series.slice(-n - 1, -1); // n hele dager t.o.m. i går
 const sum = (a, k) => a.reduce((x, r) => x + (r[k] || 0), 0);
@@ -616,7 +639,7 @@ const VK = shop.kohort?.sub?.n && shop.kohort?.non?.n ? { s: shop.kohort.sub.db 
 const seriesBy = Object.fromEntries(series.map(r => [r.d, r]));
 const kostDag = (k, d) => { const h = shop.histDag?.[d] || { bml: 0, adtrEst: 0 };
   if (k === "meta") { const r = seriesBy[d]; if (r) return r.meta; return meta?.source === "api" && d <= meta.coveredThrough ? (meta.daily[d] || 0) : null; }
-  if (k === "google") return perDag(kanalKost.google, d);
+  if (k === "google") return googleDag(d);
   if (k === "bml") { const f = bmlFastDag(d); return f == null ? null : h.bml + f; }
   if (k === "adtr") return adtrDag(d, h.adtrEst);
   return 0; };

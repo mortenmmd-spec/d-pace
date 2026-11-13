@@ -8,6 +8,7 @@ concurrency:
   cancel-in-progress: true
 permissions:
   contents: write
+  id-token: write   # for nøkkelfri innlogging mot Google (Workload Identity Federation)
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,6 +21,15 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - name: Google-token for Google Ads API (ingen lagret nøkkel)
+        id: gauth
+        continue-on-error: true
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/821915775795/locations/global/workloadIdentityPools/github/providers/github-actions
+          service_account: pace-dashboard-ads@pace-dashboard-514620.iam.gserviceaccount.com
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/adwords
       - name: Bygg og publiser (gjentar hele bygget ved push-kollisjon)
         env:
           PACE_BOARD_TOKEN: ${{ secrets.PACE_BOARD_TOKEN }}
@@ -32,6 +42,7 @@ jobs:
           GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
           GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
           META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
+          GOOGLE_ADS_TOKEN: ${{ steps.gauth.outputs.access_token }}
           PACE_KASSE: ${{ vars.PACE_KASSE }}
           PACE_FORFALL: ${{ vars.PACE_FORFALL }}
           FORCE: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
