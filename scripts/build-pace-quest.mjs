@@ -605,7 +605,7 @@ const henvCard = () => { if (!henv) return card("Ubesvarte henvendelser", "–",
   return card("Ubesvarte henvendelser", nf(henv.n), henv.n ? `eldste ${dager === 0 ? "i dag" : dager + " d"} · siden ${fmtD(HENV_FRA)}` : `alle besvart · siden ${fmtD(HENV_FRA)}`, henv.n ? "c-ads" : "c-kasse",
     `Kundetråder i hei@getpace.no mottatt f.o.m. ${fmtD(HENV_FRA)} der siste melding ikke er fra oss. Automatiske avsendere (kvitteringer, varsler) telles ikke; Shopify-kontaktskjema telles.${liste ? " Åpne: " + liste : ""}`); };
 // ---------- 6c. Resultat: alt inn mot alt ut (Morten 04.11.2026, sparret med Codex og Fable) ----------
-// Igjen = dekningsbidrag alle ordre − all markedskost − faste kostnader (budsjett, data/faste-kost.json). Ikke kontantstrøm.
+// Resultat = dekningsbidrag alle ordre − all markedskost − faste kostnader (budsjett, data/faste-kost.json). Ikke kontantstrøm.
 let FASTE = null; try { FASTE = JSON.parse(readFileSync(path.join(DIR, "data", "faste-kost.json"), "utf8")); } catch {}
 const fastMnd = FASTE ? Object.values(FASTE.maaned || {}).reduce((x, y) => x + y, 0) : 0;
 for (const r of series) r.linjer = shop.daily[r.d]?.linjer || 0;
@@ -627,7 +627,7 @@ const resTall = n => { const w = win(n); const inn = sum(w, "eks"), db = sum(w, 
 const usikkerTxt = t => ""; // varsler på kortene fjernet (Morten 13.11.2026); mangler står i datastatus
 const RES_TIP = "Inn = salg eks mva. Ut = varer, plukk, frakt og betalingsgebyr per ordre + all markedsføring (Meta, Google, BML, Adtraction) + faste kostnader fra budsjettet (programvare, Slack, DNB Regnskap, bankgebyr, Uni Micro, 360 lagerleie og tillegget opp til 360-minimum på 10 000/mnd), fordelt likt på dagene. Varekost er standardkost 51,29 kr per sjaktel, ikke faktiske innkjøp, og dette er ikke kontantstrøm (mva, varekjøp og engangsposter er ikke med). Ukjent markedskost er regnet som 0 og flagget.";
 const resCard = n => { const t = resTall(n);
-  return mcard(`Igjen ${n} d`, nf(t.igjen) + " kr", `${usikkerTxt(t)}inn ${nf(t.inn)} · ut ${nf(t.ut)}`, "c-kasse", RES_TIP); };
+  return mcard(`Resultat ${n} d`, nf(t.igjen) + " kr", `${usikkerTxt(t)}inn ${nf(t.inn)} · ut ${nf(t.ut)}`, "c-kasse", RES_TIP); };
 const innUtCard = (n = 30) => { const t = resTall(n);
   return mcard(`Ut ${n} d`, nf(t.ut) + " kr", `varer og frakt ${nf(t.varer)} · markedsføring ${nf(t.mk)} · faste ${nf(t.fast)}`, "c-kasse", RES_TIP); };
 const innCard = (n = 30) => { const t = resTall(n); return card(`Inn ${n} d`, nf(t.inn) + " kr", `salg eks mva · 7 d: ${nf(resTall(7).inn)} kr`, "c-salg", "Salg eks mva (etter refusjon, uten test- og seeding-ordre), siste " + n + " hele dager."); };
