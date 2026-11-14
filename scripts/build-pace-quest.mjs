@@ -112,10 +112,10 @@ async function fetchShopify() {
   // Adtraction-provisjon ANSLAG (brukes bare for måneder uten faktura): 15 % × 1,3 (nettverkspåslag) av varesalg eks mva på ordre med Adtraction-sporing
   // utenom fb/ig-kanal og abonnementsfornyelser (kalibrert mot sept-faktura 178532: 617,08 = 15 % × 1,3 × 3 164)
   const adtrProv = o => { const ch = String((o.note_attributes || []).find(a => a.name === "__adtr_channel")?.value || ""); return ch && !/facebook|fb|ig|instagram/i.test(ch) && !isSubRen(o) ? 0.15 * 1.3 * ((+o.current_subtotal_price || 0) / 1.15) : 0; };
-  const daily = Object.fromEntries(DAYS.map(d => [d, { d, ordre: 0, oms: 0, eks: 0, nye: 0, u1: 0, u2: 0, subNew: 0, subRen: 0, subAct: 0, bmlKost: 0, adtrProv: 0, nyeK: Object.fromEntries(KANALER.map(k => [k, 0])), dbK: Object.fromEntries(KANALER.map(k => [k, 0])), ordreK: Object.fromEntries(KANALER.map(k => [k, 0])), dbOK: Object.fromEntries(KANALER.map(k => [k, 0])) }]));
+  const daily = Object.fromEntries(DAYS.map(d => [d, { d, ordre: 0, oms: 0, eks: 0, nye: 0, u1: 0, u2: 0, subNew: 0, subRen: 0, subAct: 0, bmlKost: 0, adtrProv: 0, nyeK: Object.fromEntries(KANALER.map(k => [k, 0])), dbK: Object.fromEntries(KANALER.map(k => [k, 0])), ordreK: Object.fromEntries(KANALER.map(k => [k, 0])), omsK: Object.fromEntries(KANALER.map(k => [k, 0])), dbOK: Object.fromEntries(KANALER.map(k => [k, 0])) }]));
   for (const o of orders) {
     const x = daily[o.day]; if (!x) continue;
-    x.ordre++; x.linjer = (x.linjer || 0) + (o.line_items || []).filter(li => (li.current_quantity ?? li.quantity) > 0).length; x.oms += amt(o); x.eks += amt(o) - (+o.current_total_tax || 0); x.bmlKost += bmlKost(o); x.adtrProv += adtrProv(o); { const k = kanal(o); x.ordreK[k]++; x.dbOK[k] += dbRest(o); }
+    x.ordre++; x.linjer = (x.linjer || 0) + (o.line_items || []).filter(li => (li.current_quantity ?? li.quantity) > 0).length; x.oms += amt(o); x.eks += amt(o) - (+o.current_total_tax || 0); x.bmlKost += bmlKost(o); x.adtrProv += adtrProv(o); { const k = kanal(o); x.ordreK[k]++; x.omsK[k] += amt(o) - (+o.current_total_tax || 0); x.dbOK[k] += dbRest(o); }
     if (isSubNew(o)) x.subNew++; if (isSubRen(o)) x.subRen++;
     for (const li of o.line_items || []) { const q = li.current_quantity ?? li.quantity; if (li.sku === "PACE01") x.u1 += q; if (li.sku === "PACE02") x.u2 += q; }
     x.sj = (x.sj || 0) + (o.line_items || []).filter(li => /^PACE0[12]$/.test(li.sku || "") && +li.price * li.quantity - (li.discount_allocations || []).reduce((y, d) => y + +d.amount, 0) > 0).reduce((y, li) => y + (li.current_quantity ?? li.quantity), 0);
@@ -684,6 +684,21 @@ const kanalTabell = (() => {
   return `<details class="chart kanaltab fold"><summary><span class="k">Reklamelinjer <b>for hver krone brukt: kr igjen innen 180 dager</b></span><span class="sec-sub fold-vis">vis ▾</span></summary><div class="kt-wrap"><table class="kt"><tr><th>Kanal</th><th>Periode</th><th>Brukt</th><th>Nye kunder</th><th>Per ny kunde</th><th>Igjen per kr</th></tr>${rows}</table></div><div class="box-n">${forkl}</div></details>`;
 })();
 
+// ---------- 6e. Kanaler siste 30 dager: brukt og salg (Morten 14.11.2026) ----------
+// Brukt = kanalens kostnad siste 30 hele dager (Meta og Google Ads fra API, BML honorar + provisjon, Adtraction fast + provisjon).
+// Salg = ordre Shopify knytter til kanalen (annonselenke, rabattkode BML20 eller Adtraction-sporing), eks mva, alle ordre, også gjenkjøp.
+// Kjøp etter annonse uten sporing havner under «Uten sporet kilde».
+const kanal30 = (() => {
+  const dager = DAYS.slice(-31, -1), K = [["meta", "Meta"], ["google", "Google Ads"], ["bml", "BML-podkast"], ["adtr", "Adtraction"]];
+  const rad = (k, navn) => { let kost = 0, ukjent = 0, salg = 0, ordre = 0;
+    for (const d of dager) { const c = kostDag(k, d); if (c == null) ukjent++; else kost += c; salg += shop.daily[d]?.omsK?.[k] || 0; ordre += shop.daily[d]?.ordreK?.[k] || 0; }
+    const perKr = kost > 0 ? salg / kost : null;
+    return `<tr><td>${navn}</td><td>${nf(kost)} kr${ukjent ? ` <span class="kt-m" title="${ukjent} dager uten kjent kostnad er ikke med">*</span>` : ""}</td><td><b>${nf(salg)} kr</b></td><td>${ordre}</td><td>${perKr == null ? "–" : kr2(perKr) + " kr"}</td></tr>`; };
+  let orgSalg = 0, orgOrdre = 0; for (const d of dager) { orgSalg += shop.daily[d]?.omsK?.org || 0; orgOrdre += shop.daily[d]?.ordreK?.org || 0; }
+  const rows = K.map(([k, n]) => rad(k, n)).join("") + `<tr><td>Uten sporet kilde</td><td class="kt-m">–</td><td><b>${nf(orgSalg)} kr</b></td><td>${orgOrdre}</td><td class="kt-m">–</td></tr>`;
+  return `<section class="chart kanaltab"><div class="k">Kanaler siste 30 dager <b>brukt og salg</b></div><div class="kt-wrap"><table class="kt"><tr><th>Kanal</th><th>Brukt</th><th>Salg</th><th>Ordre</th><th>Salg per krone brukt</th></tr>${rows}</table></div><div class="box-n">Salg er eks. mva og gjelder ordre Shopify knytter til kanalen: annonselenke, rabattkoden BML20 eller Adtraction-sporing. Kjøp som kommer etter en annonse uten sporing, står under «Uten sporet kilde».</div></section>`;
+})();
+
 // tallkortene i fire faner (Morten 03.11.2026); ⚠ på fanenavnet hvis et kort i fanen er utdatert
 const TABS = [
   ["res", "Resultat", resCard(30) + resCard(7) + innCard(30) + innUtCard(30)],
@@ -776,6 +791,7 @@ for (const [k, , h] of TABS) put(new RegExp(`<!--STATS_${k}-->[\\s\\S]*?<!--\\/S
 put(/<!--STATS_salg2-->[\s\S]*?<!--\/STATS_salg2-->/, `<!--STATS_salg2-->${salgFlere}<!--/STATS_salg2-->`, "STATS_salg2");
 put(/<!--TABS-->[\s\S]*?<!--\/TABS-->/, `<!--TABS-->${tabsHtml}<!--/TABS-->`, "TABS");
 put(/<!--TABNOTE_mf-->[\s\S]*?<!--\/TABNOTE_mf-->/, `<!--TABNOTE_mf-->${kpiNote}<!--/TABNOTE_mf-->`, "TABNOTE_mf");
+put(/<!--KANAL30-->[\s\S]*?<!--\/KANAL30-->/, `<!--KANAL30-->${kanal30}<!--/KANAL30-->`, "KANAL30");
 put(/<!--KANALTAB-->[\s\S]*?<!--\/KANALTAB-->/, `<!--KANALTAB-->${kanalTabell}<!--/KANALTAB-->`, "KANALTAB");
 put(/<!--FOKUS-->[\s\S]*?<!--\/FOKUS-->/, `<!--FOKUS-->${fokusHtml}<!--/FOKUS-->`, "FOKUS");
 put(/<!--DATASTATUS-->[\s\S]*?<!--\/DATASTATUS-->/, `<!--DATASTATUS-->${esc(datastatus)}<!--/DATASTATUS-->`, "DATASTATUS");
