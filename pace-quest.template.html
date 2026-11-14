@@ -272,6 +272,17 @@
   #who[hidden] { display: none; }
   #uke-modal { position: fixed; inset: 0; z-index: 85; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; padding: 16px; }
   #uke-modal[hidden] { display: none; }
+  /* rediger oppgave: åpnes ved klikk på kortet og i Gjennomgang (Morten 14.11.2026) */
+  #edit-modal { position: fixed; inset: 0; z-index: 90; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  #edit-modal[hidden] { display: none; }
+  #edit-modal .box { background: var(--surface-2); border: 1px solid var(--hairline); border-radius: 14px; padding: 18px 20px 20px; max-width: 560px; width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 12px; max-height: 92vh; overflow: auto; }
+  .e-l { display: flex; flex-direction: column; gap: 4px; font-size: 0.72rem; color: var(--ink-muted); text-transform: uppercase; letter-spacing: .05em; flex: 1; min-width: 140px; }
+  .e-l input, .e-l textarea, .e-l select { font: inherit; font-size: 0.95rem; text-transform: none; letter-spacing: 0; color: var(--ink); background: var(--surface); border: 1px solid var(--hairline); border-radius: 8px; padding: 8px 10px; width: 100%; }
+  .e-l textarea { resize: vertical; min-height: 110px; line-height: 1.4; }
+  .e-l input:disabled, .e-l textarea:disabled { opacity: .6; }
+  .e-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .e-del:hover { border-color: #e5534b; color: #e5534b; }
+  body.live .task { cursor: pointer; }
   .tag.fok { filter: grayscale(1); opacity: .55; } .tag.fok.on { filter: none; opacity: 1; border-color: var(--orange); color: var(--orange); } .tag.fok:hover { filter: none; opacity: 1; }
   #uke-modal .box { background: var(--surface-2); border: 1px solid var(--hairline); border-radius: 14px; padding: 18px 20px 20px; max-width: 520px; width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 12px; max-height: 90vh; overflow: auto; }
   .g-top { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: var(--ink-muted); }
@@ -469,7 +480,7 @@
   </div><!-- /team-view -->
 
   <footer>
-    Dra kort mellom kolonnene, huk av, klikk 👤 for ansvarlig, dobbeltklikk tittelen for å redigere. Endringer lagres direkte på GitHub-boardet.
+    Dra kort mellom kolonnene, huk av, klikk 👤 for ansvarlig, klikk på en oppgave for å redigere den. Endringer lagres direkte på GitHub-boardet.
     Tastatur: <kbd>N</kbd> ny oppgave · <kbd>Esc</kbd> lukk.
     Tallene bygges automatisk hver time 06–23; sist bygget <b><!--SYNC--><!--/SYNC--></b>.
   </footer>
@@ -477,6 +488,7 @@
 
 <div id="who" role="dialog" aria-modal="true" aria-labelledby="who-h" hidden><div class="box"><h2 id="who-h">Hvem er du?</h2><div class="opts" id="who-opts"></div></div></div>
 <div id="uke-modal" role="dialog" aria-modal="true" aria-label="Gjennomgang av oppgavene dine" hidden><div class="box"></div></div>
+<div id="edit-modal" role="dialog" aria-modal="true" aria-label="Rediger oppgave" hidden><div class="box"></div></div>
 <div id="pop" role="menu"></div>
 <div id="tip"></div>
 <div id="toast" role="status" aria-live="polite"><span id="toast-msg"></span><button id="toast-undo" hidden>Angre</button></div>
@@ -760,7 +772,7 @@ function taskCard(t, compact = false) {
   if (compact) el.title = t.body ? `${t.txt}\n\n${t.body}` : t.txt;
   el.innerHTML =
     `<button class="box" title="Marker ferdig / gjenåpne" aria-label="Marker ferdig">✓</button>` +
-    `<span class="txt"><span class="title" title="${live ? "Dobbeltklikk for å redigere" : ""}">${esc(t.txt)}</span><span class="body">${esc(t.body)}</span>` +
+    `<span class="txt"><span class="title" title="${live ? "Klikk for å redigere" : ""}">${esc(t.txt)}</span><span class="body">${esc(t.body)}</span>` +
     `${showWho ? who : ""}${strom}${showDue ? due : ""}${live && !isDone(t) ? `<button class="tag act fok${t.fokus ? " on" : ""}" title="${t.fokus ? "Fjern fokus" : "Sett som fokusoppgave"}" aria-label="${t.fokus ? "Fjern fokus" : "Sett som fokusoppgave"}">🎯${compact ? "" : t.fokus ? " fokus" : ""}</button>` : (t.fokus ? `<span class="tag fok on">🎯</span>` : "")}</span>` + (live ? `<button class="del" title="Slett kortet (kan angres)" aria-label="Slett">🗑</button>` : "");
   if (live) {
     el.draggable = true;
@@ -769,8 +781,7 @@ function taskCard(t, compact = false) {
     const dueBtn = el.querySelector(".due"); if (dueBtn) dueBtn.onclick = e => dueEditor(e.currentTarget, t);
     const fokBtn = el.querySelector(".fok"); if (fokBtn) fokBtn.onclick = e => { e.stopPropagation(); setFokus(t.id, !t.fokus); };
     const delBtn = el.querySelector(".del"); if (delBtn) delBtn.onclick = e => { e.stopPropagation(); deleteTask(t.id); };
-    const title = el.querySelector(".title");
-    title.ondblclick = () => startEdit(title, t);
+    el.addEventListener("click", e => { if (e.target.closest("button, input, select, a")) return; openEdit(t.id); });
     el.addEventListener("dragstart", e => { if (editing) { e.preventDefault(); return; } e.dataTransfer.setData("text/plain", t.id); e.dataTransfer.effectAllowed = "move"; el.classList.add("dragging"); });
     el.addEventListener("dragend", () => el.classList.remove("dragging"));
   }
@@ -785,6 +796,38 @@ function startEdit(span, t) {
   const finish = save => { span.contentEditable = "false"; editing = false; if (save) setTitle(t.id, span.textContent); else span.textContent = t.txt; };
   span.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); finish(true); } if (e.key === "Escape") { e.preventDefault(); finish(false); } };
   span.onblur = () => { if (editing) finish(true); };
+}
+
+// REDIGER OPPGAVE: tittel, beskrivelse, ansvarlig og status i ett vindu. Åpnes ved klikk på kortet og fra Gjennomgang.
+function openEdit(id) {
+  const t = tasks.find(x => x.id === id);
+  if (!live || !t || busy.has(id) || editing) return;
+  const m = document.getElementById("edit-modal"), box = m.querySelector(".box");
+  const opt = (list, cur) => list.map(n => `<option${n === cur ? " selected" : ""}>${esc(n)}</option>`).join("");
+  box.innerHTML = `<div class="g-top"><span>Rediger oppgave</span><button type="button" class="g-x" aria-label="Lukk uten å lagre">✕</button></div>`
+    + `<label class="e-l">Tittel<input id="e-title" maxlength="200"${t.draft ? "" : " disabled"}></label>`
+    + `<label class="e-l">Beskrivelse<textarea id="e-body" rows="6"${t.draft ? "" : " disabled"}></textarea></label>`
+    + `<div class="e-row"><label class="e-l">Ansvarlig<select id="e-owner">${opt(owners().includes(t.owner) ? owners() : [t.owner, ...owners()], t.owner)}</select></label>`
+    + `<label class="e-l">Status<select id="e-sec">${opt(SECTIONS.includes(t.sec) ? SECTIONS : [t.sec, ...SECTIONS], t.sec)}</select></label></div>`
+    + `<div class="g-nav"><button type="button" class="btn e-del">🗑 Slett</button><span style="flex:1"></span><button type="button" class="btn e-cancel">Avbryt</button><button type="button" class="btn primary e-save">Lagre</button></div>`;
+  const q = s => box.querySelector(s);
+  q("#e-title").value = t.txt; q("#e-body").value = t.body || "";
+  const close = () => { m.hidden = true; box.innerHTML = ""; editing = false; document.removeEventListener("keydown", onKey, true); render(); };
+  const onKey = e => { if (e.key === "Escape") { e.stopPropagation(); close(); } if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) save(); };
+  const save = async () => {
+    const title = q("#e-title").value.trim(), body = q("#e-body").value.replace(/\s+$/, ""), owner = q("#e-owner").value, sec = q("#e-sec").value;
+    if (!title) { q("#e-title").focus(); return; }
+    close();
+    if (t.draft && (title !== t.txt || body !== (t.body || ""))) { const ft = t.txt, fb = t.body;
+      await mutate(id, x => { x.txt = title; x.body = body; }, x => { x.txt = ft; x.body = fb; }, () => updateDraft(t.draft, title, body), "Lagret"); }
+    if (owner !== t.owner) { const fo = t.owner; await mutate(id, x => x.owner = owner, x => x.owner = fo, () => setField(id, project.ansvarligField, owner), `Ansvarlig: ${owner}`); }
+    if (sec !== t.sec) await moveTask(id, sec);
+  };
+  q(".g-x").onclick = close; q(".e-cancel").onclick = close; q(".e-save").onclick = save;
+  q(".e-del").onclick = () => { close(); deleteTask(id); };
+  m.onclick = e => { if (e.target === m) close(); };
+  document.addEventListener("keydown", onKey, true);
+  editing = true; m.hidden = false; (t.draft ? q("#e-title") : q("#e-owner")).focus();
 }
 
 function ownerMenu(anchor, t) {
@@ -917,14 +960,14 @@ function visGjg(fokuser = false) {
     const opptatt = busy.has(t.id), ferdig = isDone(t);
     const info = [t.due ? `frist ${fmtDate(t.due)}${isOver(t) ? " (over frist)" : ""}` : "", t.owner !== me ? esc(t.owner) : ""].filter(Boolean).join(" · ");
     box.innerHTML = topp
-      + `<div class="g-task${ferdig ? " done" : ""}" title="Trykk for å gå videre"><h2><span class="g-title">${esc(t.txt)}</span></h2>${t.body ? `<div class="g-body">${esc(t.body)}</div>` : ""}${info ? `<div class="g-sec">${info}</div>` : ""}</div>`
+      + `<div class="g-task${ferdig ? " done" : ""}" title="Trykk for å redigere"><h2><span class="g-title">${esc(t.txt)}</span></h2>${t.body ? `<div class="g-body">${esc(t.body)}</div>` : ""}${info ? `<div class="g-sec">${info}</div>` : ""}</div>`
       + `<div class="g-acts${opptatt ? " busy" : ""}">`
       +   `<button type="button" class="tag act g-done">${ferdig ? "↺ Gjenåpne" : "✓ Ferdig"}</button>`
       +   `<button type="button" class="tag act g-stat" title="Flytt">${esc(t.sec)} ▾</button>`
       +   `<button type="button" class="tag act g-who" style="color:${OWNER_COLOR[t.owner] || "var(--ink-muted)"}" title="Bytt ansvarlig">👤 ${esc(t.owner)}</button>`
       +   `<button type="button" class="tag act g-due${isOver(t) ? " over" : ""}" title="Sett frist">📅 ${t.due ? fmtDate(t.due) : "frist"}</button>`
       +   `${ferdig ? "" : `<button type="button" class="tag act fok${t.fokus ? " on" : ""}" title="${t.fokus ? "Fjern fokus" : "Sett som fokusoppgave"}">🎯${t.fokus ? " fokus" : ""}</button>`}`
-      +   `<button type="button" class="tag act g-edit" title="Endre tittel">✏️ tittel</button>`
+      +   `<button type="button" class="tag act g-edit" title="Rediger tittel og beskrivelse">✏️ rediger</button>`
       +   `<button type="button" class="tag act g-del" title="Slett kortet (kan angres)">🗑</button>`
       + `</div>` + okKnapp;
     const q = s => box.querySelector(s), stop = f => e => { e.stopPropagation(); f(e); };
@@ -933,9 +976,9 @@ function visGjg(fokuser = false) {
     q(".g-who").onclick = stop(e => ownerMenu(e.currentTarget, t));
     q(".g-due").onclick = stop(e => dueEditor(e.currentTarget, t));
     if (q(".fok")) q(".fok").onclick = stop(() => setFokus(t.id, !t.fokus));
-    q(".g-edit").onclick = stop(() => startEdit(q(".g-title"), t));
+    q(".g-edit").onclick = stop(() => openEdit(t.id));
     q(".g-del").onclick = stop(() => deleteTask(t.id));
-    q(".g-task").onclick = () => { if (!editing && !popOpen) neste(); };
+    q(".g-task").onclick = () => { if (!editing && !popOpen) openEdit(t.id); };
   }
   function neste() { if (!siste) { gjg.i++; visGjg(true); } else { lukkGjg(); bekreftUke(); } }
   box.querySelector(".g-ok").onclick = neste;
