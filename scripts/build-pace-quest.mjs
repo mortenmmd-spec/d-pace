@@ -233,9 +233,11 @@ async function fetchShopify() {
     } while (after);
     subStatus = st;
   } catch (e) { console.error("Abonnementsstatus utilgjengelig:", e.message); }
-  let subActive = null, subStart = 0, subStop = 0, subAdd30 = 0, subCan30 = 0, subRekke = 0;
+  let subActive = null, subStart = 0, subStop = 0, subAdd30 = 0, subCan30 = 0, subRekke = 0, besok = null;
   try {
     const ql = async s => { const r = await fetch(`https://${SHOP}/admin/api/${API}/graphql.json`, { method: "POST", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify({ query: "query($s: String!) { shopifyqlQuery(query: $s) { tableData { rows } parseErrors } }", variables: { s } }) }); const d = (await r.json()).data?.shopifyqlQuery; if (!d || d.parseErrors?.length) throw new Error(d?.parseErrors?.[0] || "ShopifyQL-feil"); return d.tableData.rows[0] || {}; };
+    try { const se = await ql("FROM sessions SHOW sessions, conversion_rate SINCE -30d UNTIL -1d"), sf = await ql("FROM sessions SHOW sessions, conversion_rate SINCE -60d UNTIL -31d");
+      besok = { n: +se.sessions || 0, cr: +se.conversion_rate, nF: +sf.sessions || 0, crF: +sf.conversion_rate }; console.log("Besøk 30 d:", JSON.stringify(besok)); } catch (e) { console.error("Besøk utilgjengelig:", e.message); }
     const all = await ql("FROM subscriptions SHOW subscriptions_added, subscriptions_canceled SINCE 2024-01-01 UNTIL today");
     const d30 = await ql("FROM subscriptions SHOW subscriptions_added, subscriptions_canceled SINCE -30d UNTIL today");
     subStart = +all.subscriptions_added || 0; subStop = +all.subscriptions_canceled || 0; subAdd30 = +d30.subscriptions_added || 0; subCan30 = +d30.subscriptions_canceled || 0;
@@ -251,7 +253,7 @@ async function fetchShopify() {
     for (const w of weeks.reverse()) { if ((+w.subscriptions_added || 0) > (+w.subscriptions_canceled || 0)) subRekke++; else break; }
     if (subActive !== null) { let live = subActive; for (const d of [...DAYS].reverse()) { daily[d].subLive = live; live -= (daily[d].subAdd || 0) - (daily[d].subCan || 0); } }
   } catch (e) { console.error("ShopifyQL utilgjengelig:", e.message); }
-  return { daily, lager, geo, kunder, perKunde, perKundeEks, ukedag: ukedagSnitt, histDag, subActive, subStatus, subStart, subStop, subAdd30, subCan30, subRekke, totalt, sjaktlerTotalt, sjaktlerIAar, b2bTotalt, rekord, nyKunde30, subOrdreEks, subOrdreN: renOrders.length, ordreTotalt, forsteDag, iAar, ordreIAar, subRen42, subOrdre, nyeKunder: await fetchNyeKunder(SHOP, H), kohort, at: NOW.toISOString() };
+  return { besok, daily, lager, geo, kunder, perKunde, perKundeEks, ukedag: ukedagSnitt, histDag, subActive, subStatus, subStart, subStop, subAdd30, subCan30, subRekke, totalt, sjaktlerTotalt, sjaktlerIAar, b2bTotalt, rekord, nyKunde30, subOrdreEks, subOrdreN: renOrders.length, ordreTotalt, forsteDag, iAar, ordreIAar, subRen42, subOrdre, nyeKunder: await fetchNyeKunder(SHOP, H), kohort, at: NOW.toISOString() };
 }
 
 // nye kunder per Oslo-dag (førstegangsordre, Shopify kundereise): antall, abonnementsstartere og dekningsbidrag på første ordre,
@@ -539,7 +541,7 @@ const tolvCard = () => { const n = sum(win(30), "oms") / 30, forrige = sum(serie
     `Salg inkl. mva de neste 12 månedene hvis vi holder takten fra de siste 30 hele dagene (${nf(n)} kr per dag × 365). De 30 dagene før var ${nf(forrige)} kr per dag. Ikke justert for sesong, Black Friday eller jul, og ingen fremskriving av vekst: økningen nå kommer mest av at Meta-annonsene startet igjen 29.09, og sommeren lå høyere. Med 60-dagers takt: ${nf(t60 * 365)} kr.`); };
 const sjaktlerCard = () => card("Sjaktler solgt totalt", nf(shop.sjaktlerTotalt) + " stk", `i år ${nf(shop.sjaktlerIAar)} stk · inkl. ${nf(shop.b2bTotalt.stk)} B2B`, "c-salg", `Sjaktler solgt over 0 kr i hele historikken: ${nf(shop.sjaktlerTotalt - shop.b2bTotalt.stk)} i Shopify og ${nf(shop.b2bTotalt.stk)} B2B fakturert utenfor Shopify (${shop.b2bTotalt.salg} salg). Flasker, gratisvarer og refunderte enheter er ikke med.`);
 const totaltCard = () => card("Salg totalt", nf(shop.totalt) + " kr", `${nf(shop.ordreTotalt)} ordre + ${shop.b2bTotalt.salg} B2B siden ${shop.forsteDag ? shop.forsteDag.slice(8, 10) + "." + shop.forsteDag.slice(5, 7) + "." + shop.forsteDag.slice(0, 4) : "start"} · i år ${nf(shop.iAar)} kr`, "c-salg", `All ordreverdi inkl. mva og frakt, betalte ordre, hele historikken (${nf(shop.ordreTotalt)} ordre), pluss ${nf(shop.b2bTotalt.kr)} kr B2B fakturert utenfor Shopify (${shop.b2bTotalt.salg} salg etter avtalt pris). Hittil i ${TODAY.slice(0, 4)}: ${nf(shop.iAar)} kr fra ${nf(shop.ordreIAar)} ordre og B2B. Seeding og kansellerte ordre er ikke med.`);
-const salgCard = (n) => { const w = win(n); return card(`Salg ${n} d, inkl. mva`, nf(sum(w, "oms") + sum(w, "b2bKr")) + " kr", `${nf(sum(w, "sj"))} sjaktler · ${sum(w, "ordre")} ordre${sum(w, "b2bN") ? ` + ${sum(w, "b2bN")} B2B` : ""} · ${sum(w, "nye")} nye`, "c-salg", `Sjaktler solgt inkl. B2B (${nf(sum(w, "b2bStk"))} stk B2B) og salg inkl. mva siste ${n} hele dager t.o.m. i går: ordre ${nf(sum(w, "oms"))} kr + B2B ${nf(sum(w, "b2bKr"))} kr, ${sum(w, "nye")} nye kunder`); };
+const salgCard = (n) => { const w = win(n); return card(`Salg ${n} d, inkl. mva`, nf(sum(w, "oms") + sum(w, "b2bKr")) + " kr", `${nf(sum(w, "sj"))} sjaktler · ${sum(w, "ordre")} ordre${sum(w, "b2bN") ? ` + ${sum(w, "b2bN")} B2B` : ""} · ${sum(w, "nye")} nye · forrige ${n} d: ${nf(sum(winF(n), "oms") + sum(winF(n), "b2bKr"))} kr`, "c-salg", `Sjaktler solgt inkl. B2B (${nf(sum(w, "b2bStk"))} stk B2B) og salg inkl. mva siste ${n} hele dager t.o.m. i går: ordre ${nf(sum(w, "oms"))} kr + B2B ${nf(sum(w, "b2bKr"))} kr, ${sum(w, "nye")} nye kunder`); };
 const totalCard = (n = 30, m = 7) => { const t = totalTall(n), t7 = totalTall(m);
   return mcard(`Kundekost, all markedsføring ${n} d`, kr(t), `${m} d: ${kr(t7)} (${t7.nye} nye) · ${n} d: ${nf(t.kost)} kr / ${t.nye} nye`, "c-cac",
     `All markedskost siste ${n} hele dager (Meta + BML provisjon og episodehonorar + Adtraction + Google Ads) delt på alle nye kunder i samme periode, uansett kanal. ${t.mangler.length ? `Kostnad mangler for ${t.mangler.join(", ")} på én eller flere dager og er regnet som 0, så tallet er et gulv. ` : ""}${t.anslag ? "BML-honorar for måneder uten oppgjør er anslått til 3 000 kr/mnd. " : ""}${t.adtrAnslag ? "Adtraction-provisjon for måneder uten faktura er anslått fra ordrene. " : ""}${m} d i underteksten.`); };
@@ -548,8 +550,15 @@ const adsCard = (n) => { if (!meta) return mcard(`Annonser ${n} d`, "–", "Meta
   // ingen dekkede dager i vinduet: kostnaden er ukjent, ikke 0 (annonsene kan gå uten at kilden har fått tallene ennå)
   if (!w.length) return mcard(`Annonser ${n} d`, "–", `ingen Meta-data etter ${fmtD(meta.coveredThrough)}`, "c-ads", `Meta-annonsekostnad mangler for alle ${n} dagene (siste dekkede dag ${fmtD(meta.coveredThrough)}). Annonsene kan ha gått; forbruket er ikke hentet ennå.`);
   const m = w.filter(r => r.manuell).length, sist = w[w.length - 1].d;
-  return mcard(`Annonser ${n} d`, nf(s) + " kr", `~${nf(s / w.length)} kr/dag · ${w.length < n ? `${w.length} av ${n} d · ` : ""}t.o.m. ${fmtD(sist)}`, "c-ads", `Meta-annonsekostnad ${w.length} av ${n} dager (kvitteringer t.o.m. ${fmtD(meta.coveredThrough)}${m ? `, ${m} dager lest manuelt fra Ads Manager` : ""}; dager uten tall er ukjente, ikke 0)`); };
+  return mcard(`Annonser ${n} d`, nf(s) + " kr", `~${nf(s / w.length)} kr/dag · ${w.length < n ? `${w.length} av ${n} d · ` : ""}t.o.m. ${fmtD(sist)}${winF(n).every(r => r.meta !== null) ? ` · forrige ${n} d: ${nf(sum(winF(n), "meta"))} kr` : ""}`, "c-ads", `Meta-annonsekostnad ${w.length} av ${n} dager (kvitteringer t.o.m. ${fmtD(meta.coveredThrough)}${m ? `, ${m} dager lest manuelt fra Ads Manager` : ""}; dager uten tall er ukjente, ikke 0)`); };
 // lager: tomdato ved takten siste 30 hele dager; neste batch for smaken fra Pace 2.0-planen
+// Pace sender ikke ut sjaktler med mindre enn 3 måneders holdbarhet: siste salgsdag = best før minus 3 måneder
+const sisteSalgsdag = bf => { const [y, m, d] = bf.split("-").map(Number); return new Date(Date.UTC(y, m - 1 - 3, d)).toISOString().slice(0, 10); };
+const utgaarCard = (navn, sku, key, bestfor) => { const bf = dmy(bestfor); if (!bf) return "";
+  const qty = shop.lager[sku], perDag = sum(win(30), key) / 30, ss = sisteSalgsdag(bf), dager = Math.max(0, Math.round((Date.parse(ss) - Date.parse(TODAY)) / 864e5));
+  const rest = Math.max(0, Math.round(qty - perDag * dager));
+  return card(`${navn} som går ut`, rest > 0 ? `~${nf(rest)} stk` : "0 stk", `siste salgsdag ${fmtD(ss)}.${ss.slice(2, 4)}, om ${dager} d · best før ${bestfor} · selger ${nf(perDag * 7)} per uke`, "c-lager",
+    `Lager ${nf(qty)} stk minus forventet salg frem til siste salgsdag (${nf(perDag)} per dag siste 30 d × ${dager} dager). Siste salgsdag er 3 måneder før best før.`); };
 const lagerCard = (navn, sku, key, bestfor, flavor) => {
   const qty = shop.lager[sku], perDag = sum(win(30), key) / 30;
   const batch = plan?.batches?.find(b => b.f === flavor);
@@ -559,9 +568,9 @@ const lagerCard = (navn, sku, key, bestfor, flavor) => {
   if (batch) tip += ` · neste batch i planen: bestilles ${batch.bestilt}, levert ${batch.levert}`;
   let rest = 0;
   if (bestfor && perDag > 0) {
-    const bf = dmy(bestfor);
-    rest = Math.max(0, qty - perDag * (Date.parse(bf) - Date.parse(TODAY)) / 864e5);
-    tip += ` · best før ${bestfor}${rest > 0 ? `, ~${nf(rest)} går ut ved dagens takt` : ""}`;
+    const bf = dmy(bestfor), ss = sisteSalgsdag(bf);
+    rest = Math.max(0, qty - perDag * Math.max(0, (Date.parse(ss) - Date.parse(TODAY)) / 864e5));
+    tip += ` · best før ${bestfor}, siste salgsdag ${fmtD(ss)}.${ss.slice(0, 4)} (3 måneder før)${rest > 0 ? `, ~${nf(rest)} blir ikke solgt i tide ved dagens takt` : ""}`;
   }
   s += rest > 0 ? ` · ~${nf(rest)} utgår` : batch ? ` · bestill ${batch.bestilt}` : "";
   return card(`Lager ${navn}`, nf(qty) + " stk", s, "c-lager", tip);
@@ -622,12 +631,14 @@ for (const r of series) { const ym = r.d.slice(0, 7), t = tillegg360[ym];
   r.fastAnslag = !FASTE || !!t?.anslag;
   r.res = r.fast == null ? null : Math.round((r.db - r.kost - r.fast) * 100) / 100;
   r.resUsikker = r.kostUfull || r.fastAnslag; }
-const resTall = n => { const w = win(n); const inn = sum(w, "eks"), db = sum(w, "db"), mk = sum(w, "kost"), fast = sum(w, "fast");
+const winF = n => series.slice(-2 * n - 1, -n - 1); // de n hele dagene før win(n)
+const resTall = (n, w = win(n)) => { const inn = sum(w, "eks"), db = sum(w, "db"), mk = sum(w, "kost"), fast = sum(w, "fast");
   return { inn, varer: inn - db, mk, fast, ut: inn - db + mk + fast, igjen: db - mk - fast, usikker: w.some(r => r.resUsikker), mkUfull: w.some(r => r.kostUfull), fastAnslag: w.some(r => r.fastAnslag) }; };
 const usikkerTxt = t => ""; // varsler på kortene fjernet (Morten 13.11.2026); mangler står i datastatus
 const RES_TIP = "Inn = salg eks mva. Ut = varer, plukk, frakt og betalingsgebyr per ordre + all markedsføring (Meta, Google, BML, Adtraction) + faste kostnader fra budsjettet (programvare, Slack, DNB Regnskap, bankgebyr, Uni Micro, 360 lagerleie og tillegget opp til 360-minimum på 10 000/mnd), fordelt likt på dagene. Varekost er standardkost 51,29 kr per sjaktel, ikke faktiske innkjøp, og dette er ikke kontantstrøm (mva, varekjøp og engangsposter er ikke med). Ukjent markedskost er regnet som 0 og flagget.";
 const resCard = n => { const t = resTall(n);
-  return mcard(`Resultat ${n} d`, nf(t.igjen) + " kr", `${usikkerTxt(t)}inn ${nf(t.inn)} · ut ${nf(t.ut)}`, "c-kasse", RES_TIP); };
+  const f = resTall(n, winF(n));
+  return mcard(`Resultat ${n} d`, nf(t.igjen) + " kr", `inn ${nf(t.inn)} · ut ${nf(t.ut)} · forrige ${n} d: ${nf(f.igjen)} kr`, "c-kasse", RES_TIP); };
 const innUtCard = (n = 30) => { const t = resTall(n);
   return mcard(`Ut ${n} d`, nf(t.ut) + " kr", `varer og frakt ${nf(t.varer)} · markedsføring ${nf(t.mk)} · faste ${nf(t.fast)}`, "c-kasse", RES_TIP); };
 const innCard = (n = 30) => { const t = resTall(n); return card(`Inn ${n} d, eks. mva`, nf(t.inn) + " kr", `salg eks mva · 7 d: ${nf(resTall(7).inn)} kr`, "c-salg", "Salg eks mva (etter refusjon, uten test- og seeding-ordre), siste " + n + " hele dager."); };
@@ -699,14 +710,27 @@ const kanal30 = (() => {
   return `<section class="chart kanaltab"><div class="k">Kanaler siste 30 dager <b>brukt og salg</b></div><div class="kt-wrap"><table class="kt"><tr><th>Kanal</th><th>Brukt</th><th>Salg</th><th>Ordre</th><th>Salg per krone brukt</th></tr>${rows}</table></div><div class="box-n">Salg er eks. mva og gjelder ordre Shopify knytter til kanalen: annonselenke, rabattkoden BML20 eller Adtraction-sporing. Kjøp som kommer etter en annonse uten sporing, står under «Uten sporet kilde».</div></section>`;
 })();
 
+const pst = v => (v * (v <= 1 ? 100 : 1)).toFixed(1).replace(".", ",") + " %"; // ShopifyQL gir andel 0–1
+const besokKort = (() => { const w = win(30), f = winF(30), snitt = sum(w, "ordre") ? sum(w, "oms") / sum(w, "ordre") : null, snittF = sum(f, "ordre") ? sum(f, "oms") / sum(f, "ordre") : null;
+  const snittKort = snitt == null ? "" : card("Snittordre 30 d", nf(snitt) + " kr", `inkl. mva og frakt${snittF != null ? ` · forrige 30 d: ${nf(snittF)} kr` : ""}`, "c-salg", "Salg inkl. mva delt på antall ordre i nettbutikken, siste 30 hele dager (uten B2B).");
+  if (!shop.besok || !shop.besok.n) return snittKort;
+  const k = shop.besok;
+  return card("Besøk 30 d", nf(k.n), `økter i nettbutikken${k.nF ? ` · forrige 30 d: ${nf(k.nF)}` : ""}`, "c-salg", "Økter (besøk) i nettbutikken siste 30 hele dager, fra Shopify-analyse.")
+    + (isFinite(k.cr) ? card("Konvertering 30 d", pst(k.cr), `andel besøk som ender i kjøp${isFinite(k.crF) ? ` · forrige 30 d: ${pst(k.crF)}` : ""}`, "c-salg", "Shopifys konverteringsrate: økter med fullført kjøp delt på alle økter, siste 30 hele dager.") : "") + snittKort; })();
+const frister = (() => { const rader = (process.env.PACE_FORFALL || "").split(";").map(l => l.split("|").map(s => s.trim())).filter(c => c[0] && /^\d{4}-\d{2}-\d{2}$/.test(c[2] || "")).sort((x, y) => x[2].localeCompare(y[2]));
+  if (!rader.length) return "";
+  const rad = c => { const d = Math.round((Date.parse(c[2]) - Date.parse(TODAY)) / 864e5), belop = c[1] && !isNaN(+c[1]) ? nf(+c[1]) + " kr" : "–";
+    return `<tr><td>${esc(c[0])}</td><td>${belop}</td><td>${fmtD(c[2])}.${c[2].slice(2, 4)} <span class="kt-m">${d < 0 ? `${-d} d over` : d === 0 ? "i dag" : `om ${d} d`}</span></td><td class="kt-m">${esc(c[3] || "")}</td></tr>`; };
+  return `<section class="chart kanaltab"><div class="k">Kommende betalinger og frister <b>${rader.length}</b></div><div class="kt-wrap"><table class="kt"><tr><th>Hva</th><th>Beløp</th><th>Forfall</th><th>Merknad</th></tr>${rader.map(rad).join("")}</table></div><div class="box-n">Listen legges inn for hånd (variabelen PACE_FORFALL). Den hentes ikke fra banken eller regnskapet.</div></section>`; })();
+
 // tallkortene i fire faner (Morten 03.11.2026); ⚠ på fanenavnet hvis et kort i fanen er utdatert
 const TABS = [
   ["res", "Resultat", resCard(30) + resCard(7) + innCard(30) + innUtCard(30)],
-  ["salg", "Salg", todayCard() + salgCard(7) + salgCard(30) + subCard], // fire hovedkort; resten under «Flere salgstall» (rydding 13.11.2026)
+  ["salg", "Salg", todayCard() + salgCard(7) + salgCard(30) + subCard + besokKort], // fire hovedkort; resten under «Flere salgstall» (rydding 13.11.2026)
   ["mf", "Markedsføring", adsCard(7) + adsCard(30) + totalCard() + merCard()],
   ["drift", "Drift", henvCard()
     + card("Kasse", nf(T.kasse) + " kr", "bankbalanse lagt inn " + T.kasse_dato, "c-kasse", `Bankbalanse lagt inn manuelt ${T.kasse_dato}`)
-    + lagerCard("sitron", "PACE01", "u1", T.sitron_bestfor, "Sitron & Lime") + lagerCard("bringebær", "PACE02", "u2", "", "Bringebær")],
+    + lagerCard("sitron", "PACE01", "u1", T.sitron_bestfor, "Sitron & Lime") + lagerCard("bringebær", "PACE02", "u2", "", "Bringebær") + utgaarCard("Sitron & Lime", "PACE01", "u1", T.sitron_bestfor)],
   ["par", "Partnere", ""], // tabellene tegnes i nettleseren fra boardkortene «B2B-kunder» og «Avtaler»
 ];
 const salgFlere = totaltCard() + sjaktlerCard() + estCard() + tolvCard()
@@ -791,6 +815,7 @@ for (const [k, , h] of TABS) put(new RegExp(`<!--STATS_${k}-->[\\s\\S]*?<!--\\/S
 put(/<!--STATS_salg2-->[\s\S]*?<!--\/STATS_salg2-->/, `<!--STATS_salg2-->${salgFlere}<!--/STATS_salg2-->`, "STATS_salg2");
 put(/<!--TABS-->[\s\S]*?<!--\/TABS-->/, `<!--TABS-->${tabsHtml}<!--/TABS-->`, "TABS");
 put(/<!--TABNOTE_mf-->[\s\S]*?<!--\/TABNOTE_mf-->/, `<!--TABNOTE_mf-->${kpiNote}<!--/TABNOTE_mf-->`, "TABNOTE_mf");
+put(/<!--FRISTER-->[\s\S]*?<!--\/FRISTER-->/, `<!--FRISTER-->${frister}<!--/FRISTER-->`, "FRISTER");
 put(/<!--KANAL30-->[\s\S]*?<!--\/KANAL30-->/, `<!--KANAL30-->${kanal30}<!--/KANAL30-->`, "KANAL30");
 put(/<!--KANALTAB-->[\s\S]*?<!--\/KANALTAB-->/, `<!--KANALTAB-->${kanalTabell}<!--/KANALTAB-->`, "KANALTAB");
 put(/<!--FOKUS-->[\s\S]*?<!--\/FOKUS-->/, `<!--FOKUS-->${fokusHtml}<!--/FOKUS-->`, "FOKUS");
