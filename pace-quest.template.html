@@ -1066,13 +1066,19 @@ async function awardCoins() {
   show(saved);
 })();
 
+// «Sist kontakt» hentes av bygget fra Gmail (META.sistKontakt), én dato per partnernavn
+function sistKontaktCelle(navn) {
+  const k = (META.sistKontakt || {})[navn]; if (!k) return `<td class="kt-m" title="Ingen e-post funnet">–</td>`;
+  const dager = Math.round((Date.parse(todayOslo()) - Date.parse(k.d)) / 864e5);
+  return `<td style="white-space:nowrap" title="${k.ret === "ut" ? "Siste e-post gikk fra oss" : "Siste e-post kom fra dem"}${k.navn ? " · funnet på navn, ikke e-postadresse" : ""}">${fmtDate(k.d)} <span class="kt-m">${dager <= 0 ? "i dag" : dager + " d"} · ${k.ret}${k.navn ? " *" : ""}</span></td>`;
+}
 function renderB2B() {
   const el = document.getElementById("b2b"); if (!el) return;
   const card = tasks.find(isB2B);
   if (!card) { el.innerHTML = `<summary><span class="k">B2B-kunder</span></summary><div class="empty">Lag et kort som heter «B2B-kunder» på boardet.</div>`; return; }
   const rows = (card.body || "").split(/\r?\n/).map(l => l.split("|").map(s => s.trim())).filter(c => c.length >= 2 && c[0] && !/^én kunde per linje/i.test(c[0]));
   el.innerHTML = `<summary><span class="k">Utsalgssteder og B2B-kunder <b>${rows.length}</b></span><span class="sec-sub fold-vis">vis ▾</span></summary><div class="sec-sub">rediger kortet «B2B-kunder» på boardet</div>`
-    + (rows.length ? `<table class="b2b"><tr><th>Kunde</th><th>Status</th><th>Kontakt</th></tr>${rows.map(c => `<tr><td>${esc(c[0])}</td><td>${esc(c[1] || "")}</td><td>${esc(c[2] || "")}</td></tr>`).join("")}</table>` : `<div class="empty">Ingen kunder i kortet ennå.</div>`);
+    + (rows.length ? `<table class="b2b"><tr><th>Kunde</th><th>Status</th><th>Kontakt</th><th>Sist kontakt</th></tr>${rows.map(c => `<tr><td>${esc(c[0])}</td><td>${esc(c[1] || "")}</td><td>${esc(c[2] || "")}</td>${sistKontaktCelle(c[0])}</tr>`).join("")}</table>` : `<div class="empty">Ingen kunder i kortet ennå.</div>`);
 }
 
 // AVTALER (fra kortet «Avtaler» på boardet, én avtale per linje: Partner | Type | Vilkår | Kode | Status)
@@ -1082,7 +1088,7 @@ function renderAvtaler() {
   if (!card) { el.innerHTML = `<summary><span class="k">Avtaler</span></summary><div class="empty">Lag et kort som heter «Avtaler» på boardet.</div>`; return; }
   const rows = (card.body || "").split(/\r?\n/).map(l => l.split("|").map(s => s.trim())).filter(c => c.length >= 2 && c[0] && !/^(partner|én avtale per linje)/i.test(c[0]));
   el.innerHTML = `<summary><span class="k">Samarbeidsavtaler <b>${rows.length}</b></span><span class="sec-sub fold-vis">vis ▾</span></summary><div class="sec-sub">rediger kortet «Avtaler» på boardet</div>`
-    + (rows.length ? `<table class="b2b"><tr><th>Partner</th><th>Type</th><th>Vilkår</th><th>Kode</th><th>Status</th></tr>${rows.map(c => `<tr><td>${esc(c[0])}</td><td>${esc(c[1] || "")}</td><td>${esc(c[2] || "")}</td><td>${esc(c[3] || "")}</td><td>${esc(c[4] || "")}</td></tr>`).join("")}</table>` : `<div class="empty">Ingen avtaler i kortet ennå.</div>`);
+    + (rows.length ? `<table class="b2b"><tr><th>Partner</th><th>Type</th><th>Vilkår</th><th>Kode</th><th>Status</th><th>Sist kontakt</th></tr>${rows.map(c => `<tr><td>${esc(c[0])}</td><td>${esc(c[1] || "")}</td><td>${esc(c[2] || "")}</td><td>${esc(c[3] || "")}</td><td>${esc(c[4] || "")}</td>${sistKontaktCelle(c[0])}</tr>`).join("")}</table>` : `<div class="empty">Ingen avtaler i kortet ennå.</div>`);
 }
 
 function renderRoles() {

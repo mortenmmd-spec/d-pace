@@ -357,9 +357,9 @@ async function fetchMetaSpend() {
 // Tråder i innboksen mottatt f.o.m. HENV_FRA der siste melding ikke er fra oss. Automatiske avsendere (kvitteringer, varsler,
 // nyhetsbrev) telles ikke; Shopify-kontaktskjema («Ny kundemelding») telles, for det er kunder.
 const HENV_FRA = "2026-10-20"; // Mortens start for tellingen (20.10.2026)
-async function gmailAuth() {
+async function gmailAuth(refresh) {
   const tr = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ client_id: env("GMAIL_CLIENT_ID"), client_secret: env("GMAIL_CLIENT_SECRET"), refresh_token: env("GMAIL_REFRESH_TOKEN"), grant_type: "refresh_token" }) });
+    body: new URLSearchParams({ client_id: env("GMAIL_CLIENT_ID"), client_secret: env("GMAIL_CLIENT_SECRET"), refresh_token: refresh || env("GMAIL_REFRESH_TOKEN"), grant_type: "refresh_token" }) });
   const tj = await tr.json();
   if (!tj.access_token) throw new Error("Gmail: token-feil " + (tj.error || tr.status));
   return { Authorization: "Bearer " + tj.access_token };
@@ -710,7 +710,40 @@ const note = `7 og 30 d = hele Oslo-dager t.o.m. i går; «Salg i dag» er dagen
   + (shop.subStatus ? `Aktive abonnenter = kunder med abonnementsstatus aktiv i Shopify (ikke pause eller avsluttet). Abonnementsgrafens linje er regnet bakover fra dagens tall med nye og avsluttede, pauser er ikke med i historikken. ` : shop.subActive !== null ? `Aktive abonnement = startet minus avsluttet i Shopify Subscriptions (Shopify-analyse). ` : "")
   + `CAC totalt = all markedskost (Meta + BML + Adtraction + Google) delt på alle nye kunder i samme periode. CAC per kanal = kanalens kostnad delt på nye kunder hvis første ordre er merket med kanalen (BML20-kode, Meta-klikk/__adtr_channel fb/ig, annen Adtraction-partner, gclid). Hovedtall 30 d, 7 d i underteksten. BML-kost = 30 % provisjon av varesalg eks mva + episodehonorar, Adtraction = 995/mnd + provisjon fra faktura, Google = kortbelastning per måned (manuelle månedsfiler; mangler = kost ukjent, regnes som 0 i totalen og flagges). `
   + `Lager = tilgjengelig hos 360 Logistics; tomdato ved takten siste 30 d. Kasse er bankbalanse lagt inn manuelt (sist ${T.kasse_dato}).`;
-const metaInfo = { built_at: NOW.toISOString(), shopify_at: shop.at, label: stamp, today: TODAY, meta_through: meta ? meta.coveredThrough : null, totalt: shop.totalt ?? null, daily: series.slice(-30), ukedag: shop.ukedag, geo: shop.geo, kart: { w: KART.w, h: KART.h, fylker: KART.fylker } };
+// ---------- 6a. Sist kontakt per partner (Morten 14.11.2026: automatisk, i fanen Partnere) ----------
+// Leser boardkortene «B2B-kunder» og «Avtaler». For hver rad: e-postadresser i raden (ellers partnernavnet som søkeord) slås opp i
+// Gmail for hei@ og, hvis hemmeligheten GMAIL_REFRESH_TOKENS_EKSTRA finnes (kommadelt), også morten@getpace.no og mortenmmd@gmail.com. Nyeste melding til/fra en person teller
+// (automatiske avsendere hoppes over). Resultat: { "<partnernavn>": { d: "YYYY-MM-DD", ret: "inn"|"ut", navn: true hvis funnet på navn } }.
+let sistKontakt = {};
+try {
+  const kort = n => tasks.find(x => new RegExp("^" + n + "$", "i").test((x.txt || "").trim()));
+  const rader = [kort("b2b-kunder"), kort("avtaler")].filter(Boolean).flatMap(k => (k.body || "").split(/\r?\n/).map(l => l.split("|").map(s => s.trim())).filter(c => c.length >= 2 && c[0] && !/^(partner|én (kunde|avtale) per linje)/i.test(c[0])));
+  const bokser = [await gmailAuth()]; for (const tok of (process.env.GMAIL_REFRESH_TOKENS_EKSTRA || "").split(",").map(s => s.trim()).filter(Boolean)) { try { bokser.push(await gmailAuth(tok)); } catch (e) { console.error("Ekstra postboks utilgjengelig:", e.message); } }
+  const hdrK = (m, n) => (m.payload?.headers || []).find(h => h.name.toLowerCase() === n.toLowerCase())?.value || "";
+  const nyeste = async (G, q) => {
+    const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(q + " -in:chats -in:draft")}&maxResults=6`, { headers: G });
+    if (!r.ok) throw new Error("Gmail messages " + r.status);
+    for (const m of (await r.json()).messages || []) {
+      const mr = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=metadata&metadataHeaders=From&metadataHeaders=To`, { headers: G });
+      if (!mr.ok) continue; const mj = await mr.json(), fra = hdrK(mj, "From");
+      const egen = /@getpace\.no|mortenmmd@gmail\.com/i.test(fra);
+      if (!egen && AUTO_FROM.test(fra)) continue;
+      if (egen && /dnbregnskap|@getpace\.no/i.test(hdrK(mj, "To")) && !/@(?!getpace\.no|dnbregnskap)/i.test(hdrK(mj, "To").replace(/[^@,]*@(getpace\.no|dnbregnskap\.dnb\.no)/gi, ""))) continue; // internt/videresendt til regnskap
+      return { ms: +mj.internalDate, ret: egen ? "ut" : "inn" };
+    }
+    return null;
+  };
+  const sett = new Set();
+  for (const c of rader) { if (sett.has(c[0])) continue; sett.add(c[0]);
+    const eposter = [...new Set((c.join(" ").match(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g) || []).map(s => s.toLowerCase()))];
+    const navn = c[0].replace(/\([^)]*\)/g, " ").replace(/\b(AS|ASA)\b/g, " ").replace(/\s+/g, " ").trim();
+    const q = eposter.length ? "{" + eposter.map(e => `from:${e} to:${e} cc:${e}`).join(" ") + "}" : `"${navn}"`;
+    let best = null; for (const G of bokser) { const x = await nyeste(G, q); if (x && (!best || x.ms > best.ms)) best = x; }
+    if (best) sistKontakt[c[0]] = { d: osloDay(new Date(best.ms)), ret: best.ret, ...(eposter.length ? {} : { navn: true }) };
+  }
+  console.log("Sist kontakt:", Object.entries(sistKontakt).map(([k, v]) => `${k.slice(0, 18)} ${v.d} ${v.ret}${v.navn ? "*" : ""}`).join(" | "), "| postbokser:", bokser.length);
+} catch (e) { console.error("Sist kontakt utilgjengelig:", e.message); }
+const metaInfo = { sistKontakt, built_at: NOW.toISOString(), shopify_at: shop.at, label: stamp, today: TODAY, meta_through: meta ? meta.coveredThrough : null, totalt: shop.totalt ?? null, daily: series.slice(-30), ukedag: shop.ukedag, geo: shop.geo, kart: { w: KART.w, h: KART.h, fylker: KART.fylker } };
 
 // ---------- 6b. Fokus nå: én linje per person, kun kort med Fokus = Nå (settes av Morten på boardet), ikke Ferdig ----------
 const PERSONER = ["Anders", "Victoria", "Anna", "Martin", "Morten"];
