@@ -166,6 +166,8 @@ async function fetchShopify() {
     for (const o of okH) { const d = osloDay(new Date(o.created_at)); if (d < HIST_FRA) { if (o.customer?.id) sett.add(o.customer.id); continue; } const x = hd(d);
       x.bml += bmlKost(o); x.adtrEst += adtrProv(o);
       if (o.customer?.id && !sett.has(o.customer.id)) { sett.add(o.customer.id); const k = kanal(o); x.nyeK[k] = (x.nyeK[k] || 0) + 1; if (isSubNew(o)) x.nyeSubK[k] = (x.nyeSubK[k] || 0) + 1; } } }
+  // én definisjon av ny kunde i hele dashboardet (review 14.11.2026): første betalte ordre noensinne, samme som kanaltallene
+  for (const d of DAYS) daily[d].nye = Object.values(histDag[d]?.nyeK || {}).reduce((x, y) => x + y, 0);
   // kohort: realisert dekningsbidrag per ny kunde de første 180 dagene (alle senere ordre med), delt på om første ordre var abonnement.
   // Kunder fra juni 2025 med full observasjonstid; dagens kostnader brukes også på eldre ordre.
   const kohort = { sub: { n: 0, db: 0 }, non: { n: 0, db: 0 } };
@@ -532,13 +534,13 @@ const todayCard = () => card("Salg i dag", nf(today.oms + today.b2bKr) + " kr" +
 const EST_DAGER = 60;
 const estCard = () => { const w = win(EST_DAGER), snitt = sum(w, "oms") / EST_DAGER, hittil = (shop.iAar ?? 0) - today.oms, aar = TODAY.slice(0, 4);
   const igjen = Math.round((Date.UTC(+aar, 11, 31) - Date.UTC(+aar, +TODAY.slice(5, 7) - 1, +TODAY.slice(8, 10))) / 864e5) + 1, est = hittil + snitt * igjen;
-  return card(`Estimat ${aar}`, nf(est) + " kr", `hittil ${nf(hittil)} + ${nf(snitt)} kr/dag × ${igjen} d (snitt ${EST_DAGER} d)`, "c-salg",
+  return card(`Estimat ${aar}`, nf(est) + " kr", `hittil t.o.m. i går ${nf(hittil)} + ${nf(snitt)} kr/dag × ${igjen} d (snitt ${EST_DAGER} d)`, "c-salg",
     `Rullende estimat for hele ${aar}, inkl. mva: salg hittil i år t.o.m. i går (${nf(hittil)} kr) pluss snittsalget per dag de siste ${EST_DAGER} hele dagene (${nf(snitt)} kr) ganget med dagene som er igjen av året inkludert i dag (${igjen}). Oppdateres hver time. Ingen justering for Black Friday, jul eller sesong.`); };
 // neste 12 mnd «med momentet vi har» (Morten 04.11.2026): siste 30 hele dager × 365 (nyeste takt), med endring mot de 30 dagene før.
 // Ingen lineær trendfremskriving: trenden nå er drevet av at Meta ble slått på igjen 29.09 (60-d-trend ga ~1,85 MNOK), og sommeren lå høyere.
 const tolvCard = () => { const n = sum(win(30), "oms") / 30, forrige = sum(series.slice(-61, -31), "oms") / 30, endr = forrige ? n / forrige - 1 : null, t60 = sum(win(60), "oms") / 60;
   return card("Neste 12 mnd", nf(n * 365) + " kr", `dagens takt (30 d) ${nf(n)} kr/dag${endr != null ? ` · ${endr >= 0 ? "+" : "−"}${Math.abs(Math.round(endr * 100))} % mot 30 d før` : ""} · 60 d-takt ${nf(t60 * 365)}`, "c-salg",
-    `Salg inkl. mva de neste 12 månedene hvis vi holder takten fra de siste 30 hele dagene (${nf(n)} kr per dag × 365). De 30 dagene før var ${nf(forrige)} kr per dag. Ikke justert for sesong, Black Friday eller jul, og ingen fremskriving av vekst: økningen nå kommer mest av at Meta-annonsene startet igjen 29.09, og sommeren lå høyere. Med 60-dagers takt: ${nf(t60 * 365)} kr.`); };
+    `Salg inkl. mva de neste 12 månedene hvis vi holder takten fra de siste 30 hele dagene (${nf(n)} kr per dag × 365). De 30 dagene før var ${nf(forrige)} kr per dag. Ikke justert for sesong, Black Friday eller jul, og ingen fremskriving av vekst. Med 60-dagers takt: ${nf(t60 * 365)} kr.`); };
 const sjaktlerCard = () => card("Sjaktler solgt totalt", nf(shop.sjaktlerTotalt) + " stk", `i år ${nf(shop.sjaktlerIAar)} stk · inkl. ${nf(shop.b2bTotalt.stk)} B2B`, "c-salg", `Sjaktler solgt over 0 kr i hele historikken: ${nf(shop.sjaktlerTotalt - shop.b2bTotalt.stk)} i Shopify og ${nf(shop.b2bTotalt.stk)} B2B fakturert utenfor Shopify (${shop.b2bTotalt.salg} salg). Flasker, gratisvarer og refunderte enheter er ikke med.`);
 const totaltCard = () => card("Salg totalt", nf(shop.totalt) + " kr", `${nf(shop.ordreTotalt)} ordre + ${shop.b2bTotalt.salg} B2B siden ${shop.forsteDag ? shop.forsteDag.slice(8, 10) + "." + shop.forsteDag.slice(5, 7) + "." + shop.forsteDag.slice(0, 4) : "start"} · i år ${nf(shop.iAar)} kr`, "c-salg", `All ordreverdi inkl. mva og frakt, betalte ordre, hele historikken (${nf(shop.ordreTotalt)} ordre), pluss ${nf(shop.b2bTotalt.kr)} kr B2B fakturert utenfor Shopify (${shop.b2bTotalt.salg} salg etter avtalt pris). Hittil i ${TODAY.slice(0, 4)}: ${nf(shop.iAar)} kr fra ${nf(shop.ordreIAar)} ordre og B2B. Seeding og kansellerte ordre er ikke med.`);
 const salgCard = (n) => { const w = win(n); return card(`Salg ${n} d, inkl. mva`, nf(sum(w, "oms") + sum(w, "b2bKr")) + " kr", `${nf(sum(w, "sj"))} sjaktler · ${sum(w, "ordre")} ordre${sum(w, "b2bN") ? ` + ${sum(w, "b2bN")} B2B` : ""} · ${sum(w, "nye")} nye · forrige ${n} d: ${nf(sum(winF(n), "oms") + sum(winF(n), "b2bKr"))} kr`, "c-salg", `Sjaktler solgt inkl. B2B (${nf(sum(w, "b2bStk"))} stk B2B) og salg inkl. mva siste ${n} hele dager t.o.m. i går: ordre ${nf(sum(w, "oms"))} kr + B2B ${nf(sum(w, "b2bKr"))} kr, ${sum(w, "nye")} nye kunder`); };
@@ -546,11 +548,11 @@ const totalCard = (n = 30, m = 7) => { const t = totalTall(n), t7 = totalTall(m)
   return mcard(`Kundekost, all markedsføring ${n} d`, kr(t), `${m} d: ${kr(t7)} (${t7.nye} nye) · ${n} d: ${nf(t.kost)} kr / ${t.nye} nye`, "c-cac",
     `All markedskost siste ${n} hele dager (Meta + BML provisjon og episodehonorar + Adtraction + Google Ads) delt på alle nye kunder i samme periode, uansett kanal. ${t.mangler.length ? `Kostnad mangler for ${t.mangler.join(", ")} på én eller flere dager og er regnet som 0, så tallet er et gulv. ` : ""}${t.anslag ? "BML-honorar for måneder uten oppgjør er anslått til 3 000 kr/mnd. " : ""}${t.adtrAnslag ? "Adtraction-provisjon for måneder uten faktura er anslått fra ordrene. " : ""}${m} d i underteksten.`); };
 // annonsekost: Meta-forbruk på fakturerte dager i vinduet; kr/dag over de samme dagene
-const adsCard = (n) => { if (!meta) return mcard(`Annonser ${n} d`, "–", "Meta-data mangler", "c-ads", metaErr); const w = win(n).filter(r => r.meta !== null); const s = sum(w, "meta");
+const adsCard = (n) => { if (!meta) return mcard(`Meta ${n} d`, "–", "Meta-data mangler", "c-ads", metaErr); const w = win(n).filter(r => r.meta !== null); const s = sum(w, "meta");
   // ingen dekkede dager i vinduet: kostnaden er ukjent, ikke 0 (annonsene kan gå uten at kilden har fått tallene ennå)
-  if (!w.length) return mcard(`Annonser ${n} d`, "–", `ingen Meta-data etter ${fmtD(meta.coveredThrough)}`, "c-ads", `Meta-annonsekostnad mangler for alle ${n} dagene (siste dekkede dag ${fmtD(meta.coveredThrough)}). Annonsene kan ha gått; forbruket er ikke hentet ennå.`);
+  if (!w.length) return mcard(`Meta ${n} d`, "–", `ingen Meta-data etter ${fmtD(meta.coveredThrough)}`, "c-ads", `Meta-annonsekostnad mangler for alle ${n} dagene (siste dekkede dag ${fmtD(meta.coveredThrough)}). Annonsene kan ha gått; forbruket er ikke hentet ennå.`);
   const m = w.filter(r => r.manuell).length, sist = w[w.length - 1].d;
-  return mcard(`Annonser ${n} d`, nf(s) + " kr", `~${nf(s / w.length)} kr/dag · ${w.length < n ? `${w.length} av ${n} d · ` : ""}t.o.m. ${fmtD(sist)}${winF(n).every(r => r.meta !== null) ? ` · forrige ${n} d: ${nf(sum(winF(n), "meta"))} kr` : ""}`, "c-ads", `Meta-annonsekostnad ${w.length} av ${n} dager (kvitteringer t.o.m. ${fmtD(meta.coveredThrough)}${m ? `, ${m} dager lest manuelt fra Ads Manager` : ""}; dager uten tall er ukjente, ikke 0)`); };
+  return mcard(`Meta ${n} d`, nf(s) + " kr", `~${nf(s / w.length)} kr/dag · ${w.length < n ? `${w.length} av ${n} d · ` : ""}t.o.m. ${fmtD(sist)}${winF(n).every(r => r.meta !== null) ? ` · forrige ${n} d: ${nf(sum(winF(n), "meta"))} kr` : ""}`, "c-ads", `Meta-annonsekostnad ${w.length} av ${n} dager (${meta.source === "api" ? "Meta Marketing API" : "kvitteringer"} t.o.m. ${fmtD(meta.coveredThrough)}${m ? `, ${m} dager lest manuelt fra Ads Manager` : ""}; dager uten tall er ukjente, ikke 0)`); };
 // lager: tomdato ved takten siste 30 hele dager; neste batch for smaken fra Pace 2.0-planen
 // Pace sender ikke ut sjaktler med mindre enn 3 måneders holdbarhet: siste salgsdag = best før minus 3 måneder
 const sisteSalgsdag = bf => { const [y, m, d] = bf.split("-").map(Number); return new Date(Date.UTC(y, m - 1 - 3, d)).toISOString().slice(0, 10); };
@@ -558,12 +560,12 @@ const utgaarCard = (navn, sku, key, bestfor) => { const bf = dmy(bestfor); if (!
   const qty = shop.lager[sku], perDag = sum(win(30), key) / 30, ss = sisteSalgsdag(bf), dager = Math.max(0, Math.round((Date.parse(ss) - Date.parse(TODAY)) / 864e5));
   const rest = Math.max(0, Math.round(qty - perDag * dager));
   return card(`${navn} som går ut`, rest > 0 ? `~${nf(rest)} stk` : "0 stk", `siste salgsdag ${fmtD(ss)}.${ss.slice(2, 4)}, om ${dager} d · best før ${bestfor} · selger ${nf(perDag * 7)} per uke`, "c-lager",
-    `Lager ${nf(qty)} stk minus forventet salg frem til siste salgsdag (${nf(perDag)} per dag siste 30 d × ${dager} dager). Siste salgsdag er 3 måneder før best før.`); };
+    `Lager ${nf(qty)} stk minus forventet salg frem til siste salgsdag (${perDag.toFixed(1).replace(".", ",")} per dag siste 30 d × ${dager} dager). Siste salgsdag er 3 måneder før best før.`); };
 const lagerCard = (navn, sku, key, bestfor, flavor) => {
   const qty = shop.lager[sku], perDag = sum(win(30), key) / 30;
   const batch = plan?.batches?.find(b => b.f === flavor);
   const tom = perDag > 0 ? addDays(TODAY, Math.floor(qty / perDag)) : null;
-  let s = tom ? `tom ~${monLabel(tom)}` : "ingen takt";
+  let s = tom ? (bestfor && dmy(bestfor) && sisteSalgsdag(dmy(bestfor)) < tom ? `salgbart t.o.m. ${fmtD(sisteSalgsdag(dmy(bestfor)))}.${sisteSalgsdag(dmy(bestfor)).slice(2, 4)}` : `tom ~${monLabel(tom)}`) : "ingen takt";
   let tip = perDag > 0 ? `${nf(perDag * 7)} sjaktler per uke siste 30 d, ${nf(qty / perDag / 7)} uker dekning, tom rundt ${fmtD(tom)}.${tom.slice(0, 4)}` : "ingen målbar takt siste 30 d";
   if (batch) tip += ` · neste batch i planen: bestilles ${batch.bestilt}, levert ${batch.levert}`;
   let rest = 0;
@@ -743,10 +745,10 @@ const kpiNote = ""; // merknaden om uavtalte KPI-er er fjernet fra siden (Morten
 // datastatus: hvor ferske tallene er per kilde
 const datastatus = [`Shopify ${stamp}`, meta ? `${metaKilde} t.o.m. ${metaSist ? fmtD(metaSist) : "–"}${metaStale ? " (ikke oppdatert)" : ""}` : "Meta mangler", `bankbalanse ${T.kasse_dato}`, plan ? `Pace 2.0-plan ${fmtD(plan.built)}` : "plan mangler", ...(win(30).some(r => r.kostUfull) ? ["markedskost ufullstendig siste 30 d"] : [])].join(" · ");
 
-const note = `7 og 30 d = hele Oslo-dager t.o.m. i går; «Salg i dag» er dagen så langt. Salg = ordreverdi inkl. mva for ordre opprettet i perioden, etter refusjon, uten test- og seeding-ordre (Shopify ${stamp}). Planraden sammenlignes eks mva. Nye kunder = kundeprofiler opprettet i perioden med betalt ordre. `
+const note = `7 og 30 d = hele Oslo-dager t.o.m. i går; «Salg i dag» er dagen så langt. Salg = ordreverdi inkl. mva for ordre opprettet i perioden, etter refusjon, uten test- og seeding-ordre (Shopify ${stamp}). Nye kunder = kunder med sin første betalte ordre noensinne i perioden. `
   + (meta ? `Meta-kost = ${meta.source === "api" ? "Meta Marketing API per dag" : "kvitteringer i hei@getpace.no + daglig avlesning i Ads Manager"} (t.o.m. ${metaSist ? fmtD(metaSist) : "–"}). ` : `Meta-kost mangler: ${esc(metaErr)}. `)
   + (shop.subStatus ? `Aktive abonnenter = kunder med abonnementsstatus aktiv i Shopify (ikke pause eller avsluttet). Abonnementsgrafens linje er regnet bakover fra dagens tall med nye og avsluttede, pauser er ikke med i historikken. ` : shop.subActive !== null ? `Aktive abonnement = startet minus avsluttet i Shopify Subscriptions (Shopify-analyse). ` : "")
-  + `CAC totalt = all markedskost (Meta + BML + Adtraction + Google) delt på alle nye kunder i samme periode. CAC per kanal = kanalens kostnad delt på nye kunder hvis første ordre er merket med kanalen (BML20-kode, Meta-klikk/__adtr_channel fb/ig, annen Adtraction-partner, gclid). Hovedtall 30 d, 7 d i underteksten. BML-kost = 30 % provisjon av varesalg eks mva + episodehonorar, Adtraction = 995/mnd + provisjon fra faktura, Google = kortbelastning per måned (manuelle månedsfiler; mangler = kost ukjent, regnes som 0 i totalen og flagges). `
+  + `Kundekost, all markedsføring = all markedskost (Meta + BML + Adtraction + Google Ads) delt på alle nye kunder i samme periode. Kundekost på strategisiden = bare annonser (Meta + Google Ads) delt på alle nye kunder. Kostnad per kanal = kanalens kostnad delt på nye kunder hvis første ordre er merket med kanalen (BML20-kode, Meta-klikk/__adtr_channel fb/ig, annen Adtraction-partner, gclid). Hovedtall 30 d, 7 d i underteksten. BML-kost = 30 % provisjon av varesalg eks mva + episodehonorar, Adtraction = 995/mnd + provisjon fra faktura, Google Ads = Google Ads API per dag (måneder før november 2026 fra fakturering). B2B-salg utenfor Shopify er med i salgskortene, men ikke i Resultat, Inn, Kanaler eller grafene. `
   + `Lager = tilgjengelig hos 360 Logistics; tomdato ved takten siste 30 d. Kasse er bankbalanse lagt inn manuelt (sist ${T.kasse_dato}).`;
 // ---------- 6a0. Ferske tall til målene på strategisiden (Morten 14.11.2026: automatisk oppdatert) ----------
 // Omsetning i år (inkl. mva, samme tall som «Salg totalt … i år») + årsestimatet, aktive abonnenter, og kundekost slik Pace 2.0 definerer den:
