@@ -260,7 +260,7 @@
   #add-open { display: none; flex: none; } body.live #add-open { display: inline-block; }
   body.live .add-bar:not(.open) { display: none; }
   .me-sel { font: inherit; font-size: 0.85rem; color: var(--ink); background: var(--surface); border: 1px solid var(--hairline); border-radius: 999px; padding: 5px 10px; }
-  body.team #main-view, body.strat #main-view, body.aar #main-view { display: none; } body:not(.team) #team-view { display: none; } body:not(.strat) #strat-view { display: none; } body:not(.aar) #aar-view { display: none; } /* Roller og Årshjul er egne visninger (Morten 14.11.2026) */
+  body.team #main-view, body.strat #main-view, body.aar #main-view { display: none; } body:not(.team) #team-view { display: none; } body:not(.strat) #strat-view { display: none; } body:not(.aar) #aar-view { display: none; } body.par #main-view { display: none; } body:not(.par) #par-view { display: none; } /* Roller og Årshjul er egne visninger (Morten 14.11.2026) */
   /* strategiside (Morten 14.11.2026): teksten kommer fra boardkortet «Strategi» */
   .strat-blokk { background: var(--surface); border: 1px solid var(--hairline); border-radius: 14px; padding: 16px 20px; margin: 0 0 12px; }
   .strat-blokk h2 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-muted); margin: 0 0 8px; }
@@ -529,6 +529,7 @@ h1 small a { margin-left: 8px; }
     <div class="hdr-actions">
       <select id="coin-me" class="me-sel" aria-label="Hvem er du?" title="Hvem er du?"></select>
       <button class="btn" id="strat-btn" aria-pressed="false">Strategi</button>
+      <button class="btn" id="par-btn" aria-pressed="false">Partnere</button>
       <button class="btn" id="team-btn" aria-pressed="false">Roller</button>
       <button class="btn" id="aar-btn" aria-pressed="false">Årshjul</button>
       <button class="btn" id="uke-btn" disabled>Gjennomgang</button>
@@ -571,12 +572,6 @@ h1 small a { margin-left: 8px; }
     <section class="stats"><!--STATS_drift--><!--/STATS_drift--></section>
     <!--FRISTER--><!--/FRISTER-->
   </div>
-  <div class="tab-panel" id="tab-par" data-tab="par" role="tabpanel" hidden>
-    <!-- Partnere (Morten 14.11.2026): utsalgssteder/B2B-kunder og samarbeidsavtaler samlet, åpne i denne fanen -->
-    <!--STATS_par--><!--/STATS_par-->
-    <details class="chart fold" id="b2b" style="margin-bottom:10px" open></details>
-    <details class="chart fold" id="avtaler" style="margin-bottom:10px" open></details>
-  </div>
   <details class="about"><summary id="about-sum">Om tallene ▾</summary><div id="datastatus" style="margin-bottom:6px"><!--DATASTATUS--><!--/DATASTATUS--></div><div id="stats-note"><!--STATSNOTE--><!--/STATSNOTE--></div></details>
   <div class="stale" id="stale" hidden></div>
 
@@ -596,6 +591,13 @@ h1 small a { margin-left: 8px; }
 
 
   </div><!-- /main-view -->
+
+  <div id="par-view">
+    <!-- Partnere (Morten 14.11.2026): utsalgssteder/B2B-kunder og samarbeidsavtaler, egen visning bak knapp i toppen -->
+    <div class="sec-h">Partnere</div>
+    <details class="chart fold" id="b2b" style="margin-bottom:10px" open></details>
+    <details class="chart fold" id="avtaler" style="margin-bottom:10px" open></details>
+  </div>
 
   <div id="strat-view">
     <div class="strat-top"><div class="sec-h">Strategi og mål</div><button class="btn" id="strat-edit" hidden>✏️ Rediger</button></div>
@@ -1559,7 +1561,7 @@ document.getElementById("token-clear").onclick = () => { localStorage.removeItem
 document.getElementById("reload-btn").onclick = async () => { try { if (await loadBoard()) { render(); toast("Boardet oppdatert"); } } catch (e) { toast("Kunne ikke hente boardet: " + e.message, true); } };
 document.getElementById("uke-btn").onclick = startGjennomgang;
 // Roller og årshjul i egen visning (rydding 13.11.2026)
-const VISNINGER = { strat: ["strat-btn", "Strategi"], team: ["team-btn", "Roller"], aar: ["aar-btn", "Årshjul"] };
+const VISNINGER = { strat: ["strat-btn", "Strategi"], par: ["par-btn", "Partnere"], team: ["team-btn", "Roller"], aar: ["aar-btn", "Årshjul"] };
 function visning(navn) { // navn = "strat" | "team" | "aar" | "" (hovedsiden)
   for (const [k, [id, tekst]] of Object.entries(VISNINGER)) { const on = k === navn, b = document.getElementById(id); document.body.classList.toggle(k, on); b.setAttribute("aria-pressed", on); b.textContent = on ? "← Tilbake" : tekst; }
   window.scrollTo(0, 0);

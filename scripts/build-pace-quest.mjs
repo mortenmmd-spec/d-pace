@@ -731,7 +731,6 @@ const TABS = [
   ["drift", "Drift", henvCard()
     + card("Kasse", nf(T.kasse) + " kr", "bankbalanse lagt inn " + T.kasse_dato, "c-kasse", `Bankbalanse lagt inn manuelt ${T.kasse_dato}`)
     + lagerCard("sitron", "PACE01", "u1", T.sitron_bestfor, "Sitron & Lime") + lagerCard("bringebær", "PACE02", "u2", "", "Bringebær") + utgaarCard("Sitron & Lime", "PACE01", "u1", T.sitron_bestfor)],
-  ["par", "Partnere", ""], // tabellene tegnes i nettleseren fra boardkortene «B2B-kunder» og «Avtaler»
 ];
 const salgFlere = totaltCard() + sjaktlerCard() + estCard() + tolvCard()
   + card("Unike kunder", nf(shop.kunder), `+${sum(win(30), "nye")} nye siste 30 d`, "c-salg", "Kundeprofiler med minst én betalt ordre i hele historikken (uten test- og seeding-ordre)");
