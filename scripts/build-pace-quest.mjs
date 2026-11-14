@@ -486,7 +486,7 @@ const adtrFaktura = d => kanalKost.adtraction?.provisjon?.[d.slice(0, 7)] != nul
 const adtrDag = (d, est) => (kanalKost.adtraction?.fast ?? 995) / daysInMonth(d.slice(0, 7)) + (adtrFaktura(d) ? perDag(kanalKost.adtraction.provisjon, d) : (est || 0));
 
 // ---------- 6. Tall ----------
-const series = DAYS.map(d => { const x = shop.daily[d]; const covered = meta && d <= meta.coveredThrough; return { d, ordre: x.ordre, sj: (x.sj || 0) + (x.b2bStk || 0), b2bStk: x.b2bStk || 0, b2bN: x.b2bN || 0, b2bKr: x.b2bKr || 0, oms: Math.round(x.oms * 100) / 100, eks: Math.round(x.eks * 100) / 100, nye: x.nye, u1: x.u1, u2: x.u2, subNew: x.subNew, subRen: x.subRen, subAdd: x.subAdd ?? null, subCan: x.subCan ?? null, subLive: x.subLive ?? null, meta: meta && meta.source !== "api" && meta.manual[d] != null ? Math.round(meta.manual[d] * 100) / 100 : covered ? Math.round((meta.daily[d] || 0) * 100) / 100 : (meta && meta.manual[d] != null ? Math.round(meta.manual[d] * 100) / 100 : null), manuell: !!(meta && meta.source !== "api" && meta.manual[d] != null), bml: Math.round(x.bmlKost * 100) / 100, adtr: adtrDag(d, x.adtrProv), adtrAnslag: !adtrFaktura(d),google: googleDag(d), nyeK: x.nyeK, dbK: x.dbK, ordreK: x.ordreK, dbOK: x.dbOK }; });
+const series = DAYS.map(d => { const x = shop.daily[d]; const covered = meta && d <= meta.coveredThrough; return { d, ordre: x.ordre, sj: (x.sj || 0) + (x.b2bStk || 0), b2bStk: x.b2bStk || 0, b2bN: x.b2bN || 0, b2bKr: x.b2bKr || 0, oms: Math.round(x.oms * 100) / 100, omsAlt: Math.round((x.oms + (x.b2bKr || 0)) * 100) / 100, b2bEks: Math.round((x.b2bKr || 0) / 1.15 * 100) / 100, eks: Math.round((x.eks + (x.b2bKr || 0) / 1.15) * 100) / 100, nye: x.nye, u1: x.u1, u2: x.u2, subNew: x.subNew, subRen: x.subRen, subAdd: x.subAdd ?? null, subCan: x.subCan ?? null, subLive: x.subLive ?? null, meta: meta && meta.source !== "api" && meta.manual[d] != null ? Math.round(meta.manual[d] * 100) / 100 : covered ? Math.round((meta.daily[d] || 0) * 100) / 100 : (meta && meta.manual[d] != null ? Math.round(meta.manual[d] * 100) / 100 : null), manuell: !!(meta && meta.source !== "api" && meta.manual[d] != null), bml: Math.round(x.bmlKost * 100) / 100, adtr: adtrDag(d, x.adtrProv), adtrAnslag: !adtrFaktura(d),google: googleDag(d), nyeK: x.nyeK, dbK: x.dbK, ordreK: x.ordreK, dbOK: x.dbOK }; });
 const today = series[series.length - 1];
 const win = n => series.slice(-n - 1, -1); // n hele dager t.o.m. i går
 const sum = (a, k) => a.reduce((x, r) => x + (r[k] || 0), 0);
@@ -495,7 +495,8 @@ const MON = ["jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt
 const monLabel = ymd => MON[+ymd.slice(5, 7) - 1] + " " + ymd.slice(2, 4); // "okt 26", samme form som planen
 // total markedskost per dag (Meta + BML provisjon + BML-honorar + Adtraction + Google); ukjent kostnad regnes som 0 og flagges
 for (const r of series) { const f = bmlFastDag(r.d); r.kost = Math.round(((r.meta ?? 0) + (r.bml || 0) + (f ?? 0) + (r.adtr ?? 0) + (r.google ?? 0)) * 100) / 100; r.kostUfull = r.meta == null || f == null || r.adtr == null || r.google == null; }
-for (const r of series) r.db = Math.round(Object.values(r.dbOK || {}).reduce((x, y) => x + y, 0) * 100) / 100; // dekningsbidrag alle ordre den dagen
+const B2B_KOST = { ordre: 40, linje: 2, perStk: 1 }; // 360 B2B-håndtering (11.11.2026); frakt ukjent, ikke med
+for (const r of series) r.db = Math.round((Object.values(r.dbOK || {}).reduce((x, y) => x + y, 0) + (r.b2bEks ? r.b2bEks - r.b2bStk * (KOST.sjaktel + B2B_KOST.perStk) - r.b2bN * (B2B_KOST.ordre + B2B_KOST.linje) : 0)) * 100) / 100; // dekningsbidrag alle ordre den dagen, inkl. B2B
 // markedskost mot alt salg (uavhengig av merking): kost / omsetning eks mva, og DB fra alle ordre minus all markedskost
 const merTall = n => { const w = win(n); const kost = sum(w, "kost"), eks = sum(w, "eks"), db = sum(w, "db"); return { kost, eks, db, andel: eks ? kost / eks : null, netto: db - kost, ufull: w.some(r => r.kostUfull) }; };
 const pct = v => v == null ? "–" : Math.round(v * 100) + " %";
@@ -532,13 +533,13 @@ const todayCard = () => card("Salg i dag", nf(today.oms + today.b2bKr) + " kr" +
 // estimat for året (Morten 04.11.2026): salg hittil i år t.o.m. i går + snitt per dag siste 60 hele dager × dager igjen av året (i dag med).
 // 60 d valgt fordi 30/60/90 d lå jevnt (2 683/2 577/2 479 kr/dag 04.11) og 90 d drar inn sommeren uten Meta-annonser. Ingen sesongjustering.
 const EST_DAGER = 60;
-const estCard = () => { const w = win(EST_DAGER), snitt = sum(w, "oms") / EST_DAGER, hittil = (shop.iAar ?? 0) - today.oms, aar = TODAY.slice(0, 4);
+const estCard = () => { const w = win(EST_DAGER), snitt = sum(w, "omsAlt") / EST_DAGER, hittil = (shop.iAar ?? 0) - today.omsAlt, aar = TODAY.slice(0, 4);
   const igjen = Math.round((Date.UTC(+aar, 11, 31) - Date.UTC(+aar, +TODAY.slice(5, 7) - 1, +TODAY.slice(8, 10))) / 864e5) + 1, est = hittil + snitt * igjen;
   return card(`Estimat ${aar}`, nf(est) + " kr", `hittil t.o.m. i går ${nf(hittil)} + ${nf(snitt)} kr/dag × ${igjen} d (snitt ${EST_DAGER} d)`, "c-salg",
     `Rullende estimat for hele ${aar}, inkl. mva: salg hittil i år t.o.m. i går (${nf(hittil)} kr) pluss snittsalget per dag de siste ${EST_DAGER} hele dagene (${nf(snitt)} kr) ganget med dagene som er igjen av året inkludert i dag (${igjen}). Oppdateres hver time. Ingen justering for Black Friday, jul eller sesong.`); };
 // neste 12 mnd «med momentet vi har» (Morten 04.11.2026): siste 30 hele dager × 365 (nyeste takt), med endring mot de 30 dagene før.
 // Ingen lineær trendfremskriving: trenden nå er drevet av at Meta ble slått på igjen 29.09 (60-d-trend ga ~1,85 MNOK), og sommeren lå høyere.
-const tolvCard = () => { const n = sum(win(30), "oms") / 30, forrige = sum(series.slice(-61, -31), "oms") / 30, endr = forrige ? n / forrige - 1 : null, t60 = sum(win(60), "oms") / 60;
+const tolvCard = () => { const n = sum(win(30), "omsAlt") / 30, forrige = sum(series.slice(-61, -31), "omsAlt") / 30, endr = forrige ? n / forrige - 1 : null, t60 = sum(win(60), "omsAlt") / 60;
   return card("Neste 12 mnd", nf(n * 365) + " kr", `dagens takt (30 d) ${nf(n)} kr/dag${endr != null ? ` · ${endr >= 0 ? "+" : "−"}${Math.abs(Math.round(endr * 100))} % mot 30 d før` : ""} · 60 d-takt ${nf(t60 * 365)}`, "c-salg",
     `Salg inkl. mva de neste 12 månedene hvis vi holder takten fra de siste 30 hele dagene (${nf(n)} kr per dag × 365). De 30 dagene før var ${nf(forrige)} kr per dag. Ikke justert for sesong, Black Friday eller jul, og ingen fremskriving av vekst. Med 60-dagers takt: ${nf(t60 * 365)} kr.`); };
 const sjaktlerCard = () => card("Sjaktler solgt totalt", nf(shop.sjaktlerTotalt) + " stk", `i år ${nf(shop.sjaktlerIAar)} stk · inkl. ${nf(shop.b2bTotalt.stk)} B2B`, "c-salg", `Sjaktler solgt over 0 kr i hele historikken: ${nf(shop.sjaktlerTotalt - shop.b2bTotalt.stk)} i Shopify og ${nf(shop.b2bTotalt.stk)} B2B fakturert utenfor Shopify (${shop.b2bTotalt.salg} salg). Flasker, gratisvarer og refunderte enheter er ikke med.`);
@@ -637,13 +638,13 @@ const winF = n => series.slice(-2 * n - 1, -n - 1); // de n hele dagene før win
 const resTall = (n, w = win(n)) => { const inn = sum(w, "eks"), db = sum(w, "db"), mk = sum(w, "kost"), fast = sum(w, "fast");
   return { inn, varer: inn - db, mk, fast, ut: inn - db + mk + fast, igjen: db - mk - fast, usikker: w.some(r => r.resUsikker), mkUfull: w.some(r => r.kostUfull), fastAnslag: w.some(r => r.fastAnslag) }; };
 const usikkerTxt = t => ""; // varsler på kortene fjernet (Morten 13.11.2026); mangler står i datastatus
-const RES_TIP = "Inn = salg eks mva. Ut = varer, plukk, frakt og betalingsgebyr per ordre + all markedsføring (Meta, Google, BML, Adtraction) + faste kostnader fra budsjettet (programvare, Slack, DNB Regnskap, bankgebyr, Uni Micro, 360 lagerleie og tillegget opp til 360-minimum på 10 000/mnd), fordelt likt på dagene. Varekost er standardkost 51,29 kr per sjaktel, ikke faktiske innkjøp, og dette er ikke kontantstrøm (mva, varekjøp og engangsposter er ikke med). Ukjent markedskost er regnet som 0 og flagget.";
+const RES_TIP = "Inn = salg eks mva, nettbutikk og B2B. Ut = varer, plukk, frakt og betalingsgebyr per ordre + all markedsføring (Meta, Google, BML, Adtraction) + faste kostnader fra budsjettet (programvare, Slack, DNB Regnskap, bankgebyr, Uni Micro, 360 lagerleie og tillegget opp til 360-minimum på 10 000/mnd), fordelt likt på dagene. Varekost er standardkost 51,29 kr per sjaktel, ikke faktiske innkjøp, og dette er ikke kontantstrøm (mva, varekjøp og engangsposter er ikke med). Ukjent markedskost er regnet som 0 og flagget.";
 const resCard = n => { const t = resTall(n);
   const f = resTall(n, winF(n));
   return mcard(`Resultat ${n} d`, nf(t.igjen) + " kr", `inn ${nf(t.inn)} · ut ${nf(t.ut)} · forrige ${n} d: ${nf(f.igjen)} kr`, "c-kasse", RES_TIP); };
 const innUtCard = (n = 30) => { const t = resTall(n);
   return mcard(`Ut ${n} d`, nf(t.ut) + " kr", `varer og frakt ${nf(t.varer)} · markedsføring ${nf(t.mk)} · faste ${nf(t.fast)}`, "c-kasse", RES_TIP); };
-const innCard = (n = 30) => { const t = resTall(n); return card(`Inn ${n} d, eks. mva`, nf(t.inn) + " kr", `salg eks mva · 7 d: ${nf(resTall(7).inn)} kr`, "c-salg", "Salg eks mva (etter refusjon, uten test- og seeding-ordre), siste " + n + " hele dager."); };
+const innCard = (n = 30) => { const t = resTall(n); return card(`Inn ${n} d, eks. mva`, nf(t.inn) + " kr", `salg eks mva · 7 d: ${nf(resTall(7).inn)} kr`, "c-salg", "Salg eks mva fra nettbutikken (etter refusjon, uten test- og seeding-ordre) og B2B fakturert utenfor Shopify, siste " + n + " hele dager."); };
 
 // ---------- 6d. Reklamelinjer: kost mot forventet dekningsbidrag innen 180 d (7 d / 30 d / total) ----------
 // Ny kunde = første betalte ordre noensinne, kanal fra første ordre (kanal()). Verdi = observert 180-d DB per ny kunde fra modne kohorter
@@ -708,7 +709,8 @@ const kanal30 = (() => {
     const perKr = kost > 0 ? salg / kost : null;
     return `<tr><td>${navn}</td><td>${nf(kost)} kr${ukjent ? ` <span class="kt-m" title="${ukjent} dager uten kjent kostnad er ikke med">*</span>` : ""}</td><td><b>${nf(salg)} kr</b></td><td>${ordre}</td><td>${perKr == null ? "–" : kr2(perKr) + " kr"}</td></tr>`; };
   let orgSalg = 0, orgOrdre = 0; for (const d of dager) { orgSalg += shop.daily[d]?.omsK?.org || 0; orgOrdre += shop.daily[d]?.ordreK?.org || 0; }
-  const rows = K.map(([k, n]) => rad(k, n)).join("") + `<tr><td>Uten sporet kilde</td><td class="kt-m">–</td><td><b>${nf(orgSalg)} kr</b></td><td>${orgOrdre}</td><td class="kt-m">–</td></tr>`;
+  let b2bS = 0, b2bO = 0; for (const d of dager) { const r = series.find(x => x.d === d); b2bS += r?.b2bEks || 0; b2bO += r?.b2bN || 0; }
+  const rows = K.map(([k, n]) => rad(k, n)).join("") + `<tr><td>B2B (faktura)</td><td class="kt-m">–</td><td><b>${nf(b2bS)} kr</b></td><td>${b2bO}</td><td class="kt-m">–</td></tr>` + `<tr><td>Uten sporet kilde</td><td class="kt-m">–</td><td><b>${nf(orgSalg)} kr</b></td><td>${orgOrdre}</td><td class="kt-m">–</td></tr>`;
   return `<section class="chart kanaltab"><div class="k">Kanaler siste 30 dager <b>brukt og salg</b></div><div class="kt-wrap"><table class="kt"><tr><th>Kanal</th><th>Brukt</th><th>Salg</th><th>Ordre</th><th>Salg per krone brukt</th></tr>${rows}</table></div><div class="box-n">Salg er eks. mva og gjelder ordre Shopify knytter til kanalen: annonselenke, rabattkoden BML20 eller Adtraction-sporing. Kjøp som kommer etter en annonse uten sporing, står under «Uten sporet kilde».</div></section>`;
 })();
 
@@ -748,20 +750,20 @@ const datastatus = [`Shopify ${stamp}`, meta ? `${metaKilde} t.o.m. ${metaSist ?
 const note = `7 og 30 d = hele Oslo-dager t.o.m. i går; «Salg i dag» er dagen så langt. Salg = ordreverdi inkl. mva for ordre opprettet i perioden, etter refusjon, uten test- og seeding-ordre (Shopify ${stamp}). Nye kunder = kunder med sin første betalte ordre noensinne i perioden. `
   + (meta ? `Meta-kost = ${meta.source === "api" ? "Meta Marketing API per dag" : "kvitteringer i hei@getpace.no + daglig avlesning i Ads Manager"} (t.o.m. ${metaSist ? fmtD(metaSist) : "–"}). ` : `Meta-kost mangler: ${esc(metaErr)}. `)
   + (shop.subStatus ? `Aktive abonnenter = kunder med abonnementsstatus aktiv i Shopify (ikke pause eller avsluttet). Abonnementsgrafens linje er regnet bakover fra dagens tall med nye og avsluttede, pauser er ikke med i historikken. ` : shop.subActive !== null ? `Aktive abonnement = startet minus avsluttet i Shopify Subscriptions (Shopify-analyse). ` : "")
-  + `Kundekost, all markedsføring = all markedskost (Meta + BML + Adtraction + Google Ads) delt på alle nye kunder i samme periode. Kundekost på strategisiden = bare annonser (Meta + Google Ads) delt på alle nye kunder. Kostnad per kanal = kanalens kostnad delt på nye kunder hvis første ordre er merket med kanalen (BML20-kode, Meta-klikk/__adtr_channel fb/ig, annen Adtraction-partner, gclid). Hovedtall 30 d, 7 d i underteksten. BML-kost = 30 % provisjon av varesalg eks mva + episodehonorar, Adtraction = 995/mnd + provisjon fra faktura, Google Ads = Google Ads API per dag (måneder før november 2026 fra fakturering). B2B-salg utenfor Shopify er med i salgskortene, men ikke i Resultat, Inn, Kanaler eller grafene. `
+  + `Kundekost, all markedsføring = all markedskost (Meta + BML + Adtraction + Google Ads) delt på alle nye kunder i samme periode. Kundekost på strategisiden = bare annonser (Meta + Google Ads) delt på alle nye kunder. Kostnad per kanal = kanalens kostnad delt på nye kunder hvis første ordre er merket med kanalen (BML20-kode, Meta-klikk/__adtr_channel fb/ig, annen Adtraction-partner, gclid). Hovedtall 30 d, 7 d i underteksten. BML-kost = 30 % provisjon av varesalg eks mva + episodehonorar, Adtraction = 995/mnd + provisjon fra faktura, Google Ads = Google Ads API per dag (måneder før november 2026 fra fakturering). B2B fakturert utenfor Shopify er med i alle salgstall (eks mva = beløp / 1,15). I Resultat trekkes varekost og 360-håndtering for B2B, men ikke frakt, som er ukjent. Snittordre gjelder bare nettbutikken. `
   + `Lager = tilgjengelig hos 360 Logistics; tomdato ved takten siste 30 d. Kasse er bankbalanse lagt inn manuelt (sist ${T.kasse_dato}).`;
 // ---------- 6a0. Ferske tall til målene på strategisiden (Morten 14.11.2026: automatisk oppdatert) ----------
 // Omsetning i år (inkl. mva, samme tall som «Salg totalt … i år») + årsestimatet, aktive abonnenter, og kundekost slik Pace 2.0 definerer den:
 // annonser (Meta + Google Ads) siste 30 hele dager delt på ALLE nye kunder i samme periode. null = en kilde mangler.
 const maalTall = (() => { const w = win(30), aar = TODAY.slice(0, 4), w60 = win(EST_DAGER);
   const igjen = Math.round((Date.UTC(+aar, 11, 31) - Date.UTC(+aar, +TODAY.slice(5, 7) - 1, +TODAY.slice(8, 10))) / 864e5) + 1;
-  const hittil = (shop.iAar ?? 0) - today.oms, est = hittil + sum(w60, "oms") / EST_DAGER * igjen;
+  const hittil = (shop.iAar ?? 0) - today.omsAlt, est = hittil + sum(w60, "omsAlt") / EST_DAGER * igjen;
   const annUkjent = w.some(r => r.meta == null || r.google == null), ann = w.reduce((x, r) => x + (r.meta || 0) + (r.google || 0), 0), nye = sum(w, "nye");
   // endring: salg siste 30 d, abonnement startet/avsluttet siste 30 d (ShopifyQL), kundekost mot de 30 dagene før (dag 31–60)
   const f = series.slice(-61, -31), fUkjent = f.length < 30 || f.some(r => r.meta == null || r.google == null), fAnn = f.reduce((x, r) => x + (r.meta || 0) + (r.google || 0), 0), fNye = sum(f, "nye");
   const cac = annUkjent || !nye ? null : Math.round(ann / nye), cacForrige = fUkjent || !fNye ? null : Math.round(fAnn / fNye);
   return { aar, omsAar: Math.round(shop.iAar ?? 0), omsEst: Math.round(est), abo: shop.subActive, cac, cacAnn: Math.round(ann), cacNye: nye, dato: TODAY,
-    oms30: Math.round(sum(w, "oms")), aboNye30: shop.subActive == null ? null : shop.subAdd30, aboSlutt30: shop.subActive == null ? null : shop.subCan30, cacForrige }; })();
+    oms30: Math.round(sum(w, "omsAlt")), aboNye30: shop.subActive == null ? null : shop.subAdd30, aboSlutt30: shop.subActive == null ? null : shop.subCan30, cacForrige }; })();
 console.log("Mål-tall:", JSON.stringify(maalTall));
 // ---------- 6a. Sist kontakt per partner (Morten 14.11.2026: automatisk, i fanen Partnere) ----------
 // Leser boardkortene «B2B-kunder» og «Avtaler». For hver rad: e-postadresser i raden (ellers partnernavnet som søkeord) slås opp i
