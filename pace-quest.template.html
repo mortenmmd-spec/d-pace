@@ -380,7 +380,6 @@
       <section class="stats"><!--STATS_salg2--><!--/STATS_salg2--></section>
       <section class="charts"><div class="chart" id="chart-sub"></div><div class="chart" id="chart-wd"></div></section>
     </details>
-    <details class="chart fold" id="b2b" style="margin-bottom:10px"></details>
   </div>
   <div class="tab-panel" id="tab-mf" data-tab="mf" role="tabpanel" hidden>
     <!--TABNOTE_mf--><!--/TABNOTE_mf-->
@@ -390,7 +389,12 @@
   </div>
   <div class="tab-panel" id="tab-drift" data-tab="drift" role="tabpanel" hidden>
     <section class="stats"><!--STATS_drift--><!--/STATS_drift--></section>
-    <details class="chart fold" id="avtaler" style="margin-bottom:10px"></details>
+  </div>
+  <div class="tab-panel" id="tab-par" data-tab="par" role="tabpanel" hidden>
+    <!-- Partnere (Morten 14.11.2026): utsalgssteder/B2B-kunder og samarbeidsavtaler samlet, åpne i denne fanen -->
+    <!--STATS_par--><!--/STATS_par-->
+    <details class="chart fold" id="b2b" style="margin-bottom:10px" open></details>
+    <details class="chart fold" id="avtaler" style="margin-bottom:10px" open></details>
   </div>
   <details class="about"><summary id="about-sum">Om tallene ▾</summary><div id="datastatus" style="margin-bottom:6px"><!--DATASTATUS--><!--/DATASTATUS--></div><div id="stats-note"><!--STATSNOTE--><!--/STATSNOTE--></div></details>
   <div class="stale" id="stale" hidden></div>
@@ -1024,7 +1028,7 @@ function renderB2B() {
   const card = tasks.find(isB2B);
   if (!card) { el.innerHTML = `<summary><span class="k">B2B-kunder</span></summary><div class="empty">Lag et kort som heter «B2B-kunder» på boardet.</div>`; return; }
   const rows = (card.body || "").split(/\r?\n/).map(l => l.split("|").map(s => s.trim())).filter(c => c.length >= 2 && c[0] && !/^én kunde per linje/i.test(c[0]));
-  el.innerHTML = `<summary><span class="k">B2B-kunder <b>${rows.length}</b></span><span class="sec-sub fold-vis">vis ▾</span></summary><div class="sec-sub">rediger kortet «B2B-kunder» på boardet</div>`
+  el.innerHTML = `<summary><span class="k">Utsalgssteder og B2B-kunder <b>${rows.length}</b></span><span class="sec-sub fold-vis">vis ▾</span></summary><div class="sec-sub">rediger kortet «B2B-kunder» på boardet</div>`
     + (rows.length ? `<table class="b2b"><tr><th>Kunde</th><th>Status</th><th>Kontakt</th></tr>${rows.map(c => `<tr><td>${esc(c[0])}</td><td>${esc(c[1] || "")}</td><td>${esc(c[2] || "")}</td></tr>`).join("")}</table>` : `<div class="empty">Ingen kunder i kortet ennå.</div>`);
 }
 
@@ -1034,7 +1038,7 @@ function renderAvtaler() {
   const card = tasks.find(isAvtaler);
   if (!card) { el.innerHTML = `<summary><span class="k">Avtaler</span></summary><div class="empty">Lag et kort som heter «Avtaler» på boardet.</div>`; return; }
   const rows = (card.body || "").split(/\r?\n/).map(l => l.split("|").map(s => s.trim())).filter(c => c.length >= 2 && c[0] && !/^(partner|én avtale per linje)/i.test(c[0]));
-  el.innerHTML = `<summary><span class="k">Avtaler <b>${rows.length}</b></span><span class="sec-sub fold-vis">vis ▾</span></summary><div class="sec-sub">rediger kortet «Avtaler» på boardet</div>`
+  el.innerHTML = `<summary><span class="k">Samarbeidsavtaler <b>${rows.length}</b></span><span class="sec-sub fold-vis">vis ▾</span></summary><div class="sec-sub">rediger kortet «Avtaler» på boardet</div>`
     + (rows.length ? `<table class="b2b"><tr><th>Partner</th><th>Type</th><th>Vilkår</th><th>Kode</th><th>Status</th></tr>${rows.map(c => `<tr><td>${esc(c[0])}</td><td>${esc(c[1] || "")}</td><td>${esc(c[2] || "")}</td><td>${esc(c[3] || "")}</td><td>${esc(c[4] || "")}</td></tr>`).join("")}</table>` : `<div class="empty">Ingen avtaler i kortet ennå.</div>`);
 }
 
