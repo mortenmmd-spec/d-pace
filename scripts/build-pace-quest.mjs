@@ -717,7 +717,11 @@ const maalTall = (() => { const w = win(30), aar = TODAY.slice(0, 4), w60 = win(
   const igjen = Math.round((Date.UTC(+aar, 11, 31) - Date.UTC(+aar, +TODAY.slice(5, 7) - 1, +TODAY.slice(8, 10))) / 864e5) + 1;
   const hittil = (shop.iAar ?? 0) - today.oms, est = hittil + sum(w60, "oms") / EST_DAGER * igjen;
   const annUkjent = w.some(r => r.meta == null || r.google == null), ann = w.reduce((x, r) => x + (r.meta || 0) + (r.google || 0), 0), nye = sum(w, "nye");
-  return { aar, omsAar: Math.round(shop.iAar ?? 0), omsEst: Math.round(est), abo: shop.subActive, cac: annUkjent || !nye ? null : Math.round(ann / nye), cacAnn: Math.round(ann), cacNye: nye, dato: TODAY }; })();
+  // endring: salg siste 30 d, abonnement startet/avsluttet siste 30 d (ShopifyQL), kundekost mot de 30 dagene før (dag 31–60)
+  const f = series.slice(-61, -31), fUkjent = f.length < 30 || f.some(r => r.meta == null || r.google == null), fAnn = f.reduce((x, r) => x + (r.meta || 0) + (r.google || 0), 0), fNye = sum(f, "nye");
+  const cac = annUkjent || !nye ? null : Math.round(ann / nye), cacForrige = fUkjent || !fNye ? null : Math.round(fAnn / fNye);
+  return { aar, omsAar: Math.round(shop.iAar ?? 0), omsEst: Math.round(est), abo: shop.subActive, cac, cacAnn: Math.round(ann), cacNye: nye, dato: TODAY,
+    oms30: Math.round(sum(w, "oms")), aboNye30: shop.subActive == null ? null : shop.subAdd30, aboSlutt30: shop.subActive == null ? null : shop.subCan30, cacForrige }; })();
 console.log("Mål-tall:", JSON.stringify(maalTall));
 // ---------- 6a. Sist kontakt per partner (Morten 14.11.2026: automatisk, i fanen Partnere) ----------
 // Leser boardkortene «B2B-kunder» og «Avtaler». For hver rad: e-postadresser i raden (ellers partnernavnet som søkeord) slås opp i
