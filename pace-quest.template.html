@@ -669,7 +669,7 @@ h1 small a { margin-left: 8px; }
   </div>
 
   <div id="team-view">
-  <div class="sec-h" id="roles-h">Roller (løpende ansvar)</div>
+  <div class="strat-top"><div class="sec-h" id="roles-h">Roller (løpende ansvar)</div><button class="btn" id="role-add" hidden>+ Rolle</button></div>
   <section class="roles" id="roles"></section>
 
   </div><!-- /team-view (roller) -->
@@ -799,7 +799,7 @@ async function loadBoard() {
   if (seq !== loadSeq) return false; // en nyere lasting er i gang
   const f = n => fields.find(x => x.name === n);
   if (!f("Status") || !f("Ansvarlig")) throw new Error("Boardet mangler feltene Status/Ansvarlig");
-  project = { id: pid, statusField: f("Status"), ansvarligField: f("Ansvarlig"), dueField: f("Måldato"), fokusField: f("Fokus") };
+  project = { id: pid, statusField: f("Status"), ansvarligField: f("Ansvarlig"), dueField: f("Måldato"), fokusField: f("Fokus"), kategoriField: f("Kategori") };
   const fresh = nodes.map(n => {
     const fv = Object.fromEntries(n.fieldValues.nodes.filter(v => v.field).map(v => [v.field.name, v.name ?? v.date]));
     const c = n.content || {};
@@ -1008,8 +1008,8 @@ function openEdit(id) {
   if (!live || !t || busy.has(id) || editing) return;
   const m = document.getElementById("edit-modal"), box = m.querySelector(".box");
   const opt = (list, cur) => list.map(n => `<option${n === cur ? " selected" : ""}>${esc(n)}</option>`).join("");
-  box.innerHTML = `<div class="g-top"><span>Rediger oppgave</span><button type="button" class="g-x" aria-label="Lukk uten å lagre">✕</button></div>`
-    + `<label class="e-l">Tittel<input id="e-title" maxlength="200"${t.draft ? "" : " disabled"}></label>`
+  box.innerHTML = `<div class="g-top"><span>${isRole(t) ? "Rediger rolle" : "Rediger oppgave"}</span><button type="button" class="g-x" aria-label="Lukk uten å lagre">✕</button></div>`
+    + `<label class="e-l">${isRole(t) ? "Rolle (skriv slik: Navn: hva rollen gjør (1–2 t/uke))" : "Tittel"}<input id="e-title" maxlength="200"${t.draft ? "" : " disabled"}></label>`
     + `<label class="e-l">Beskrivelse<textarea id="e-body" rows="6"${t.draft ? "" : " disabled"}></textarea></label>`
     + `<div class="e-row"><label class="e-l">Ansvarlig<select id="e-owner">${opt(owners().includes(t.owner) ? owners() : [t.owner, ...owners()], t.owner)}</select></label>`
     + `<label class="e-l">Status<select id="e-sec">${opt(SECTIONS.includes(t.sec) ? SECTIONS : [t.sec, ...SECTIONS], t.sec)}</select></label></div>`
@@ -1352,7 +1352,28 @@ function renderAarshjul() {
     + noter.map(n => `<div class="sec-sub" style="margin:6px 0 4px">${esc(n)}</div>`).join("");
 }
 
+// NY ROLLE: oppretter et kort med Kategori = Rolle og åpner redigeringsvinduet. Tittelformat: «Navn: hva rollen gjør (1–2 t/uke)».
+let addingRole = false;
+async function addRole() {
+  if (!live || addingRole) return;
+  if (!project?.kategoriField?.options?.some(o => o.name === "Rolle")) { toast("Tavla mangler kategorien «Rolle»", true); return; }
+  addingRole = true; const btn = document.getElementById("role-add"); btn.disabled = true;
+  const title = "Ny rolle: hva rollen gjør (1–2 t/uke)";
+  try {
+    const d = await gql(`mutation($pid: ID!, $title: String!) { addProjectV2DraftIssue(input: { projectId: $pid, title: $title }) { projectItem { id content { ... on DraftIssue { id } } } } }`, { pid: project.id, title });
+    const id = d.addProjectV2DraftIssue.projectItem.id, draft = d.addProjectV2DraftIssue.projectItem.content?.id || "";
+    await setField(id, project.kategoriField, "Rolle");
+    const errs = [];
+    try { await setField(id, project.statusField, "Pågår"); } catch (e) { errs.push("status"); }
+    try { await setField(id, project.ansvarligField, "Ikke fordelt"); } catch (e) { errs.push("ansvarlig"); }
+    tasks.push({ id, draft, body: "", txt: title, sec: "Pågår", owner: "Ikke fordelt", strom: "", kat: "Rolle", due: "", upd: "" });
+    render(); if (errs.length) toast(`Rollen er opprettet, men ${errs.join(" og ")} ble ikke lagret`, true);
+    openEdit(id);
+  } catch (e) { toast("Kunne ikke legge til rolle: " + e.message, true); try { await loadBoard(); render(); } catch {} }
+  finally { addingRole = false; btn.disabled = false; }
+}
 function renderRoles() {
+  const rb = document.getElementById("role-add"); if (rb) { rb.hidden = !live; rb.onclick = addRole; }
   const el = document.getElementById("roles"); el.innerHTML = "";
   const roles = tasks.filter(isRole);
   if (!roles.length) { el.innerHTML = `<div class="empty">Ingen roller (Kategori = Rolle på boardet).</div>`; return; }
@@ -1384,7 +1405,7 @@ function renderRoles() {
       d.className = "role" + (busy.has(it.r.id) ? " busy" : "");
       d.title = it.det;
       d.innerHTML = `<div class="ro-n">${esc(it.navn)}<span>${esc(it.det)}</span></div><div class="ro-m">${it.hi ? (it.lo === it.hi ? it.lo : it.lo + "–" + it.hi) + " t" : esc(it.note)}${shared ? ` · ${esc(shared)}` : ""}</div><button class="tag act who" title="Bytt ansvarlig">👤</button>`;
-      if (live) d.querySelector(".who").onclick = e => ownerMenu(e.currentTarget, it.r);
+      if (live) { d.querySelector(".who").onclick = e => { e.stopPropagation(); ownerMenu(e.currentTarget, it.r); }; d.style.cursor = "pointer"; d.title = "Klikk for å redigere · " + it.det; d.onclick = () => openEdit(it.r.id); }
       else d.querySelector(".who").remove();
       ul.appendChild(d);
     }
