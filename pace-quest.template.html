@@ -269,7 +269,9 @@
   .strat-blokk p.tom { color: var(--ink-muted); font-style: italic; font-weight: 400; font-size: 0.9rem; }
   .strat-blokk ul { margin: 0; padding-left: 20px; } .strat-blokk li { font-size: 0.98rem; margin: 0 0 6px; line-height: 1.45; max-width: 900px; }
   .strat-blokk .stats { margin: 4px 0 0; }
-  .stat .naa { font-size: 0.8rem; color: var(--ink); font-weight: 600; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--hairline); line-height: 1.35; }
+  .stat .naa { font-size: 0.78rem; color: var(--ink-2); margin-top: 10px; line-height: 1.35; }
+  .stat .naa .mbar2 { height: 6px; border-radius: 3px; background: var(--grid); overflow: hidden; margin-bottom: 6px; } .stat .naa .mbar2 i { display: block; height: 100%; background: var(--blue); border-radius: 3px; }
+  .stat .naa .pct { color: var(--ink-muted); margin-bottom: 2px; } .stat .naa .pct b { color: var(--ink); font-size: 0.95rem; }
   .strat-top { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; } .strat-top .sec-h { margin: 0; flex: 1; }
   #goal { display: none !important; } /* Ukens fellesmål fjernet fra siden (Morten 13.11.2026: bare rot) */
   .empty { font-size: 0.8rem; color: var(--ink-muted); font-style: italic; padding: 6px 2px; }
@@ -1117,12 +1119,18 @@ function renderAvtaler() {
 
 // STRATEGI: tekst fra boardkortet «Strategi». «# Overskrift» starter en blokk. Linjer med «Navn | Verdi | Forklaring» blir mål-fliser,
 // linjer som starter med «- » blir punkter, linjer i [klammer] er ikke skrevet ennå, resten er avsnitt.
-// ferske tall på mål-flisene: kobles på tittelen (Omsetning, Abonnenter, Kundekost); tallene kommer fra bygget (META.maal)
-function maalNaa(tittel) { const M = META.maal; if (!M) return "";
-  if (/omsetning/i.test(tittel) && M.omsAar != null) return `Nå: ${nf(M.omsAar)} kr hittil i ${M.aar} · estimat for året ${nf(M.omsEst)} kr`;
-  if (/abonnent/i.test(tittel) && M.abo != null) return `Nå: ${nf(M.abo)} aktive`;
-  if (/kundekost/i.test(tittel)) return M.cac != null ? `Nå: ${nf(M.cac)} kr siste 30 d (annonser ${nf(M.cacAnn)} kr / ${M.cacNye} nye kunder)` : "Nå: annonsekostnad mangler";
-  return ""; }
+// ferske tall på mål-flisene: kobles på tittelen (Omsetning, Abonnenter, Kundekost); tallene kommer fra bygget (META.maal).
+// Måltallet leses fra flisens egen tekst (statisk, redigeres i kortet «Strategi»); andelen vises som en tynn linje + prosent.
+function maalNaa(c) { const M = META.maal, tittel = c[0] || ""; if (!M) return null;
+  const tall = s => { const m = String(s || "").replace(/\s/g, "").match(/(\d+(?:[.,]\d+)?)/); return m ? parseFloat(m[1].replace(",", ".")) : null; };
+  if (/omsetning/i.test(tittel) && M.omsAar != null) { // årets mål: «1 MNOK i 2026» i forklaringen, ellers første tall i verdien
+    const m = String(c[2] || "").match(new RegExp("(\\d+(?:[.,]\\d+)?)\\s*(?:MNOK\\s*)?i\\s*" + M.aar)), mnok = m ? parseFloat(m[1].replace(",", ".")) : tall(c[1]), maal = mnok ? mnok * 1e6 : null;
+    return { txt: `Nå: ${nf(M.omsAar)} kr hittil i ${M.aar} · estimat ${nf(M.omsEst)} kr`, pct: maal ? M.omsAar / maal : null, lbl: maal ? `av ${mnok} MNOK i ${M.aar}` : "" }; }
+  if (/abonnent/i.test(tittel) && M.abo != null) { const maal = tall(c[1]); return { txt: `Nå: ${nf(M.abo)} aktive`, pct: maal ? M.abo / maal : null, lbl: maal ? `av ${nf(maal)}` : "" }; }
+  if (/kundekost/i.test(tittel)) { if (M.cac == null) return { txt: "Nå: annonsekostnad mangler", pct: null, lbl: "" };
+    const maal = tall(c[1]); // lavere er bedre: full linje når kundekosten er på eller under målet
+    return { txt: `Nå: ${nf(M.cac)} kr siste 30 d (${nf(M.cacAnn)} kr / ${M.cacNye} nye)`, pct: maal ? maal / M.cac : null, lbl: maal ? (M.cac <= maal ? "på målet" : `${(M.cac / maal).toFixed(1).replace(".", ",")} × målet`) : "" }; }
+  return null; }
 function renderStrat() {
   const el = document.getElementById("strat-body"); if (!el) return;
   const card = tasks.find(isStrat), eb = document.getElementById("strat-edit");
@@ -1137,7 +1145,7 @@ function renderStrat() {
     return `<section class="strat-blokk${i === 0 ? " stor" : ""}">${b.h ? `<h2>${esc(b.h)}</h2>` : ""}`
       + avsn.map(l => /^\[.*\]$/.test(l) ? `<p class="tom">${esc(l.slice(1, -1))}</p>` : `<p>${esc(l)}</p>`).join("")
       + (punkter.length ? `<ul>${punkter.map(l => `<li>${esc(l.replace(/^[-•]\s+/, ""))}</li>`).join("")}</ul>` : "")
-      + (fliser.length ? `<div class="stats">${fliser.map(l => { const c = l.split("|").map(s => s.trim()); return `<div class="stat"><div class="k">${esc(c[0])}</div><div class="v">${esc(c[1] || "")}</div><div class="s">${esc(c[2] || "")}</div>${maalNaa(c[0]) ? `<div class="naa">${esc(maalNaa(c[0]))}</div>` : ""}</div>`; }).join("")}</div>` : "")
+      + (fliser.length ? `<div class="stats">${fliser.map(l => { const c = l.split("|").map(s => s.trim()); return `<div class="stat"><div class="k">${esc(c[0])}</div><div class="v">${esc(c[1] || "")}</div><div class="s">${esc(c[2] || "")}</div>${(n => n ? `<div class="naa">${n.pct != null ? `<div class="mbar2" title="${Math.round(n.pct * 100)} %"><i style="width:${Math.max(2, Math.min(100, n.pct * 100)).toFixed(1)}%"></i></div><div class="pct"><b>${Math.round(n.pct * 100)} %</b> ${esc(n.lbl)}</div>` : ""}${esc(n.txt)}</div>` : "")(maalNaa(c))}</div>`; }).join("")}</div>` : "")
       + `</section>`; }).join("");
 }
 
