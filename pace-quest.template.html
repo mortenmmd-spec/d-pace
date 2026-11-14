@@ -260,7 +260,16 @@
   #add-open { display: none; flex: none; } body.live #add-open { display: inline-block; }
   body.live .add-bar:not(.open) { display: none; }
   .me-sel { font: inherit; font-size: 0.85rem; color: var(--ink); background: var(--surface); border: 1px solid var(--hairline); border-radius: 999px; padding: 5px 10px; }
-  body.team #main-view { display: none; } body:not(.team) #team-view { display: none; }
+  body.team #main-view, body.strat #main-view, body.aar #main-view { display: none; } body:not(.team) #team-view { display: none; } body:not(.strat) #strat-view { display: none; } body:not(.aar) #aar-view { display: none; } /* Roller og Årshjul er egne visninger (Morten 14.11.2026) */
+  /* strategiside (Morten 14.11.2026): teksten kommer fra boardkortet «Strategi» */
+  .strat-blokk { background: var(--surface); border: 1px solid var(--hairline); border-radius: 14px; padding: 16px 20px; margin: 0 0 12px; }
+  .strat-blokk h2 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-muted); margin: 0 0 8px; }
+  .strat-blokk p { font-size: 1rem; color: var(--ink); margin: 0 0 6px; line-height: 1.45; max-width: 900px; }
+  .strat-blokk.stor p { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.01em; }
+  .strat-blokk p.tom { color: var(--ink-muted); font-style: italic; font-weight: 400; font-size: 0.9rem; }
+  .strat-blokk ul { margin: 0; padding-left: 20px; } .strat-blokk li { font-size: 0.98rem; margin: 0 0 6px; line-height: 1.45; max-width: 900px; }
+  .strat-blokk .stats { margin: 4px 0 0; }
+  .strat-top { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; } .strat-top .sec-h { margin: 0; flex: 1; }
   #goal { display: none !important; } /* Ukens fellesmål fjernet fra siden (Morten 13.11.2026: bare rot) */
   .empty { font-size: 0.8rem; color: var(--ink-muted); font-style: italic; padding: 6px 2px; }
 
@@ -362,7 +371,9 @@
     </h1>
     <div class="hdr-actions">
       <select id="coin-me" class="me-sel" aria-label="Hvem er du?" title="Hvem er du?"></select>
-      <button class="btn" id="team-btn" aria-pressed="false">Roller og årshjul</button>
+      <button class="btn" id="strat-btn" aria-pressed="false">Strategi</button>
+      <button class="btn" id="team-btn" aria-pressed="false">Roller</button>
+      <button class="btn" id="aar-btn" aria-pressed="false">Årshjul</button>
       <button class="btn" id="uke-btn" disabled>Gjennomgang</button>
       <button class="btn" id="reload-btn" title="Hent boardet på nytt" hidden>Oppdater</button>
     </div>
@@ -429,12 +440,22 @@
 
   </div><!-- /main-view -->
 
+  <div id="strat-view">
+    <div class="strat-top"><div class="sec-h">Strategi og mål</div><button class="btn" id="strat-edit" hidden>✏️ Rediger</button></div>
+    <div id="strat-body"></div>
+    <div class="sec-h miles-h">Milepæler</div>
+    <section class="miles" id="miles-strat"></section>
+  </div>
+
   <div id="team-view">
   <div class="sec-h" id="roles-h">Roller (løpende ansvar)</div>
   <section class="roles" id="roles"></section>
 
+  </div><!-- /team-view (roller) -->
+
+  <div id="aar-view">
   <div class="sec-h" id="arshjul-h">Årshjul: arrangementer <span class="sec-sub">nov 2026 – nov 2027 · 20 stk · utkast</span></div>
-  <details class="chart arshjul" id="arshjul">
+  <details class="chart arshjul" id="arshjul" open>
     <summary><span class="k">Neste <b id="arshjul-neste"></b></span><span class="sec-sub arshjul-vis">vis alle ▾</span></summary>
     <div class="arshjul-scroll">
       <table class="b2b">
@@ -477,7 +498,7 @@
 })();
   </script>
 
-  </div><!-- /team-view -->
+  </div><!-- /aar-view (årshjul) -->
 
   <footer>
     Dra kort mellom kolonnene, huk av, klikk 👤 for ansvarlig, klikk på en oppgave for å redigere den. Endringer lagres direkte på GitHub-boardet.
@@ -550,7 +571,8 @@ const isAvtaler = t => /^avtaler$/i.test((t.txt || "").trim());
 const isCoins = t => /^coins$/i.test((t.txt || "").trim());
 const isUke = t => /^ukesjekk$/i.test((t.txt || "").trim()); // logg: «2026-W45 Morten 2026-11-04 13:55»
 const isGoal = t => /^ukens mål$/i.test((t.txt || "").trim());
-const quests = () => tasks.filter(t => !isMile(t) && !isRole(t) && !isB2B(t) && !isAvtaler(t) && !isCoins(t) && !isUke(t) && !isGoal(t));
+const isStrat = t => /^strategi$/i.test((t.txt || "").trim());
+const quests = () => tasks.filter(t => !isMile(t) && !isRole(t) && !isB2B(t) && !isAvtaler(t) && !isCoins(t) && !isUke(t) && !isGoal(t) && !isStrat(t));
 const isOver = t => !!t.due && !isDone(t) && t.due < todayOslo();
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const owners = () => project?.ansvarligField?.options.map(o => o.name) || OWNERS_FALLBACK;
@@ -746,7 +768,7 @@ function render() {
   // ukjente statuser (nye kolonner på boardet) vises sist
   const unknown = q.filter(t => !SECTIONS.includes(t.sec) && passes(t));
   for (const sec of [...new Set(unknown.map(t => t.sec))]) { const items = unknown.filter(t => t.sec === sec); const col = document.createElement("div"); col.className = "col"; col.innerHTML = `<h2>${esc(sec)}<span class="count">${items.length}</span></h2>`; for (const t of items) col.appendChild(taskCard(t)); board.appendChild(col); }
-  renderMiles(); renderRoles(); renderB2B(); renderAvtaler(); renderCoins(); renderUke(); renderFokus(); visGjg(); renderHero(); renderOwnerSelect();
+  renderMiles(); renderStrat(); renderRoles(); renderB2B(); renderAvtaler(); renderCoins(); renderUke(); renderFokus(); visGjg(); renderHero(); renderOwnerSelect();
 }
 
 function renderFilters() {
@@ -864,9 +886,10 @@ function closePop() { const pop = document.getElementById("pop"); pop.style.disp
 function renderMiles() {
   const all = tasks.filter(isMile);
   const ordered = [...all.filter(m => m.strom !== "Drift"), ...all.filter(m => m.strom === "Drift")];
-  const groups = { miles: [...ordered.filter(isDone), ...ordered.filter(m => !isDone(m))] }; // én rad: nådde først, så eierskifte, så drift
+  const mileListe = [...ordered.filter(isDone), ...ordered.filter(m => !isDone(m))];
+  const groups = { miles: mileListe, "miles-strat": mileListe }; // én rad: nådde først, så eierskifte, så drift
   for (const [elId, miles] of Object.entries(groups)) {
-    const el = document.getElementById(elId); el.innerHTML = "";
+    const el = document.getElementById(elId); if (!el) continue; el.innerHTML = "";
     if (!miles.length) { el.innerHTML = `<div class="empty">Ingen milepæler (Kategori = Milepæl på boardet).</div>`; continue; }
     // salgsmilepæler («2 MNOK i salg»): vis hvor mye som gjenstår, og en tynn linje på den neste
     const mnok = m => { const x = (m.txt || "").match(/(\d+(?:[.,]\d+)?)\s*MNOK/i); return x ? parseFloat(x[1].replace(",", ".")) * 1e6 : null; };
@@ -1091,6 +1114,26 @@ function renderAvtaler() {
     + (rows.length ? `<table class="b2b"><tr><th>Partner</th><th>Type</th><th>Vilkår</th><th>Kode</th><th>Status</th><th>Sist kontakt</th></tr>${rows.map(c => `<tr><td>${esc(c[0])}</td><td>${esc(c[1] || "")}</td><td>${esc(c[2] || "")}</td><td>${esc(c[3] || "")}</td><td>${esc(c[4] || "")}</td>${sistKontaktCelle(c[0])}</tr>`).join("")}</table>` : `<div class="empty">Ingen avtaler i kortet ennå.</div>`);
 }
 
+// STRATEGI: tekst fra boardkortet «Strategi». «# Overskrift» starter en blokk. Linjer med «Navn | Verdi | Forklaring» blir mål-fliser,
+// linjer som starter med «- » blir punkter, linjer i [klammer] er ikke skrevet ennå, resten er avsnitt.
+function renderStrat() {
+  const el = document.getElementById("strat-body"); if (!el) return;
+  const card = tasks.find(isStrat), eb = document.getElementById("strat-edit");
+  if (eb) { eb.hidden = !(live && card); eb.onclick = () => card && openEdit(card.id); }
+  if (!card) { el.innerHTML = `<div class="empty">Lag et kort som heter «Strategi» på boardet.</div>`; return; }
+  const blokker = []; let b = null;
+  for (const raw of (card.body || "").split(/\r?\n/)) { const l = raw.trim(); if (!l) continue;
+    if (l.startsWith("#")) { b = { h: l.replace(/^#+\s*/, ""), linjer: [] }; blokker.push(b); continue; }
+    if (!b) { b = { h: "", linjer: [] }; blokker.push(b); } b.linjer.push(l); }
+  el.innerHTML = blokker.map((b, i) => {
+    const fliser = b.linjer.filter(l => l.split("|").length >= 2), punkter = b.linjer.filter(l => /^[-•]\s+/.test(l)), avsn = b.linjer.filter(l => l.split("|").length < 2 && !/^[-•]\s+/.test(l));
+    return `<section class="strat-blokk${i === 0 ? " stor" : ""}">${b.h ? `<h2>${esc(b.h)}</h2>` : ""}`
+      + avsn.map(l => /^\[.*\]$/.test(l) ? `<p class="tom">${esc(l.slice(1, -1))}</p>` : `<p>${esc(l)}</p>`).join("")
+      + (punkter.length ? `<ul>${punkter.map(l => `<li>${esc(l.replace(/^[-•]\s+/, ""))}</li>`).join("")}</ul>` : "")
+      + (fliser.length ? `<div class="stats">${fliser.map(l => { const c = l.split("|").map(s => s.trim()); return `<div class="stat"><div class="k">${esc(c[0])}</div><div class="v">${esc(c[1] || "")}</div><div class="s">${esc(c[2] || "")}</div></div>`; }).join("")}</div>` : "")
+      + `</section>`; }).join("");
+}
+
 function renderRoles() {
   const el = document.getElementById("roles"); el.innerHTML = "";
   const roles = tasks.filter(isRole);
@@ -1300,7 +1343,12 @@ document.getElementById("token-clear").onclick = () => { localStorage.removeItem
 document.getElementById("reload-btn").onclick = async () => { try { if (await loadBoard()) { render(); toast("Boardet oppdatert"); } } catch (e) { toast("Kunne ikke hente boardet: " + e.message, true); } };
 document.getElementById("uke-btn").onclick = startGjennomgang;
 // Roller og årshjul i egen visning (rydding 13.11.2026)
-document.getElementById("team-btn").onclick = e => { const on = document.body.classList.toggle("team"); e.currentTarget.setAttribute("aria-pressed", on); e.currentTarget.textContent = on ? "← Tilbake" : "Roller og årshjul"; window.scrollTo(0, 0); };
+const VISNINGER = { strat: ["strat-btn", "Strategi"], team: ["team-btn", "Roller"], aar: ["aar-btn", "Årshjul"] };
+function visning(navn) { // navn = "strat" | "team" | "aar" | "" (hovedsiden)
+  for (const [k, [id, tekst]] of Object.entries(VISNINGER)) { const on = k === navn, b = document.getElementById(id); document.body.classList.toggle(k, on); b.setAttribute("aria-pressed", on); b.textContent = on ? "← Tilbake" : tekst; }
+  window.scrollTo(0, 0);
+}
+for (const [k, [id]] of Object.entries(VISNINGER)) document.getElementById(id).onclick = () => visning(document.body.classList.contains(k) ? "" : k);
 const openAdd = () => { const bar = document.querySelector(".add-bar"); bar.classList.add("open"); document.getElementById("new-task").focus(); };
 document.getElementById("add-open").onclick = () => { const bar = document.querySelector(".add-bar"); if (bar.classList.contains("open")) bar.classList.remove("open"); else openAdd(); };
 (function aboutSum() { const s = document.getElementById("about-sum"), d = document.getElementById("datastatus"); if (s) s.textContent = `Oppdatert ${META.label || ""} · om tallene ▾`; })();
