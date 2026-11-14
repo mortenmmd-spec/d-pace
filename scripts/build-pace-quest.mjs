@@ -61,7 +61,7 @@ async function fetchBoard() {
   const items = []; let after = null;
   for (let page = 0; page < 20; page++) {
     const q = `query($after: String) { organization(login: "${ORG}") { projectV2(number: ${PROJECT_NUMBER}) {
-      items(first: 100, after: $after) { pageInfo { hasNextPage endCursor } nodes { id isArchived
+      items(first: 100, after: $after) { pageInfo { hasNextPage endCursor } nodes { id isArchived updatedAt
         content { __typename ... on DraftIssue { id title body } ... on Issue { title } ... on PullRequest { title } }
         fieldValues(first: 20) { nodes {
           ... on ProjectV2ItemFieldSingleSelectValue { name field { ... on ProjectV2SingleSelectField { name } } }
@@ -80,7 +80,7 @@ async function fetchBoard() {
   return items.map(n => {
     const fv = Object.fromEntries(n.fieldValues.nodes.filter(v => v.field).map(v => [v.field.name, v.name ?? v.date]));
     const c = n.content || {};
-    return { id: n.id, draft: c.__typename === "DraftIssue" ? c.id : "", body: c.body || "", sec: fv["Status"] || "Idéer", owner: fv["Ansvarlig"] || "Ikke fordelt", strom: fv["Arbeidsstrøm"] || "", kat: fv["Kategori"] || "Oppgave", due: fv["Måldato"] || "", fokus: fv["Fokus"] === "Nå", txt: c.title || "(uten tittel)" };
+    return { id: n.id, upd: n.updatedAt || "", draft: c.__typename === "DraftIssue" ? c.id : "", body: c.body || "", sec: fv["Status"] || "Idéer", owner: fv["Ansvarlig"] || "Ikke fordelt", strom: fv["Arbeidsstrøm"] || "", kat: fv["Kategori"] || "Oppgave", due: fv["Måldato"] || "", fokus: fv["Fokus"] === "Nå", txt: c.title || "(uten tittel)" };
   });
 }
 
@@ -539,9 +539,9 @@ const tolvCard = () => { const n = sum(win(30), "oms") / 30, forrige = sum(serie
     `Salg inkl. mva de neste 12 månedene hvis vi holder takten fra de siste 30 hele dagene (${nf(n)} kr per dag × 365). De 30 dagene før var ${nf(forrige)} kr per dag. Ikke justert for sesong, Black Friday eller jul, og ingen fremskriving av vekst: økningen nå kommer mest av at Meta-annonsene startet igjen 29.09, og sommeren lå høyere. Med 60-dagers takt: ${nf(t60 * 365)} kr.`); };
 const sjaktlerCard = () => card("Sjaktler solgt totalt", nf(shop.sjaktlerTotalt) + " stk", `i år ${nf(shop.sjaktlerIAar)} stk · inkl. ${nf(shop.b2bTotalt.stk)} B2B`, "c-salg", `Sjaktler solgt over 0 kr i hele historikken: ${nf(shop.sjaktlerTotalt - shop.b2bTotalt.stk)} i Shopify og ${nf(shop.b2bTotalt.stk)} B2B fakturert utenfor Shopify (${shop.b2bTotalt.salg} salg). Flasker, gratisvarer og refunderte enheter er ikke med.`);
 const totaltCard = () => card("Salg totalt", nf(shop.totalt) + " kr", `${nf(shop.ordreTotalt)} ordre + ${shop.b2bTotalt.salg} B2B siden ${shop.forsteDag ? shop.forsteDag.slice(8, 10) + "." + shop.forsteDag.slice(5, 7) + "." + shop.forsteDag.slice(0, 4) : "start"} · i år ${nf(shop.iAar)} kr`, "c-salg", `All ordreverdi inkl. mva og frakt, betalte ordre, hele historikken (${nf(shop.ordreTotalt)} ordre), pluss ${nf(shop.b2bTotalt.kr)} kr B2B fakturert utenfor Shopify (${shop.b2bTotalt.salg} salg etter avtalt pris). Hittil i ${TODAY.slice(0, 4)}: ${nf(shop.iAar)} kr fra ${nf(shop.ordreIAar)} ordre og B2B. Seeding og kansellerte ordre er ikke med.`);
-const salgCard = (n) => { const w = win(n); return card(`Salg ${n} d`, nf(sum(w, "oms") + sum(w, "b2bKr")) + " kr", `${nf(sum(w, "sj"))} sjaktler · ${sum(w, "ordre")} ordre${sum(w, "b2bN") ? ` + ${sum(w, "b2bN")} B2B` : ""} · ${sum(w, "nye")} nye`, "c-salg", `Sjaktler solgt inkl. B2B (${nf(sum(w, "b2bStk"))} stk B2B) og salg inkl. mva siste ${n} hele dager t.o.m. i går: ordre ${nf(sum(w, "oms"))} kr + B2B ${nf(sum(w, "b2bKr"))} kr, ${sum(w, "nye")} nye kunder`); };
+const salgCard = (n) => { const w = win(n); return card(`Salg ${n} d, inkl. mva`, nf(sum(w, "oms") + sum(w, "b2bKr")) + " kr", `${nf(sum(w, "sj"))} sjaktler · ${sum(w, "ordre")} ordre${sum(w, "b2bN") ? ` + ${sum(w, "b2bN")} B2B` : ""} · ${sum(w, "nye")} nye`, "c-salg", `Sjaktler solgt inkl. B2B (${nf(sum(w, "b2bStk"))} stk B2B) og salg inkl. mva siste ${n} hele dager t.o.m. i går: ordre ${nf(sum(w, "oms"))} kr + B2B ${nf(sum(w, "b2bKr"))} kr, ${sum(w, "nye")} nye kunder`); };
 const totalCard = (n = 30, m = 7) => { const t = totalTall(n), t7 = totalTall(m);
-  return mcard(`CAC totalt ${n} d`, kr(t), `${m} d: ${kr(t7)} (${t7.nye} nye) · ${n} d: ${nf(t.kost)} kr / ${t.nye} nye`, "c-cac",
+  return mcard(`Kundekost, all markedsføring ${n} d`, kr(t), `${m} d: ${kr(t7)} (${t7.nye} nye) · ${n} d: ${nf(t.kost)} kr / ${t.nye} nye`, "c-cac",
     `All markedskost siste ${n} hele dager (Meta + BML provisjon og episodehonorar + Adtraction + Google Ads) delt på alle nye kunder i samme periode, uansett kanal. ${t.mangler.length ? `Kostnad mangler for ${t.mangler.join(", ")} på én eller flere dager og er regnet som 0, så tallet er et gulv. ` : ""}${t.anslag ? "BML-honorar for måneder uten oppgjør er anslått til 3 000 kr/mnd. " : ""}${t.adtrAnslag ? "Adtraction-provisjon for måneder uten faktura er anslått fra ordrene. " : ""}${m} d i underteksten.`); };
 // annonsekost: Meta-forbruk på fakturerte dager i vinduet; kr/dag over de samme dagene
 const adsCard = (n) => { if (!meta) return mcard(`Annonser ${n} d`, "–", "Meta-data mangler", "c-ads", metaErr); const w = win(n).filter(r => r.meta !== null); const s = sum(w, "meta");
@@ -630,7 +630,7 @@ const resCard = n => { const t = resTall(n);
   return mcard(`Resultat ${n} d`, nf(t.igjen) + " kr", `${usikkerTxt(t)}inn ${nf(t.inn)} · ut ${nf(t.ut)}`, "c-kasse", RES_TIP); };
 const innUtCard = (n = 30) => { const t = resTall(n);
   return mcard(`Ut ${n} d`, nf(t.ut) + " kr", `varer og frakt ${nf(t.varer)} · markedsføring ${nf(t.mk)} · faste ${nf(t.fast)}`, "c-kasse", RES_TIP); };
-const innCard = (n = 30) => { const t = resTall(n); return card(`Inn ${n} d`, nf(t.inn) + " kr", `salg eks mva · 7 d: ${nf(resTall(7).inn)} kr`, "c-salg", "Salg eks mva (etter refusjon, uten test- og seeding-ordre), siste " + n + " hele dager."); };
+const innCard = (n = 30) => { const t = resTall(n); return card(`Inn ${n} d, eks. mva`, nf(t.inn) + " kr", `salg eks mva · 7 d: ${nf(resTall(7).inn)} kr`, "c-salg", "Salg eks mva (etter refusjon, uten test- og seeding-ordre), siste " + n + " hele dager."); };
 
 // ---------- 6d. Reklamelinjer: kost mot forventet dekningsbidrag innen 180 d (7 d / 30 d / total) ----------
 // Ny kunde = første betalte ordre noensinne, kanal fra første ordre (kanal()). Verdi = observert 180-d DB per ny kunde fra modne kohorter
