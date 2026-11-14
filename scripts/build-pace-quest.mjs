@@ -710,6 +710,15 @@ const note = `7 og 30 d = hele Oslo-dager t.o.m. i går; «Salg i dag» er dagen
   + (shop.subStatus ? `Aktive abonnenter = kunder med abonnementsstatus aktiv i Shopify (ikke pause eller avsluttet). Abonnementsgrafens linje er regnet bakover fra dagens tall med nye og avsluttede, pauser er ikke med i historikken. ` : shop.subActive !== null ? `Aktive abonnement = startet minus avsluttet i Shopify Subscriptions (Shopify-analyse). ` : "")
   + `CAC totalt = all markedskost (Meta + BML + Adtraction + Google) delt på alle nye kunder i samme periode. CAC per kanal = kanalens kostnad delt på nye kunder hvis første ordre er merket med kanalen (BML20-kode, Meta-klikk/__adtr_channel fb/ig, annen Adtraction-partner, gclid). Hovedtall 30 d, 7 d i underteksten. BML-kost = 30 % provisjon av varesalg eks mva + episodehonorar, Adtraction = 995/mnd + provisjon fra faktura, Google = kortbelastning per måned (manuelle månedsfiler; mangler = kost ukjent, regnes som 0 i totalen og flagges). `
   + `Lager = tilgjengelig hos 360 Logistics; tomdato ved takten siste 30 d. Kasse er bankbalanse lagt inn manuelt (sist ${T.kasse_dato}).`;
+// ---------- 6a0. Ferske tall til målene på strategisiden (Morten 14.11.2026: automatisk oppdatert) ----------
+// Omsetning i år (inkl. mva, samme tall som «Salg totalt … i år») + årsestimatet, aktive abonnenter, og kundekost slik Pace 2.0 definerer den:
+// annonser (Meta + Google Ads) siste 30 hele dager delt på ALLE nye kunder i samme periode. null = en kilde mangler.
+const maalTall = (() => { const w = win(30), aar = TODAY.slice(0, 4), w60 = win(EST_DAGER);
+  const igjen = Math.round((Date.UTC(+aar, 11, 31) - Date.UTC(+aar, +TODAY.slice(5, 7) - 1, +TODAY.slice(8, 10))) / 864e5) + 1;
+  const hittil = (shop.iAar ?? 0) - today.oms, est = hittil + sum(w60, "oms") / EST_DAGER * igjen;
+  const annUkjent = w.some(r => r.meta == null || r.google == null), ann = w.reduce((x, r) => x + (r.meta || 0) + (r.google || 0), 0), nye = sum(w, "nye");
+  return { aar, omsAar: Math.round(shop.iAar ?? 0), omsEst: Math.round(est), abo: shop.subActive, cac: annUkjent || !nye ? null : Math.round(ann / nye), cacAnn: Math.round(ann), cacNye: nye, dato: TODAY }; })();
+console.log("Mål-tall:", JSON.stringify(maalTall));
 // ---------- 6a. Sist kontakt per partner (Morten 14.11.2026: automatisk, i fanen Partnere) ----------
 // Leser boardkortene «B2B-kunder» og «Avtaler». For hver rad: e-postadresser i raden (ellers partnernavnet som søkeord) slås opp i
 // Gmail for hei@ og, hvis hemmeligheten GMAIL_REFRESH_TOKENS_EKSTRA finnes (kommadelt), også morten@getpace.no og mortenmmd@gmail.com. Nyeste melding til/fra en person teller
@@ -743,7 +752,7 @@ try {
   }
   console.log("Sist kontakt:", Object.entries(sistKontakt).map(([k, v]) => `${k.slice(0, 18)} ${v.d} ${v.ret}${v.navn ? "*" : ""}`).join(" | "), "| postbokser:", bokser.length);
 } catch (e) { console.error("Sist kontakt utilgjengelig:", e.message); }
-const metaInfo = { sistKontakt, built_at: NOW.toISOString(), shopify_at: shop.at, label: stamp, today: TODAY, meta_through: meta ? meta.coveredThrough : null, totalt: shop.totalt ?? null, daily: series.slice(-30), ukedag: shop.ukedag, geo: shop.geo, kart: { w: KART.w, h: KART.h, fylker: KART.fylker } };
+const metaInfo = { sistKontakt, maal: maalTall, built_at: NOW.toISOString(), shopify_at: shop.at, label: stamp, today: TODAY, meta_through: meta ? meta.coveredThrough : null, totalt: shop.totalt ?? null, daily: series.slice(-30), ukedag: shop.ukedag, geo: shop.geo, kart: { w: KART.w, h: KART.h, fylker: KART.fylker } };
 
 // ---------- 6b. Fokus nå: én linje per person, kun kort med Fokus = Nå (settes av Morten på boardet), ikke Ferdig ----------
 const PERSONER = ["Anders", "Victoria", "Anna", "Martin", "Morten"];
