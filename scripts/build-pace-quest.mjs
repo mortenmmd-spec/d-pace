@@ -170,6 +170,11 @@ async function fetchShopify() {
   for (const d of DAYS) daily[d].nye = Object.values(histDag[d]?.nyeK || {}).reduce((x, y) => x + y, 0);
   // kohort: realisert dekningsbidrag per ny kunde de første 180 dagene (alle senere ordre med), delt på om første ordre var abonnement.
   // Kunder fra juni 2025 med full observasjonstid; dagens kostnader brukes også på eldre ordre.
+  // anskaffelseskanal per kunde = kanal() på kundens første betalte ordre noensinne; alle ordre i vinduet krediteres den (Morten 15.11.2026)
+  { const forsteK = {}; for (const o of hist.filter(ok).filter(o => amt(o) > 0 && o.customer?.id).sort((x, y) => Date.parse(x.created_at) - Date.parse(y.created_at))) if (!(o.customer.id in forsteK)) forsteK[o.customer.id] = kanal(o);
+    for (const d of DAYS) Object.assign(daily[d], { omsAK: {}, ordreAK: {}, dbAK: {} });
+    for (const o of orders) { const x = daily[o.day]; if (!x) continue; const k = (o.customer?.id && forsteK[o.customer.id]) || kanal(o);
+      x.omsAK[k] = (x.omsAK[k] || 0) + amt(o) - (+o.current_total_tax || 0); x.ordreAK[k] = (x.ordreAK[k] || 0) + 1; x.dbAK[k] = (x.dbAK[k] || 0) + dbRest(o); } }
   const kohort = { sub: { n: 0, db: 0 }, non: { n: 0, db: 0 } };
   { const per = {}; for (const o of hist.filter(ok).filter(o => amt(o) > 0 && o.customer?.id).sort((x, y) => Date.parse(x.created_at) - Date.parse(y.created_at))) (per[o.customer.id] ||= []).push(o);
     for (const arr of Object.values(per)) { const f = Date.parse(arr[0].created_at); if (f < Date.parse("2025-06-01") || Date.parse(TODAY + "T00:00:00Z") - f < 180 * 864e5) continue;
@@ -486,7 +491,10 @@ if (process.env.GOOGLE_ADS_TOKEN) {
 const googleDag = d => kanalKost.google?.[d.slice(0, 7)] != null ? kanalKost.google[d.slice(0, 7)] / daysInMonth(d.slice(0, 7))
   : gAds && d >= gAds.fra && d <= gAds.til ? (gAds.daily[d] || 0) : null;
 const perDag = (tab, d) => { const v = tab?.[d.slice(0, 7)]; return v == null ? null : v / daysInMonth(d.slice(0, 7)); };
-const bmlFastDag = d => perDag(kanalKost.bml?.fast, d); // null = ukjent for måneden
+const bmlFastDag = d => { // honorar per dag: fakturaperiode fordelt likt på dagene (bml.perioder), ellers månedstabellen; null = ukjent
+  const p = (kanalKost.bml?.perioder || []).find(x => d >= x.fra && d <= x.til);
+  if (p) return p.kr / (Math.round((Date.parse(p.til) - Date.parse(p.fra)) / 864e5) + 1);
+  return perDag(kanalKost.bml?.fast, d); };
 // Adtraction per dag = fast/dager i mnd + provisjon fra faktura; mangler fakturaen brukes anslaget fra ordrene (adtrProv) og dagen flagges
 const adtrFaktura = d => kanalKost.adtraction?.provisjon?.[d.slice(0, 7)] != null;
 const adtrDag = (d, est) => (kanalKost.adtraction?.fast ?? 995) / daysInMonth(d.slice(0, 7)) + (adtrFaktura(d) ? perDag(kanalKost.adtraction.provisjon, d) : (est || 0));
@@ -508,7 +516,7 @@ const merTall = n => { const w = win(n); const kost = sum(w, "kost"), eks = sum(
 const pct = v => v == null ? "–" : Math.round(v * 100) + " %";
 const merCard = (n = 30, m = 7) => { const t = merTall(n), t7 = merTall(m);
   const mer = x => x.kost > 0 ? kr2(x.eks / x.kost) + " kr" : "–";
-  return mcard(`Salg per krone i markedsføring ${n} d`, mer(t), `${m} d: ${mer(t7)} · ${n} d: ${nf(t.eks)} kr salg / ${nf(t.kost)} kr markedsføring`, "c-cac",
+  return mcard(`Salg per krone i markedsføring ${n} d`, mer(t), `inkl. B2B og gjenkjøp · ${m} d: ${mer(t7)} · ${n} d: ${nf(t.eks)} kr / ${nf(t.kost)} kr`, "c-cac",
     `MER: alt salg eks mva (nettbutikk og B2B) delt på all markedskost (Meta + BML + Adtraction + Google Ads) siste ${n} hele dager, også gjenkjøp og abonnement. Trenger ingen kanalmerking og påvirkes ikke av sporingsfeil. ${t.ufull ? "Noe kanalkost er ukjent og regnet som 0, så andelen er et gulv. " : ""}${m} d i underteksten.`); };
 const nettoCard = (n = 30, m = 7) => { const t = merTall(n), t7 = merTall(m);
   return mcard(`DB etter markedsføring ${n} d`, nf(t.netto) + " kr", `${m} d: ${nf(t7.netto)} kr · ${n} d: DB ${nf(t.db)} − kost ${nf(t.kost)}`, "c-cac",
@@ -713,13 +721,13 @@ const kanal30 = (() => {
   const dager = DAYS.slice(-31, -1), K = [["meta", "Meta"], ["google", "Google Ads"], ["bml", "BML-podkast"], ["adtr", "Adtraction"]];
   const roiTxt = (db, kost) => kost > 0 ? `<b>${nf(Math.round((db - kost) / kost * 100))} %</b>` : "–";
   const rad = (k, navn) => { let kost = 0, ukjent = 0, salg = 0, ordre = 0, dbK = 0;
-    for (const d of dager) { const c = kostDag(k, d); if (c == null) ukjent++; else kost += c; salg += shop.daily[d]?.omsK?.[k] || 0; ordre += shop.daily[d]?.ordreK?.[k] || 0; dbK += shop.daily[d]?.dbOK?.[k] || 0; }
+    for (const d of dager) { const c = kostDag(k, d); if (c == null) ukjent++; else kost += c; salg += shop.daily[d]?.omsAK?.[k] || 0; ordre += shop.daily[d]?.ordreAK?.[k] || 0; dbK += shop.daily[d]?.dbAK?.[k] || 0; }
     const perKr = kost > 0 ? salg / kost : null;
     return `<tr><td>${navn}</td><td>${nf(kost)} kr${ukjent ? ` <span class="kt-m" title="${ukjent} dager uten kjent kostnad er ikke med">*</span>` : ""}</td><td><b>${nf(salg)} kr</b></td><td>${ordre}</td><td>${perKr == null ? "–" : kr2(perKr) + " kr"}</td><td>${roiTxt(dbK, kost)}</td></tr>`; };
-  let orgSalg = 0, orgOrdre = 0; for (const d of dager) { orgSalg += shop.daily[d]?.omsK?.org || 0; orgOrdre += shop.daily[d]?.ordreK?.org || 0; }
+  let orgSalg = 0, orgOrdre = 0; for (const d of dager) { orgSalg += shop.daily[d]?.omsAK?.org || 0; orgOrdre += shop.daily[d]?.ordreAK?.org || 0; }
   let b2bS = 0, b2bO = 0; for (const d of dager) { const r = series.find(x => x.d === d); b2bS += r?.b2bEks || 0; b2bO += r?.b2bN || 0; }
   const rows = K.map(([k, n]) => rad(k, n)).join("") + `<tr><td>B2B (faktura)</td><td class="kt-m">–</td><td><b>${nf(b2bS)} kr</b></td><td>${b2bO}</td><td class="kt-m">–</td><td class="kt-m">–</td></tr>` + `<tr><td>Uten sporet kilde</td><td class="kt-m">–</td><td><b>${nf(orgSalg)} kr</b></td><td>${orgOrdre}</td><td class="kt-m">–</td><td class="kt-m">–</td></tr>`;
-  return `<section class="chart kanaltab"><div class="k">Kanaler siste 30 dager <b>brukt og salg</b></div><div class="kt-wrap"><table class="kt"><tr><th>Kanal</th><th>Brukt</th><th>Salg</th><th>Ordre</th><th>Salg per krone brukt</th><th>ROI</th></tr>${rows}</table></div><div class="box-n">Salg er eks. mva og gjelder ordre Shopify knytter til kanalen: annonselenke, rabattkoden BML20 eller Adtraction-sporing. Kjøp som kommer etter en annonse uten sporing, står under «Uten sporet kilde». ROI = dekningsbidraget fra kanalens ordre (salg eks. mva minus varekost, plukk, frakt og gebyr) minus det kanalen kostet, delt på det kanalen kostet. Over 0 % = kanalen tjener inn mer enn den koster, på ordrene den får æren for. Gjenkjøp senere er ikke med.</div></section>`;
+  return `<section class="chart kanaltab"><div class="k">Kanaler siste 30 dager <b>brukt og salg etter kanalen som skaffet kunden</b></div><div class="kt-wrap"><table class="kt"><tr><th>Kanal</th><th>Brukt</th><th>Salg</th><th>Ordre</th><th>Salg per krone brukt</th><th>ROI</th></tr>${rows}</table></div><div class="box-n">Hver ordre krediteres kanalen som skaffet kunden: sporet på kundens aller første kjøp (annonselenke, rabattkoden BML20 eller Adtraction-sporing). Gjenkjøp og fornyelser følger altså kunden, ikke lenken de brukte sist. Kunder uten spor på første kjøp står under «Uten sporet kilde». Salg er eks. mva. ROI = dekningsbidraget fra disse ordrene (salg minus varekost, plukk, frakt og gebyr) minus det kanalen kostet i perioden, delt på det kanalen kostet.</div></section>`;
 })();
 
 const pst = v => (v * (v <= 1 ? 100 : 1)).toFixed(1).replace(".", ",") + " %"; // ShopifyQL gir andel 0–1
@@ -739,7 +747,7 @@ const frister = (() => { const rader = (process.env.PACE_FORFALL || "").split(";
 const ltvCard = (() => { const L = shop.ltv?.mnd || [], aar = L.find(x => x.m === 12), t = totalTall(30);
   if (!aar || t.cac == null) return "";
   const forhold = aar.db / t.cac, pb = L.find(x => x.db >= t.cac), siste = L[L.length - 1];
-  return card("Kundeverdi mot kundekost", kr2(forhold).replace(/,(\d)\d$/, ",$1") + " ×", `${nf(aar.db)} kr per kunde på 12 mnd mot ${nf(t.cac)} kr i kundekost · ${pb ? `tjent inn etter ${pb.m} mnd` : `ikke tjent inn etter ${siste.m} mnd (${nf(siste.db)} kr)`}`, "c-cac",
+  return card("Kundeverdi mot kundekost", kr2(forhold).replace(/,(\d)\d$/, ",$1") + " ×", `${nf(aar.db)} kr per kunde på 12 mnd mot ${nf(t.cac)} kr i kundekost · ${pb ? `snitt passerer kundekosten etter ${pb.m} mnd` : `snitt etter ${siste.m} mnd: ${nf(siste.db)} kr (${siste.n} kunder)`} · kunder fra 2025`, "c-cac",
     `Kundeverdi = dekningsbidrag per ny kunde de første 12 månedene (salg eks mva minus varekost, plukk, frakt og gebyr), snitt for ${aar.n} kunder som har vært kunde i minst ett år. Kundekost = all markedsføring siste 30 dager delt på alle nye kunder. Over 1,0 × = kunden betaler tilbake det den kostet å skaffe innen et år. Tilbakebetalingstid = måneden der dekningsbidraget per kunde passerer kundekosten.`); })();
 // tallkortene i fire faner (Morten 03.11.2026); ⚠ på fanenavnet hvis et kort i fanen er utdatert
 const TABS = [
