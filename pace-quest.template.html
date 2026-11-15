@@ -260,7 +260,7 @@
   #add-open { display: none; flex: none; } body.live #add-open { display: inline-block; }
   body.live .add-bar:not(.open) { display: none; }
   .me-sel { font: inherit; font-size: 0.85rem; color: var(--ink); background: var(--surface); border: 1px solid var(--hairline); border-radius: 999px; padding: 5px 10px; }
-  body.team #main-view, body.strat #main-view, body.aar #main-view { display: none; } body:not(.team) #team-view { display: none; } body:not(.strat) #strat-view { display: none; } body:not(.aar) #aar-view { display: none; } body.par #main-view { display: none; } body:not(.par) #par-view { display: none; } /* Roller og Årshjul er egne visninger (Morten 14.11.2026) */
+  body.team #main-view, body.strat #main-view, body.aar #main-view { display: none; } body:not(.team) #team-view { display: none; } body:not(.strat) #strat-view { display: none; } body:not(.aar) #aar-view { display: none; } body.par #main-view { display: none; } body:not(.par) #par-view { display: none; } body.lnk #main-view { display: none; } body:not(.lnk) #lnk-view { display: none; } /* Roller og Årshjul er egne visninger (Morten 14.11.2026) */
   /* strategiside (Morten 14.11.2026): teksten kommer fra boardkortet «Strategi» */
   .strat-blokk { background: var(--surface); border: 1px solid var(--hairline); border-radius: 14px; padding: 16px 20px; margin: 0 0 12px; }
   .strat-blokk h2 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-muted); margin: 0 0 8px; }
@@ -517,6 +517,15 @@ footer { margin-top: 38px; padding-top: 16px; border-top: 1px solid var(--hairli
 h1 small a { margin-left: 8px; }
 @media (max-width: 640px) { .hdr-actions { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } .hdr-actions > *, .hdr-actions .me-sel { width: auto; flex: 0 0 auto; } }
 .stat.utdatert { border: 1px solid var(--hairline); } .stat.utdatert .v::after { content: none; } /* ingen varselmerking på kortene (Morten 13.11.2026) */
+/* Nyttige lenker (Morten 15.11.2026) */
+.lnk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; margin-bottom: 8px; }
+.lk-kort { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--hairline); border-radius: 8px; padding: 14px 16px; color: var(--ink); text-decoration: none; min-width: 0; }
+.lk-kort:hover, .lk-kort:focus-visible { border-color: var(--ink-muted); }
+.lk-kort .l-t { flex: 1; min-width: 0; }
+.lk-kort b { display: block; font-size: 0.95rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lk-kort small { display: block; font-size: 0.75rem; color: var(--ink-muted); margin-top: 2px; }
+.lk-kort .l-pil { color: var(--ink-muted); font-size: 1rem; }
+.lnk-mappe { font-size: 0.8rem; color: var(--ink-2); text-transform: none; letter-spacing: 0; font-weight: 400; }
 </style>
 </head>
 <body>
@@ -532,6 +541,7 @@ h1 small a { margin-left: 8px; }
       <button class="btn" id="par-btn" aria-pressed="false">Partnere</button>
       <button class="btn" id="team-btn" aria-pressed="false">Roller</button>
       <button class="btn" id="aar-btn" aria-pressed="false">Årshjul</button>
+      <button class="btn" id="lnk-btn" aria-pressed="false">Lenker</button>
       <button class="btn" id="uke-btn" disabled>Gjennomgang</button>
       <button class="btn" id="reload-btn" title="Hent boardet på nytt" hidden>Oppdater</button>
     </div>
@@ -678,6 +688,24 @@ h1 small a { margin-left: 8px; }
   <section class="chart arshjul" id="arshjul-body"></section>
 
   </div><!-- /aar-view (årshjul) -->
+
+  <div id="lnk-view">
+  <!-- Nyttige lenker (Morten 15.11.2026): filer i Salg-mappen på den delte disken Pace -->
+  <div class="strat-top"><div class="sec-h">Til kunder og forhandlere</div><a class="lnk-mappe" href="https://drive.google.com/drive/folders/1j07e9nB1w1QiEkmALPceFA5JAG1xetGs" target="_blank" rel="noopener">Hele Salg-mappen ↗</a></div>
+  <div class="lnk-grid">
+    <a class="lk-kort" href="https://drive.google.com/file/d/16rUCMvwv72y-05yLCRwKKiKOXC4qbAPk/view" target="_blank" rel="noopener"><span class="l-t"><b>Elektrolytt-presentasjon</b><small>PDF · 2 sider</small></span><span class="l-pil">↗</span></a>
+    <a class="lk-kort" href="https://drive.google.com/file/d/1BV_yUW-4loq5zkcYl4Zkt97VJOZ7lHRn/view" target="_blank" rel="noopener"><span class="l-t"><b>Produktark</b><small>PDF · forhandlerark, én side</small></span><span class="l-pil">↗</span></a>
+    <a class="lk-kort" href="https://drive.google.com/file/d/133clFnPIMNZTMceYWOkqX302ocN3MwFe/view" target="_blank" rel="noopener"><span class="l-t"><b>Hvorfor Pace</b><small>PDF · én side</small></span><span class="l-pil">↗</span></a>
+    <a class="lk-kort" href="https://drive.google.com/file/d/1uK_NXY2tPXRf4ymNK8xzwMGv2YiX7KNn/view" target="_blank" rel="noopener"><span class="l-t"><b>Forhandlerpriser</b><small>PDF · gyldig fra 11.11.2026</small></span><span class="l-pil">↗</span></a>
+    <a class="lk-kort" href="https://drive.google.com/drive/folders/1-iKX1Y_qkDEQ5vu81J5Jd5yEYhDBtZ0H" target="_blank" rel="noopener"><span class="l-t"><b>Produktbilder</b><small>Mappe</small></span><span class="l-pil">↗</span></a>
+  </div>
+  <div class="sec-h">Salgsarbeid</div>
+  <div class="lnk-grid">
+    <a class="lk-kort" href="https://docs.google.com/document/d/1uAiq4sIb_ma0H-dVQopqECA7YdjWPmEepMHf25THrN4/edit" target="_blank" rel="noopener"><span class="l-t"><b>Salgsstrategi</b><small>Google-dokument</small></span><span class="l-pil">↗</span></a>
+    <a class="lk-kort" href="https://docs.google.com/document/d/16_nUPfEc0R4QeAzFyEQIv57UHsBDBGSoxI30pM4GFlc/edit" target="_blank" rel="noopener"><span class="l-t"><b>Maler for kontakt</b><small>Google-dokument</small></span><span class="l-pil">↗</span></a>
+    <a class="lk-kort" href="https://docs.google.com/spreadsheets/d/12Y-k2e6uy6opjz3ZUJ0OTqYm5xHm2yyngqKoJFayqMc/edit" target="_blank" rel="noopener"><span class="l-t"><b>Butikker oppfølging</b><small>Google-ark</small></span><span class="l-pil">↗</span></a>
+  </div>
+  </div><!-- /lnk-view (lenker) -->
 
   <footer>
     Dra kort mellom kolonnene, huk av, klikk 👤 for ansvarlig, klikk på en oppgave for å redigere den. Endringer lagres direkte på GitHub-boardet.
@@ -1584,7 +1612,7 @@ document.getElementById("token-clear").onclick = () => { localStorage.removeItem
 document.getElementById("reload-btn").onclick = async () => { try { if (await loadBoard()) { render(); toast("Boardet oppdatert"); } } catch (e) { toast("Kunne ikke hente boardet: " + e.message, true); } };
 document.getElementById("uke-btn").onclick = startGjennomgang;
 // Roller og årshjul i egen visning (rydding 13.11.2026)
-const VISNINGER = { strat: ["strat-btn", "Strategi"], par: ["par-btn", "Partnere"], team: ["team-btn", "Roller"], aar: ["aar-btn", "Årshjul"] };
+const VISNINGER = { strat: ["strat-btn", "Strategi"], par: ["par-btn", "Partnere"], team: ["team-btn", "Roller"], aar: ["aar-btn", "Årshjul"], lnk: ["lnk-btn", "Lenker"] };
 function visning(navn) { // navn = "strat" | "team" | "aar" | "" (hovedsiden)
   for (const [k, [id, tekst]] of Object.entries(VISNINGER)) { const on = k === navn, b = document.getElementById(id); document.body.classList.toggle(k, on); b.setAttribute("aria-pressed", on); b.textContent = on ? "← Tilbake" : tekst; }
   window.scrollTo(0, 0);
