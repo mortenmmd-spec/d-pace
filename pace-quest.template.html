@@ -1312,7 +1312,7 @@ function maalNaa(c) { const M = META.maal, tittel = c[0] || ""; if (!M) return n
   if (/abonnent/i.test(tittel) && M.abo != null) { const maal = tall(c[1]); return { txt: `Nå: ${nf(M.abo)} aktive`, pct: maal ? M.abo / maal : null, lbl: maal ? `av ${nf(maal)}` : "", endr: M.aboNye30 != null ? `+${M.aboNye30} nye, −${M.aboSlutt30} avsluttet siste 30 d` : "" }; }
   if (/kundekost/i.test(tittel)) { if (M.cac == null) return { txt: "Nå: annonsekostnad mangler", pct: null, lbl: "" };
     const maal = tall(c[1]); // lavere er bedre: full linje når kundekosten er på eller under målet
-    return { txt: `Nå: ${nf(M.cac)} kr siste 30 d, bare annonser (${nf(M.cacAnn)} kr / ${M.cacNye} nye)`, pct: maal ? maal / M.cac : null, lbl: maal ? (M.cac <= maal ? "på målet" : `${(M.cac / maal).toFixed(1).replace(".", ",")} × målet`) : "",
+    return { txt: `Nå: ${nf(M.cac)} kr siste 30 d, all markedsføring (${nf(M.cacAnn)} kr / ${M.cacNye} nye)`, pct: maal ? maal / M.cac : null, lbl: maal ? (M.cac <= maal ? "på målet" : `${(M.cac / maal).toFixed(1).replace(".", ",")} × målet`) : "",
       endr: M.cacForrige != null && M.cacForrige !== M.cac ? `${M.cac < M.cacForrige ? "ned" : "opp"} ${nf(Math.abs(M.cac - M.cacForrige))} kr mot forrige 30 d (${nf(M.cacForrige)} kr)` : "" }; }
   return null; }
 function renderStrat() {
