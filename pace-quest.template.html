@@ -517,6 +517,7 @@ footer { margin-top: 38px; padding-top: 16px; border-top: 1px solid var(--hairli
 h1 small a { margin-left: 8px; }
 @media (max-width: 640px) { .hdr-actions { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } .hdr-actions > *, .hdr-actions .me-sel { width: auto; flex: 0 0 auto; } }
 .stat.utdatert { border: 1px solid var(--hairline); } .stat.utdatert .v::after { content: none; } /* ingen varselmerking på kortene (Morten 13.11.2026) */
+a.h-merke { color: inherit; text-decoration: none; cursor: pointer; } /* pace.® = hjem-knapp (Morten 16.11.2026) */
 /* Nyttige lenker (Morten 15.11.2026) */
 .lnk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; margin-bottom: 8px; }
 .lk-kort { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--hairline); border-radius: 8px; padding: 14px 16px; color: var(--ink); text-decoration: none; min-width: 0; }
@@ -531,7 +532,7 @@ h1 small a { margin-left: 8px; }
 <body>
 <div class="wrap">
   <header>
-    <h1><span class="h-merke">pace.<sup>®</sup></span>
+    <h1><a href="#" class="h-merke" id="hjem-btn" title="Til forsiden">pace.<sup>®</sup></a>
       <small><span id="mode-pill" class="live-pill off">kobler til …</span>
         <button id="token-clear" class="linkbtn" hidden>Koble fra</button></small>
     </h1>
@@ -703,6 +704,7 @@ h1 small a { margin-left: 8px; }
   <div class="lnk-grid">
     <a class="lk-kort" href="https://docs.google.com/document/d/1uAiq4sIb_ma0H-dVQopqECA7YdjWPmEepMHf25THrN4/edit" target="_blank" rel="noopener"><span class="l-t"><b>Salgsstrategi</b><small>Google-dokument</small></span><span class="l-pil">↗</span></a>
     <a class="lk-kort" href="https://docs.google.com/document/d/16_nUPfEc0R4QeAzFyEQIv57UHsBDBGSoxI30pM4GFlc/edit" target="_blank" rel="noopener"><span class="l-t"><b>Maler for kontakt</b><small>Google-dokument</small></span><span class="l-pil">↗</span></a>
+    <a class="lk-kort" href="https://docs.google.com/spreadsheets/d/1aVNGo2NSm_AZAfhTHQ2AdcEx8fcS-yeHierIvBpxfx0/edit" target="_blank" rel="noopener"><span class="l-t"><b>Personer å ta kontakt med</b><small>Google-ark · Victoria og Anna</small></span><span class="l-pil">↗</span></a>
     <a class="lk-kort" href="https://docs.google.com/spreadsheets/d/12Y-k2e6uy6opjz3ZUJ0OTqYm5xHm2yyngqKoJFayqMc/edit" target="_blank" rel="noopener"><span class="l-t"><b>Butikker oppfølging</b><small>Google-ark</small></span><span class="l-pil">↗</span></a>
   </div>
   </div><!-- /lnk-view (lenker) -->
@@ -1617,6 +1619,7 @@ function visning(navn) { // navn = "strat" | "team" | "aar" | "" (hovedsiden)
   for (const [k, [id, tekst]] of Object.entries(VISNINGER)) { const on = k === navn, b = document.getElementById(id); document.body.classList.toggle(k, on); b.setAttribute("aria-pressed", on); b.textContent = on ? "← Tilbake" : tekst; }
   window.scrollTo(0, 0);
 }
+document.getElementById("hjem-btn").onclick = e => { e.preventDefault(); if (gjg) lukkGjg(); closePop(); visning(""); };
 for (const [k, [id]] of Object.entries(VISNINGER)) document.getElementById(id).onclick = () => visning(document.body.classList.contains(k) ? "" : k);
 const openAdd = () => { const bar = document.querySelector(".add-bar"); bar.classList.add("open"); document.getElementById("new-task").focus(); };
 document.getElementById("add-open").onclick = () => { const bar = document.querySelector(".add-bar"); if (bar.classList.contains("open")) bar.classList.remove("open"); else openAdd(); };
