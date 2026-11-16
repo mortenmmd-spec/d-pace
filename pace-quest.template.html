@@ -518,6 +518,7 @@ h1 small a { margin-left: 8px; }
 @media (max-width: 640px) { .hdr-actions { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } .hdr-actions > *, .hdr-actions .me-sel { width: auto; flex: 0 0 auto; } }
 .stat.utdatert { border: 1px solid var(--hairline); } .stat.utdatert .v::after { content: none; } /* ingen varselmerking på kortene (Morten 13.11.2026) */
 a.h-merke { color: inherit; text-decoration: none; cursor: pointer; } /* pace.® = hjem-knapp (Morten 16.11.2026) */
+.mile .node { cursor: default; pointer-events: none; } /* milepæler kan ikke klikkes (Morten 16.11.2026) */
 /* Nyttige lenker (Morten 15.11.2026) */
 .lnk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; margin-bottom: 8px; }
 .lk-kort { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--hairline); border-radius: 8px; padding: 14px 16px; color: var(--ink); text-decoration: none; min-width: 0; }
@@ -1111,8 +1112,7 @@ function renderMiles() {
     for (const m of miles) {
       const d = document.createElement("div");
       d.className = "mile" + (isDone(m) ? " done" : "") + (busy.has(m.id) ? " busy" : "");
-      d.innerHTML = `<button class="node" title="${live ? "Klikk for å markere nådd / ikke nådd" : ""}">${isDone(m) ? "🏁" : "🚩"}</button><div class="lbl">${esc(m.txt)}</div>${m.due ? `<div class="lbl">📅 ${fmtDate(m.due)}</div>` : ""}${!isDone(m) && totFor(m) != null && mnok(m) > totFor(m) ? `<div class="lbl gap" title="Omsetning hittil i ${aarAv(m)} inkl. mva: ${nf(totFor(m))} kr">${nf(mnok(m) - totFor(m))} kr igjen</div>${m === nextM ? `<div class="mbar"><i style="width:${Math.max(2, Math.min(100, totFor(m) / mnok(m) * 100)).toFixed(1)}%"></i></div>` : ""}` : ""}`;
-      if (live) d.querySelector(".node").onclick = () => moveTask(m.id, isDone(m) ? "Backlog" : "Ferdig");
+      d.innerHTML = `<span class="node" aria-hidden="true">${isDone(m) ? "🏁" : "🚩"}</span><div class="lbl">${esc(m.txt)}</div>${m.due ? `<div class="lbl">📅 ${fmtDate(m.due)}</div>` : ""}${!isDone(m) && totFor(m) != null && mnok(m) > totFor(m) ? `<div class="lbl gap" title="Omsetning hittil i ${aarAv(m)} inkl. mva: ${nf(totFor(m))} kr">${nf(mnok(m) - totFor(m))} kr igjen</div>${m === nextM ? `<div class="mbar"><i style="width:${Math.max(2, Math.min(100, totFor(m) / mnok(m) * 100)).toFixed(1)}%"></i></div>` : ""}` : ""}`;
       el.appendChild(d);
     }
   }
