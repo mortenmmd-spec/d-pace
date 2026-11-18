@@ -5,7 +5,7 @@ import { makeSuggester } from "../scripts/innboks-ki.mjs";
 const regler = "Du svarer for Pace.";
 const redactFn = (t) => t.replace(/\d{8}/g, "[telefon]");
 
-function fakeFetch(answer, { status = 200, raw } = {}) {
+function fakeFetch(answer, { status = 200, raw, stopReason = "end_turn", pre = [], badBody = false } = {}) {
   const calls = [];
   const fn = async (url, init) => {
     calls.push({ url, init, body: init.body });
@@ -13,7 +13,10 @@ function fakeFetch(answer, { status = 200, raw } = {}) {
     return {
       ok: status >= 200 && status < 300,
       status,
-      json: async () => ({ stop_reason: "end_turn", content: [{ type: "text", text }] }),
+      json: async () => {
+        if (badBody) throw new SyntaxError("Unexpected token SECRETBODY");
+        return { stop_reason: stopReason, content: [...pre, { type: "text", text }] };
+      },
     };
   };
   fn.calls = calls;
@@ -104,7 +107,73 @@ test("throws when svar or selv are not booleans", async () => {
 
 test("includes gjelder as plain text when present", async () => {
   const f = fakeFetch(ok);
-  const g = "Ordre #5359, 2026-11-13, sendt, Helthjem 123";
+  const g = "Ordre #1001, 2026-11-13, sendt, Helthjem 123";
   await make(f)(msg({ gjelder: g }));
   assert.ok(f.calls[0].body.includes(g));
+});
+
+const userContent = (f) => JSON.parse(f.calls[0].body).messages[0].content;
+
+test("truncation keeps exactly 4000 characters of tekst", async () => {
+  const f = fakeFetch(ok);
+  await make(f)(msg({ tekst: "a".repeat(5000) }));
+  assert.ok(userContent(f).includes("a".repeat(4000)));
+  assert.ok(!userContent(f).includes("a".repeat(4001)));
+});
+
+test("emne is cut to 300 characters", async () => {
+  const f = fakeFetch(ok);
+  await make(f)(msg({ emne: "b".repeat(1000) }));
+  assert.ok(userContent(f).includes("b".repeat(300)));
+  assert.ok(!userContent(f).includes("b".repeat(301)));
+});
+
+test("non-JSON answer error does not contain the answer text", async () => {
+  await assert.rejects(make(fakeFetch(null, { raw: "hemmelig svartekst" }))(msg()), (e) => {
+    assert.ok(!e.message.includes("hemmelig"));
+    return true;
+  });
+});
+
+test("malformed 200 body throws a generic message", async () => {
+  await assert.rejects(make(fakeFetch(ok, { badBody: true }))(msg()), (e) => {
+    assert.ok(!e.message.includes("SECRETBODY"));
+    return true;
+  });
+});
+
+test("parses when a thinking block comes before the text block", async () => {
+  const pre = [{ type: "thinking", thinking: "", signature: "x" }];
+  assert.deepEqual(await make(fakeFetch(ok, { pre }))(msg()), ok);
+});
+
+test("stop_reason refusal throws", async () => {
+  await assert.rejects(make(fakeFetch(ok, { stopReason: "refusal" }))(msg()));
+});
+
+test("stop_reason max_tokens throws its own error", async () => {
+  await assert.rejects(make(fakeFetch(ok, { stopReason: "max_tokens" }))(msg()), /max_tokens/);
+});
+
+test("non-boolean selv throws", async () => {
+  await assert.rejects(make(fakeFetch({ ...ok, selv: "nei" }))(msg()));
+});
+
+test("no Gjelder line when gjelder is null", async () => {
+  const f = fakeFetch(ok);
+  await make(f)(msg({ gjelder: null }));
+  assert.ok(!userContent(f).includes("Gjelder:"));
+});
+
+test("empty or whitespace forslag becomes null", async () => {
+  const r = await make(fakeFetch({ ...ok, forslag: "  " }))(msg());
+  assert.equal(r.forslag, null);
+});
+
+test("forslag schema is a plain string and no effort is sent", async () => {
+  const f = fakeFetch(ok);
+  await make(f)(msg());
+  const body = JSON.parse(f.calls[0].body);
+  assert.deepEqual(body.output_config.format.schema.properties.forslag, { type: "string" });
+  assert.equal(body.output_config.effort, undefined);
 });
