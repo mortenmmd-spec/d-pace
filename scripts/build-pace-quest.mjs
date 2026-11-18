@@ -318,6 +318,63 @@ async function fetchMetaSpendApi() {
   return { daily, coveredThrough, source: "api", account: acc.account_id };
 }
 
+// ---------- 3a2. Annonser per annonse (Morten 18.11.2026): aktive annonser + annonser med forbruk siste 30 d ----------
+// Tall per annonse er Metas egne (piksel, eksplisitt 7 d klikk / 1 d visning): Shopify-ordrene har nesten aldri annonse-ID i lenken,
+// så egen ROI per annonse finnes ikke ennå. Repoet er offentlig: ingen annonsenavn, beløp eller URL-er i loggen, bare antall.
+async function fetchMetaAnnonser() {
+  const token = env("META_ACCESS_TOKEN"), act = env("META_AD_ACCOUNT", "act_410230529686773"), V = "v23.0";
+  const get = async (p, params = {}) => {
+    const r = await fetch(`https://graph.facebook.com/${V}/${p}?${new URLSearchParams({ ...params, access_token: token })}`);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || j.error) throw new Error("Meta API " + (j.error?.code || r.status) + ": " + String(j.error?.message || "").slice(0, 120));
+    return j;
+  };
+  const alle = async (p, params) => { const out = []; let j = await get(p, params);
+    for (let i = 0; i < 20 && j; i++) { out.push(...(j.data || [])); const n = j.paging?.next; if (!n) break; const r = await fetch(n); j = await r.json(); if (j.error) throw new Error("Meta API " + j.error.code); }
+    return out; };
+  const VINDU = JSON.stringify(["7d_click", "1d_view"]);
+  const ins = (since, until, extra = {}) => alle(`${act}/insights`, { level: "ad", fields: "ad_id,spend,impressions,reach,outbound_clicks,actions,action_values", time_range: JSON.stringify({ since, until }), action_attribution_windows: VINDU, limit: "200", ...extra });
+  const til = addDays(TODAY, -1); // kontoens tidssone er Europe/Oslo (sjekkes i fetchMetaSpendApi)
+  const [i30, i7, iDag, plass] = await Promise.all([
+    ins(addDays(TODAY, -30), til), ins(addDays(TODAY, -7), til), ins(TODAY, TODAY).catch(() => []),
+    ins(addDays(TODAY, -30), til, { breakdowns: "publisher_platform,platform_position", fields: "ad_id,spend,actions" }).catch(() => [])]);
+  const ADF = "id,name,effective_status,created_time,campaign{name},adset{name},creative{id}";
+  let aktive;
+  try { aktive = await alle(`${act}/ads`, { fields: ADF + ",preview_shareable_link", effective_status: JSON.stringify(["ACTIVE"]), limit: "100" }); }
+  catch { aktive = await alle(`${act}/ads`, { fields: ADF, effective_status: JSON.stringify(["ACTIVE"]), limit: "100" }); }
+  const ids = new Set(aktive.map(a => a.id)), mangler = [...new Set(i30.filter(r => +r.spend > 0 && !ids.has(r.ad_id)).map(r => r.ad_id))];
+  for (let i = 0; i < mangler.length; i += 40) { const j = await get("", { ids: mangler.slice(i, i + 40).join(","), fields: ADF }); aktive.push(...Object.values(j).filter(x => x && typeof x.id === "string" && !x.error)); }
+  aktive = aktive.filter(a => a && typeof a.id === "string");
+  // kjøp: én definisjon for antall OG verdi i hele bygget, første type som finnes i dataene (omni_purchase = nettside + Meta-butikk; ellers pikselkjøp)
+  const KJOP = ["omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase"];
+  const kjopType = KJOP.find(t => [...i30, ...i7].some(r => (r.actions || []).some(a => a.action_type === t))) || KJOP[0];
+  const kjop = arr => +((arr || []).find(a => a.action_type === kjopType)?.value) || 0;
+  const utKlikk = arr => (arr || []).reduce((s, a) => s + (a.action_type === "outbound_click" ? +a.value || 0 : 0), 0);
+  const sumIns = (rows, id) => { const o = { brukt: 0, vist: 0, folk: 0, klikk: 0, kjop: 0, verdi: 0 };
+    for (const r of rows.filter(r => r.ad_id === id)) { o.brukt += +r.spend || 0; o.vist += +r.impressions || 0; o.folk += +r.reach || 0; o.klikk += utKlikk(r.outbound_clicks); o.kjop += kjop(r.actions); o.verdi += kjop(r.action_values); }
+    return o; };
+  const FLATE = { "facebook|feed": "Facebook feed", "facebook|facebook_reels": "Facebook reels", "facebook|facebook_stories": "Facebook stories", "facebook|marketplace": "Facebook Marketplace", "facebook|video_feeds": "Facebook video", "facebook|search": "Facebook søk", "facebook|right_hand_column": "Facebook høyrekolonne", "facebook|instream_video": "Facebook i video", "facebook|facebook_profile_feed": "Facebook profil",
+    "instagram|feed": "Instagram feed", "instagram|instagram_stories": "Instagram stories", "instagram|instagram_reels": "Instagram reels", "instagram|instagram_explore": "Instagram utforsk", "instagram|instagram_explore_grid_home": "Instagram utforsk", "instagram|instagram_profile_feed": "Instagram profil", "instagram|instagram_search": "Instagram søk" };
+  const flateNavn = (p, pos) => FLATE[`${p}|${pos}`] || (p === "audience_network" ? "Audience Network" : p === "messenger" ? "Messenger" : p === "threads" ? "Threads" : `${p} ${String(pos || "").replace(/_/g, " ")}`.trim());
+  const bilde = async url => { if (!/^https:\/\//.test(url || "")) return null;
+    try { const r = await fetch(url, { signal: AbortSignal.timeout(10000) }); const ct = r.headers.get("content-type") || ""; if (!r.ok || !/^image\/(jpeg|png|webp|gif)/.test(ct) || +(r.headers.get("content-length") || 0) > 150000) return null;
+      const b = Buffer.from(await r.arrayBuffer()); return b.length <= 150000 ? `data:${ct.split(";")[0]};base64,${b.toString("base64")}` : null; } catch { return null; } };
+  const annonser = [];
+  aktive.sort((x, y) => (y.effective_status === "ACTIVE") - (x.effective_status === "ACTIVE"));
+  for (const a of aktive.slice(0, 40)) {
+    let cr = {};
+    if (a.creative?.id) { try { cr = await get(a.creative.id, { fields: "thumbnail_url,image_url,instagram_permalink_url,effective_object_story_id,asset_feed_spec{images,videos,bodies}", thumbnail_width: "320", thumbnail_height: "320" }); } catch { cr = {}; } }
+    const flater = {}; for (const r of plass.filter(r => r.ad_id === a.id)) { const n = flateNavn(r.publisher_platform, r.platform_position); const f = flater[n] ||= { brukt: 0, kjop: 0 }; f.brukt += +r.spend || 0; f.kjop += kjop(r.actions); }
+    const af = cr.asset_feed_spec, varianter = af ? (af.images?.length || 0) + (af.videos?.length || 0) : 0;
+    const lenke = [a.preview_shareable_link, cr.instagram_permalink_url, cr.effective_object_story_id ? `https://www.facebook.com/${cr.effective_object_story_id}` : null].find(u => /^https:\/\//.test(u || "")) || null;
+    annonser.push({ id: a.id, navn: String(a.name || ""), status: String(a.effective_status || ""), kampanje: a.campaign?.name || "", sett: a.adset?.name || "", opprettet: (a.created_time || "").slice(0, 10),
+      bilde: await bilde(cr.thumbnail_url) || await bilde(cr.image_url), lenke, varianter,
+      d30: sumIns(i30, a.id), d7: sumIns(i7, a.id), idag: sumIns(iDag, a.id).brukt, flater });
+  }
+  annonser.sort((x, y) => (y.status === "ACTIVE") - (x.status === "ACTIVE") || y.d30.brukt - x.d30.brukt);
+  return { annonser, til, at: NOW.toISOString() };
+}
+
 // ---------- 3b. Meta-annonsekostnad fra kvitteringsmailer (hei@getpace.no), reserve ----------
 // "Amount billed: NOKx Date range: <fra> - <til>" fordeles på Oslo-kalenderdager i perioden (sum = kvitteringen).
 // Dager etter siste kvittering er ikke fakturert ennå → null (ukjent), ikke 0.
@@ -455,7 +512,10 @@ if (!meta) { try { meta = await fetchMetaSpend(); metaErr = ""; } catch (e) { me
 let manuell = {};
 try { manuell = JSON.parse(readFileSync(path.join(DIR, "data", "meta-manuell.json"), "utf8")).daily || {}; } catch {}
 if (meta) meta.manual = manuell; else if (Object.keys(manuell).length) meta = { daily: {}, coveredThrough: "0000-00-00", source: "manuell", manual: manuell };
-const metaKilde = meta?.source === "api" ? "Meta API" : meta?.source === "manuell" ? "Meta manuelt" : "Meta-kvitteringer";
+let annonser = null, annonserErr = "";
+if (process.env.META_ACCESS_TOKEN) { try { annonser = await fetchMetaAnnonser(); console.log("Meta-annonser:", annonser.annonser.length, "annonser,", annonser.annonser.filter(a => a.bilde).length, "med bilde"); } catch (e) { annonserErr = e.message; console.error("Meta-annonser utilgjengelig:", e.message); } }
+else if (process.env.META_ANNONSER_TEST) { try { annonser = JSON.parse(readFileSync(process.env.META_ANNONSER_TEST, "utf8")); } catch (e) { annonserErr = e.message; } } // lokal test med eksempeldata
+const metaKilde = meta?.source === "api" ? "Meta API": meta?.source === "manuell" ? "Meta manuelt" : "Meta-kvitteringer";
 let henv = null, henvErr = "";
 try { henv = await fetchHenvendelser(); } catch (e) { henvErr = e.message; console.error("Henvendelser utilgjengelig:", e.message); }
 const T = parseKasse();
@@ -730,6 +790,43 @@ const kanal30 = (() => {
   return `<section class="chart kanaltab"><div class="k">Kanaler siste 30 dager <b>brukt og salg etter kanalen som skaffet kunden</b></div><div class="kt-wrap"><table class="kt"><tr><th>Kanal</th><th>Brukt</th><th>Salg</th><th>Ordre</th><th>Salg per krone brukt</th><th>ROI</th></tr>${rows}</table></div><div class="box-n">Hver ordre krediteres kanalen som skaffet kunden: sporet på kundens aller første kjøp (annonselenke, rabattkoden BML20 eller Adtraction-sporing). Gjenkjøp og fornyelser følger altså kunden, ikke lenken de brukte sist. Kunder uten spor på første kjøp står under «Uten sporet kilde». Salg er eks. mva. ROI = dekningsbidraget fra disse ordrene (salg minus varekost, plukk, frakt og gebyr) minus det kanalen kostet i perioden, delt på det kanalen kostet.</div></section>`;
 })();
 
+// Annonsene på Meta, ett kort per annonse med tallene ved siden av (Morten 18.11.2026)
+const annonserHtml = (() => {
+  const topp = (k, b, innhold) => `<section class="chart kanaltab ann-sek"><div class="k">${k}${b ? ` <b>${b}</b>` : ""}</div>${innhold}</section>`;
+  if (!annonser) return topp("Annonsene på Meta", "", `<div class="box-n">Annonsedata fra Meta kom ikke med i dette bygget.</div>`);
+  const A = annonser.annonser || [];
+  if (!A.length) return topp("Annonsene på Meta", "ingen", `<div class="box-n">Ingen påslåtte annonser og ingen annonser med forbruk siste 30 dager.</div>`);
+  const STATUS = { PAUSED: "Pauset", CAMPAIGN_PAUSED: "Kampanjen er pauset", ADSET_PAUSED: "Annonsesettet er pauset", DISAPPROVED: "Avvist av Meta", PENDING_REVIEW: "Venter på godkjenning", IN_PROCESS: "Behandles", WITH_ISSUES: "Har feil", ARCHIVED: "Arkivert", DELETED: "Slettet", PENDING_BILLING_INFO: "Mangler betaling" };
+  const k2 = v => v.toFixed(2).replace(".", ",");
+  const tall = (l, v, s) => `<div class="ann-t"><div class="l">${l}</div><div class="v">${v}</div>${s ? `<div class="s">${s}</div>` : ""}</div>`;
+  const kort = a => {
+    const d = a.d30, u = a.d7, aktiv = a.status === "ACTIVE";
+    const perKjop = x => x.kjop ? nf(x.brukt / x.kjop) + " kr" : "–";
+    const fl = Object.entries(a.flater || {}).filter(([, f]) => f.brukt > 0).sort((x, y) => y[1].brukt - x[1].brukt), tot = fl.reduce((s, [, f]) => s + f.brukt, 0);
+    const flLi = fl.length ? fl.slice(0, 5).map(([n, f]) => `<li><span>${esc(n)}</span><span>${Math.round(f.brukt / tot * 100)} %${f.kjop ? ` · ${nf(f.kjop)} kjøp` : ""}</span></li>`).join("")
+      + (fl.length > 5 ? `<li class="kt-m"><span>${fl.length - 5 === 1 ? "1 annen flate" : `${fl.length - 5} andre flater`}</span><span>${Math.round(fl.slice(5).reduce((s, [, f]) => s + f.brukt, 0) / tot * 100)} %</span></li>` : "") : `<li class="kt-m"><span>Ikke vist siste 30 dager</span></li>`;
+    const status = aktiv ? (a.idag > 0 ? `Går nå · ${nf(a.idag)} kr brukt i dag` : "Påslått · ikke vist i dag ennå") : (STATUS[a.status] || esc(String(a.status || "ukjent status").toLowerCase()));
+    const okBilde = /^data:image\/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(a.bilde || ""), okLenke = /^https:\/\/[^\s"'<>]+$/.test(a.lenke || "");
+    const bildeHtml = okBilde ? `<img src="${a.bilde}" alt="" loading="lazy">` : `<div class="ann-ingen">Ingen bilde</div>`;
+    const se = okLenke ? `<a class="ann-se" href="${esc(a.lenke)}" target="_blank" rel="noopener noreferrer">Se annonsen ↗</a>` : "";
+    return `<div class="ann${aktiv ? "" : " av"}"><div class="ann-img">${bildeHtml}${se}</div><div class="ann-inn">
+      <div class="ann-navn">${esc(a.navn || "Uten navn")}</div>
+      <div class="ann-meta"><b class="ann-st${aktiv ? " on" : ""}">${status}</b> · ${esc(a.kampanje)}${a.varianter > 1 ? ` · ${a.varianter} bilder/videoer, Meta setter sammen selv` : ""}</div>
+      <div class="ann-tall">
+        ${tall("Brukt", nf(d.brukt) + " kr", `siste 7 d: ${nf(u.brukt)} kr`)}
+        ${tall("Kjøp", nf(d.kjop), `siste 7 d: ${nf(u.kjop)}`)}
+        ${tall("Pris per kjøp", perKjop(d), `siste 7 d: ${perKjop(u)}`)}
+        ${tall("Salg", nf(d.verdi) + " kr", `siste 7 d: ${nf(u.verdi)} kr`)}
+        ${tall("Salg per krone brukt", d.brukt > 0 ? k2(d.verdi / d.brukt) + " kr" : "–", `siste 7 d: ${u.brukt > 0 ? k2(u.verdi / u.brukt) + " kr" : "–"}`)}
+        ${tall("Nådde", nf(d.folk) + " pers.", `${nf(d.klikk)} klikk videre til nettsiden`)}
+      </div>
+      <div class="ann-fl-h">Vises på (andel av pengene)</div><ul class="ann-fl">${flLi}</ul>
+    </div></div>`; };
+  const pa = A.filter(a => a.status === "ACTIVE").length;
+  return topp("Annonsene på Meta siste 30 dager", `${pa} påslått${pa === 1 ? "" : "e"}`, `<div class="ann-liste">${A.map(kort).join("")}</div>
+    <div class="box-n">Tallene per annonse er Metas egne, for siste 30 hele dager (siste 7 under hvert tall), oppdatert ${fmtD(TODAY)}. Meta teller et kjøp når noen kjøper innen 7 dager etter å ha klikket på annonsen eller innen 1 dag etter å ha sett den, også gjenkjøp fra kunder vi hadde fra før. Derfor finner Meta som regel flere kjøp enn Shopify, og pris per kjøp er ikke det samme som pris per ny kunde (Anders’ tak er ca. 210 kr per ny kunde). Salg er kjøpsverdien Meta registrerer. Vår egen lønnsomhet for Meta samlet står i kanaltabellen over. «Vises på» er hvor stor del av pengene som gikk til hver flate. Annonser som er skrudd av, vises nedtonet når de har brukt penger siste 30 dager. Bildet er miniatyren Meta bruker; annonser med flere varianter viser én av dem.</div>`);
+})();
+
 const pst = v => (v * (v <= 1 ? 100 : 1)).toFixed(1).replace(".", ",") + " %"; // ShopifyQL gir andel 0–1
 const besokKort = (() => { const w = win(30), f = winF(30), snitt = sum(w, "ordre") ? sum(w, "oms") / sum(w, "ordre") : null, snittF = sum(f, "ordre") ? sum(f, "oms") / sum(f, "ordre") : null;
   const snittKort = snitt == null ? "" : card("Snittordre 30 d", nf(snitt) + " kr", `inkl. mva og frakt${snittF != null ? ` · forrige 30 d: ${nf(snittF)} kr` : ""}`, "c-salg", "Salg inkl. mva delt på antall ordre i nettbutikken, siste 30 hele dager (uten B2B).");
@@ -842,6 +939,7 @@ put(/<!--TABS-->[\s\S]*?<!--\/TABS-->/, `<!--TABS-->${tabsHtml}<!--/TABS-->`, "T
 put(/<!--TABNOTE_mf-->[\s\S]*?<!--\/TABNOTE_mf-->/, `<!--TABNOTE_mf-->${kpiNote}<!--/TABNOTE_mf-->`, "TABNOTE_mf");
 put(/<!--FRISTER-->[\s\S]*?<!--\/FRISTER-->/, `<!--FRISTER-->${frister}<!--/FRISTER-->`, "FRISTER");
 put(/<!--KANAL30-->[\s\S]*?<!--\/KANAL30-->/, `<!--KANAL30-->${kanal30}<!--/KANAL30-->`, "KANAL30");
+put(/<!--ANNONSER-->[\s\S]*?<!--\/ANNONSER-->/, `<!--ANNONSER-->${annonserHtml}<!--/ANNONSER-->`, "ANNONSER");
 put(/<!--FOKUS-->[\s\S]*?<!--\/FOKUS-->/, `<!--FOKUS-->${fokusHtml}<!--/FOKUS-->`, "FOKUS");
 put(/<!--DATASTATUS-->[\s\S]*?<!--\/DATASTATUS-->/, `<!--DATASTATUS-->${esc(datastatus)}<!--/DATASTATUS-->`, "DATASTATUS");
 put(/<!--STATSNOTE-->[\s\S]*?<!--\/STATSNOTE-->/, `<!--STATSNOTE-->${note}<!--/STATSNOTE-->`, "STATSNOTE");
