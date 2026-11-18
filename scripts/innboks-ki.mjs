@@ -18,16 +18,12 @@ const SCHEMA = {
 };
 
 function userText(m, redactFn) {
-  const parts = [
+  return [
     `Kanal: ${m.kanal ?? ""}`,
     `Emne: ${cutText(redactFn(String(m.emne ?? "")), MAX_SUBJECT)}`,
-  ];
-  if (m.gjelder) parts.push(`Gjelder: ${m.gjelder}`);
-  parts.push(`Melding:\n${cutText(redactFn(String(m.tekst ?? "")), MAX_TEXT)}`);
-  parts.push(
-    'Svar bare med JSON: {"type": "sporsmal"|"ordre"|"ros"|"annet", "svar": boolean, "selv": boolean, "forslag": string}. Bruk tom streng i "forslag" når du ikke har noe forslag.'
-  );
-  return parts.join("\n");
+    `Melding:\n${cutText(redactFn(String(m.tekst ?? "")), MAX_TEXT)}`,
+    'Svar bare med JSON: {"type": "sporsmal"|"ordre"|"ros"|"annet", "svar": boolean, "selv": boolean, "forslag": string}. Bruk tom streng i "forslag" når du ikke har noe forslag.',
+  ].join("\n");
 }
 
 const transientError = (message, status) => Object.assign(new Error(message), { transient: true, status });

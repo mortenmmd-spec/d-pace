@@ -9,7 +9,7 @@ import { makeSuggester } from "../scripts/innboks-ki.mjs";
 
 const now = new Date("2026-11-18T12:00:00Z");
 const later = new Date("2026-11-18T13:00:00Z");
-const raw = (id, extra = {}) => ({ id, kanal: "mail", navn: "Per H.", ts: 1, emne: "e", tekst: "t", lenke: "l", gjelder: null, ...extra });
+const raw = (id, extra = {}) => ({ id, kanal: "mail", navn: "Per H.", ts: 1, emne: "e", tekst: "t", lenke: "l", ...extra });
 const empty = () => ({ v: 1, sistOk: { mail: null }, meldinger: {} });
 const src = (aapne, ok = true) => ({ mail: { ok, aapne } });
 const entry = (id, extra = {}) => ({ ...raw(id), sett: now.toISOString(), besvart: null, type: null, forslag: null, selv: false, forsok: 0, ...extra });
@@ -102,7 +102,7 @@ test("suggestAll: answer suggestion", async () => {
   assert.equal(e.type, "sporsmal");
   assert.equal(e.forslag, "Hei Per!");
   assert.deepEqual(s, { kall: 1, tegn: 3, feil: 0, status: {} });
-  assert.deepEqual(Object.keys(arg).sort(), ["emne", "gjelder", "kanal", "tekst"]);
+  assert.deepEqual(Object.keys(arg).sort(), ["emne", "kanal", "tekst"]);
 });
 
 test("suggestAll: selv drops suggestion", async () => {
@@ -151,7 +151,7 @@ test("toPage shape", () => {
     assert.ok(!("forsok" in m));
     assert.ok(!("sett" in m));
   }
-  assert.deepEqual(Object.keys(p.meldinger[0]).sort(), ["besvart", "emne", "forslag", "gammelTekst", "gjelder", "id", "kanal", "lenke", "navn", "selv", "svar", "tekst", "ts", "type"]);
+  assert.deepEqual(Object.keys(p.meldinger[0]).sort(), ["besvart", "emne", "forslag", "gammelTekst", "id", "kanal", "lenke", "navn", "selv", "svar", "tekst", "ts", "type"]);
   assert.equal(p.meldinger[0].gammelTekst, false);
   assert.equal(toPage(cache, src([]), now).kilder.mail.ok, true);
 });
@@ -296,12 +296,10 @@ test("updateCache: new message keeps answered entries and other threads", () => 
   assert.notEqual(c2.meldinger["mail:a:1"].besvart, null);
 });
 
-test("updateCache: failed text or order lookup keeps the old values", () => {
-  const gj = { type: "ordre", nr: "#1", dato: "2026-11-01", status: "sendt", sporing: "" };
-  const c = updateCache({ cache: empty(), kilder: src([raw("mail:a:1", { tekst: "Hei der", gjelder: gj })]), now });
-  const c2 = updateCache({ cache: c, kilder: src([raw("mail:a:1", { tekst: "", gjelder: undefined })]), now: later });
+test("updateCache: failed text keeps the old text", () => {
+  const c = updateCache({ cache: empty(), kilder: src([raw("mail:a:1", { tekst: "Hei der" })]), now });
+  const c2 = updateCache({ cache: c, kilder: src([raw("mail:a:1", { tekst: "" })]), now: later });
   assert.equal(c2.meldinger["mail:a:1"].tekst, "Hei der");
-  assert.deepEqual(c2.meldinger["mail:a:1"].gjelder, gj);
 });
 
 test("redact: international phone numbers", () => {
@@ -375,7 +373,7 @@ test("an address at the 4000 cut is redacted before the text is cut", async () =
   const tekst = "x ".repeat(1993) + "kari.nordmann@gmail.com takk";
   const c = updateCache({ cache: empty(), kilder: src([raw("mail:a:1", { tekst })]), now });
   const { sent, ask } = fakeApi();
-  await ask({ kanal: "mail", emne: "Hei", tekst: c.meldinger["mail:a:1"].tekst, gjelder: null });
+  await ask({ kanal: "mail", emne: "Hei", tekst: c.meldinger["mail:a:1"].tekst });
   assert.ok(!sent[0].includes("kari.nordmann"));
   assert.ok(sent[0].includes("[e-post]"));
 });
@@ -441,7 +439,7 @@ test("redact: the value of a name field", () => {
 
 test("the full name from a contact form is not sent to the API", async () => {
   const { sent, ask } = fakeApi();
-  await ask({ kanal: "mail", emne: "Ny kundemelding", tekst: "Du har mottatt en ny melding. Landskode: NO Navn: Lise Marie Hansen E-post: lise@x.no Telefonnummer: 91 234 567 Kommentar: Når kommer pakken?", gjelder: null });
+  await ask({ kanal: "mail", emne: "Ny kundemelding", tekst: "Du har mottatt en ny melding. Landskode: NO Navn: Lise Marie Hansen E-post: lise@x.no Telefonnummer: 91 234 567 Kommentar: Når kommer pakken?" });
   for (const s of ["Lise", "Marie", "Hansen", "lise@", "234 567"]) assert.ok(!sent[0].includes(s), s);
   assert.ok(sent[0].includes("Når kommer pakken?"));
 });
@@ -474,37 +472,39 @@ test("the whole API request holds no e-mail, phone or link from subject, text or
   assert.ok(content.includes("[lenke]") && content.includes("[telefon]") && content.includes("[e-post]"));
 });
 
-test("updateCache: a new message whose text and order could not be fetched keeps the old text and order, not the old suggestion", () => {
-  const gj = { type: "ordre", nr: "#1", dato: "2026-11-01", status: "sendt", sporing: "" };
-  const c = updateCache({ cache: empty(), kilder: src([raw("mail:t:m1", { tekst: "Hvor er pakken?", gjelder: gj })]), now });
+test("updateCache: a new message whose text could not be fetched keeps the old text, not the old suggestion", () => {
+  const c = updateCache({ cache: empty(), kilder: src([raw("mail:t:m1", { tekst: "Hvor er pakken?" })]), now });
   Object.assign(c.meldinger["mail:t:m1"], { type: "ordre", svar: true, forslag: "Hei! Pakken er sendt.", forsok: 1 });
-  const c2 = updateCache({ cache: c, kilder: src([raw("mail:t:m2", { ts: 2, tekst: "", gjelder: undefined })]), now: later });
+  const c2 = updateCache({ cache: c, kilder: src([raw("mail:t:m2", { ts: 2, tekst: "" })]), now: later });
   assert.deepEqual(Object.keys(c2.meldinger), ["mail:t:m2"]);
   const e = c2.meldinger["mail:t:m2"];
   assert.equal(e.tekst, "Hvor er pakken?");
   assert.equal(e.gammelTekst, true);
-  assert.deepEqual(e.gjelder, gj);
   assert.deepEqual([e.type, e.forslag, e.svar, e.forsok], [null, null, null, 0]);
   assert.deepEqual(pickNew(c2), []);
   const p = toPage(c2, src([]), later).meldinger[0];
   assert.equal(p.gammelTekst, true);
   assert.equal(p.forslag, null);
-  // the next build gets the new text, and the lookup now finds no order for this sender
-  const c3 = updateCache({ cache: c2, kilder: src([raw("mail:t:m2", { ts: 2, tekst: "Den kom ikke", gjelder: null })]), now: later });
+  // the next build gets the new text
+  const c3 = updateCache({ cache: c2, kilder: src([raw("mail:t:m2", { ts: 2, tekst: "Den kom ikke" })]), now: later });
   const e3 = c3.meldinger["mail:t:m2"];
   assert.equal(e3.tekst, "Den kom ikke");
   assert.ok(!("gammelTekst" in e3));
-  assert.equal(e3.gjelder, null);
   assert.deepEqual(pickNew(c3).map(x => x.id), ["mail:t:m2"]);
 });
 
-test("updateCache: a new message with its own text and no order found does not take the old order", () => {
-  const gj = { type: "ordre", nr: "#1", dato: "2026-11-01", status: "sendt", sporing: "" };
-  const c = updateCache({ cache: empty(), kilder: src([raw("mail:t:m1", { tekst: "Hei", gjelder: gj })]), now });
-  const e = updateCache({ cache: c, kilder: src([raw("mail:t:m2", { tekst: "Ny tekst", gjelder: null })]), now: later }).meldinger["mail:t:m2"];
-  assert.equal(e.tekst, "Ny tekst");
-  assert.equal(e.gjelder, null);
-  assert.ok(!("gammelTekst" in e));
+test("buildInbox: an older cache with gjelder in its entries builds, and gjelder reaches neither the page nor the suggestion", async () => {
+  const file = path.join(mkdtempSync(path.join(tmpdir(), "innboks-")), "c.enc");
+  const gj = { type: "ordre", nr: "#1001", dato: "2026-11-01", status: "sendt", sporing: "Helthjem 123" };
+  writeCache("pw", { v: 1, sistOk: { mail: null }, meldinger: { "mail:t:m1": { ...entry("mail:t:m1", { tekst: "Hvor er pakken?" }), gjelder: gj } } }, file);
+  const args = [];
+  const r = await buildInbox({ pw: "pw", kilder: src([raw("mail:t:m1", { tekst: "Hvor er pakken?" }), raw("mail:u:m1", { tekst: "Hei" })]), suggest: async m => { args.push(m); return ok1(); }, now, file });
+  assert.equal(r.page.meldinger.length, 2);
+  assert.equal(args.length, 2);
+  for (const x of [...r.page.meldinger, ...args]) {
+    assert.ok(!("gjelder" in x));
+    assert.ok(!JSON.stringify(x).includes("#1001"));
+  }
 });
 
 for (const [name, write, pw] of [["cannot be decrypted", f => writeFileSync(f, "ikke-gyldig\n"), "pw"], ["has another password", f => writeCache("annet", { v: 1, sistOk: { mail: null }, meldinger: { x: { tekst: "hemmelig" } } }, f), "pw"]]) {
@@ -574,3 +574,25 @@ test("updateCache: a marked entry that comes back after being answered takes its
 });
 
 test("redact: a link glued to a word is removed too", () => assert.equal(redact("sehttps://x.no/a og kopi:www.x.no"), "se[lenke] og kopi:[lenke]"));
+
+// Codex review 19.11.2026
+
+test("redact: phone numbers with hard and other Unicode spaces", () => {
+  assert.equal(redact("Ring 22 33 44 55."), "Ring [telefon].");
+  assert.equal(redact("Ring 912 34 567 eller +47 912 34 567"), "Ring [telefon] eller [telefon]");
+  assert.equal(redact("Tlf 2233 4455"), "Tlf [telefon]");
+});
+
+test("redact: an area code in brackets after a country code", () => {
+  assert.equal(redact("Ring +1 (212) 555-1234."), "Ring [telefon].");
+  assert.equal(redact("Ring +1 (212) 555-1234 eller +44 (20) 7946 0958"), "Ring [telefon] eller [telefon]");
+  assert.equal(redact("Ordre (2) 555-1234"), "Ordre (2) 555-1234");
+});
+
+test("redact: amounts, order numbers, postal codes and dates with hard or narrow spaces stay as with plain spaces", () => {
+  for (const s of ["Beløp kr 1 299,00", "Pris 12 990 kr", "Omsetning 1 000 000 kr", "Omsetning 1 000 000 000 kr", "Ordre #1001 og #10023", "Ordre #53597120",
+    "Ordre 5359712", "Postnr 0150 Oslo", "Postnr 4010 Stavanger", "Dato 13.11.2026 og 2026-11-13", "Sesong 2026 2027", "Ordre 1001 1002",
+    "Orgnr 923 456 789", "Kontonr 1234.56.78901", "Beløp 12345678.50", "Beløp (1 299 kr)"]) {
+    for (const sp of [" ", " "]) assert.equal(redact(s.replace(/ /g, sp)), s);
+  }
+});

@@ -41,13 +41,14 @@ test("cuts tekst to 4000 characters", async () => {
   assert.ok(f.calls[0].body.length < 6000 + regler.length);
 });
 
-test("never sends navn, lenke or id", async () => {
+test("never sends navn, lenke, id or gjelder", async () => {
   const f = fakeFetch(ok);
-  await make(f)(msg({ navn: "Kari Nordmann", lenke: "https://example.test/t/1", id: "abc-123-xyz" }));
+  await make(f)(msg({ navn: "Kari Nordmann", lenke: "https://example.test/t/1", id: "abc-123-xyz", gjelder: "Ordre #1001" }));
   const b = f.calls[0].body;
   assert.ok(!b.includes("Kari Nordmann"));
   assert.ok(!b.includes("example.test"));
   assert.ok(!b.includes("abc-123-xyz"));
+  assert.ok(!b.includes("#1001") && !b.includes("Gjelder"));
 });
 
 test("uses model, api key and url", async () => {
@@ -105,13 +106,6 @@ test("throws when svar or selv are not booleans", async () => {
   await assert.rejects(make(fakeFetch({ ...ok, svar: "ja" }))(msg()));
 });
 
-test("includes gjelder as plain text when present", async () => {
-  const f = fakeFetch(ok);
-  const g = "Ordre #1001, 2026-11-13, sendt, Helthjem 123";
-  await make(f)(msg({ gjelder: g }));
-  assert.ok(f.calls[0].body.includes(g));
-});
-
 const userContent = (f) => JSON.parse(f.calls[0].body).messages[0].content;
 
 test("truncation keeps exactly 4000 characters of tekst", async () => {
@@ -157,12 +151,6 @@ test("stop_reason max_tokens throws its own error", async () => {
 
 test("non-boolean selv throws", async () => {
   await assert.rejects(make(fakeFetch({ ...ok, selv: "nei" }))(msg()));
-});
-
-test("no Gjelder line when gjelder is null", async () => {
-  const f = fakeFetch(ok);
-  await make(f)(msg({ gjelder: null }));
-  assert.ok(!userContent(f).includes("Gjelder:"));
 });
 
 test("empty or whitespace forslag becomes null", async () => {

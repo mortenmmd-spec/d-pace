@@ -12,7 +12,7 @@ const now = new Date();
 let cache = { v: 1, sistOk: { mail: null }, meldinger: {} };
 cache = updateCache({ cache, kilder: { mail: { ok: true, aapne } }, now });
 const ids = Object.keys(cache.meldinger);
-Object.assign(cache.meldinger[ids[0]], { type: "ordre", forslag: "Hei Kari! Beklager ventetiden. Ordren din er sendt og står som ikke levert. Vi sjekker i dag." });
+Object.assign(cache.meldinger[ids[0]], { type: "ordre", forslag: "Hei Kari! Beklager ventetiden. Vi sjekker saken og kommer tilbake til deg." });
 Object.assign(cache.meldinger[ids[1]], { type: "sporsmal", forslag: "Hei! Pace kan blandes i kaldt eller lunkent vann." });
 Object.assign(cache.meldinger[ids[2]], { type: "annet", selv: true });
 

@@ -88,13 +88,14 @@ test("the Innboks error log has only the error code or type", () => {
   assert.deepEqual(c.logged, ["Innboks utilgjengelig: SyntaxError", "Innboks utilgjengelig: INNBOKS_CACHE"]);
 });
 
-test("the number on the Innboks button stays the source count after «Marker besvart»", () => {
-  const code = `${line(template, "const inbDone")}\n${template.split("\n").filter(l => l.startsWith("const inbCount")).join("\n")}\n${block(template, "function inbBtnCount")}\nreturn inbBtnCount;`;
+test("the number on the Innboks button stays the source count after «Marker besvart», and is not shown while mail is down", () => {
+  const btnCount = new Function("INNBOKS", "inbMsgs", "document", `${block(template, "function inbBtnCount")}\nreturn inbBtnCount;`);
   const msgs = [{ id: "m1", besvart: false }, { id: "m2", besvart: true }];
-  const btnCount = new Function("INNBOKS", "inbMsgs", "inbHidden", "document", code)({ meldinger: msgs }, msgs, { m1: Date.now() + 3600000 }, { createElement: () => ({}) });
-  const shown = [];
-  btnCount({ append: s => shown.push(s.textContent) });
-  assert.deepEqual(shown, [1]);
+  for (const [ok, want] of [[true, [1]], [false, []]]) {
+    const shown = [];
+    btnCount({ kilder: { mail: { ok } }, meldinger: msgs }, msgs, { createElement: () => ({}) })({ append: s => shown.push(s.textContent) });
+    assert.deepEqual(shown, want);
+  }
 });
 
 const T0 = Date.UTC(2026, 10, 17, 9);
@@ -121,7 +122,7 @@ test("the inbox identity is the last sender, while the card still shows the thre
 
 test("a message shown with the previous message's text says so and offers no suggestion", () => {
   const els = {};
-  const msg = { id: "m2", kanal: "mail", navn: "Kari N.", ts: T0, emne: "Pakke", tekst: "Hvor er pakken?", gjelder: null, type: null, forslag: null, selv: false, svar: null, besvart: false, gammelTekst: true };
+  const msg = { id: "m2", kanal: "mail", navn: "Kari N.", ts: T0, emne: "Pakke", tekst: "Hvor er pakken?", type: null, forslag: null, selv: false, svar: null, besvart: false, gammelTekst: true };
   const detail = new Function("inbMsgs", "inbSel", "document", "INNBOKS", "INB_KANAL", "inbDay", "inbClock", "inbDate", `${line(template, "const esc")}\n${block(template, "function inbDetail")}\nreturn inbDetail;`)(
     [msg], "m2", { getElementById: id => (els[id] ||= {}) }, {}, { mail: "Mail" }, () => "2026-11-17", () => "10:00", () => "17.11");
   detail();

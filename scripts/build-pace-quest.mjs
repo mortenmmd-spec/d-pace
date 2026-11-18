@@ -493,36 +493,11 @@ async function fetchHenvendelser() {
     if (msgs.slice(0, -1).some(m => OSS.test(hdr(m, "From"))) && await baretakk(G, last.id)) { if (process.env.HENV_DEBUG) console.log("skjult takk-svar:", lastFrom, "|", subject); continue; }
     const avsender = vaarTraad ? lastFrom : from;
     const navn = avsender.replace(/<.*>/, "").replace(/"/g, "").trim() || avsender;
-    // fra is for the inbox only: the sender of the last message (never ours), so the inbox name and order lookup follow the message shown
+    // fra is for the inbox only: the sender of the last message (never ours), so the inbox name follows the message shown
     open.push({ d: osloDay(new Date(+last.internalDate)), navn, subject, thread: id, sisteId: last.id, ts: +last.internalDate, fra: lastFrom, tekst: await svartekst(G, last.id, true).catch(() => { noText++; return ""; }) });
   }
   open.sort((a, b) => a.d < b.d ? -1 : 1);
   return { n: open.length, open, threads: ids.length, noText };
-}
-
-// latest order per e-mail address, for the inbox only; addresses are never logged or stored. null when the lookup failed.
-async function shopifyLatestOrders(emails) {
-  const out = new Map();
-  try {
-    const SHOP = env("SHOPIFY_SHOP");
-    const r0 = await fetch(`https://${SHOP}/admin/oauth/access_token`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ client_id: env("SHOPIFY_CLIENT_ID"), client_secret: env("SHOPIFY_CLIENT_SECRET"), grant_type: "client_credentials" }) });
-    const tok = (await r0.json()).access_token;
-    if (!tok) throw new Error("no token");
-    for (const email of emails) {
-      const addr = String(email || "").trim().toLowerCase();
-      if (!addr) continue;
-      const r = await fetch(`https://${SHOP}/admin/api/${API}/orders.json?email=${encodeURIComponent(addr)}&status=any&limit=1&fields=name,email,created_at,fulfillment_status,fulfillments`, { headers: { "X-Shopify-Access-Token": tok } });
-      if (!r.ok) throw new Error("status " + r.status);
-      const o = ((await r.json()).orders || [])[0];
-      if (!o || String(o.email || "").trim().toLowerCase() !== addr) continue;
-      const f = (o.fulfillments || [])[0];
-      out.set(addr, { type: "ordre", nr: o.name, dato: String(o.created_at).slice(0, 10), status: o.fulfillment_status === "fulfilled" ? "sendt" : "ikke sendt", sporing: f ? [f.tracking_company, f.tracking_number].filter(Boolean).join(" ") : "" });
-    }
-  } catch {
-    console.log("innboks: ordreoppslag utilgjengelig");
-    return null;
-  }
-  return out;
 }
 
 // ---------- 4. Kasse (manuell) og kjente forfall ----------
@@ -970,17 +945,9 @@ try {
     if (process.env.INNBOKS_TEST) kilder = { mail: { ok: true, aapne: JSON.parse(readFileSync(process.env.INNBOKS_TEST, "utf8")) } };
     else {
       const items = henv ? henv.open : []; noText = henv ? henv.noText : 0;
-      const addr = x => (/<([^>]+)>/.exec(x.fra)?.[1] || x.fra).trim().toLowerCase();
-      const lookups = items.filter(x => !/ny kundemelding/i.test(x.subject));
-      const orders = lookups.length ? await shopifyLatestOrders([...new Set(lookups.map(addr))]) : new Map();
-      // gjelder undefined when the order lookup failed, so the cache keeps what it had
-      kilder = { mail: { ok: !!henv, aapne: items.map(x => ({ id: "mail:" + x.thread + ":" + x.sisteId, kanal: "mail", navn: /ny kundemelding/i.test(x.subject) ? contactName(x.tekst) || shortName(x.fra) : shortName(x.fra), ts: x.ts, emne: x.subject, tekst: x.tekst, lenke: gmailLink(x.thread), gjelder: /ny kundemelding/i.test(x.subject) ? null : orders ? orders.get(addr(x)) || null : undefined })) } };
+      kilder = { mail: { ok: !!henv, aapne: items.map(x => ({ id: "mail:" + x.thread + ":" + x.sisteId, kanal: "mail", navn: /ny kundemelding/i.test(x.subject) ? contactName(x.tekst) || shortName(x.fra) : shortName(x.fra), ts: x.ts, emne: x.subject, tekst: x.tekst, lenke: gmailLink(x.thread) })) } };
     }
-    let suggest = null;
-    if (process.env.ANTHROPIC_API_KEY) {
-      const ask = makeSuggester({ apiKey: process.env.ANTHROPIC_API_KEY, model: process.env.INNBOKS_MODEL || undefined, regler: readFileSync(path.join(DIR, "data", "innboks-regler.md"), "utf8"), redactFn: redact });
-      suggest = m => ask({ ...m, gjelder: m.gjelder ? `Ordre ${m.gjelder.nr}, ${m.gjelder.dato}, ${m.gjelder.status}${m.gjelder.sporing ? ", " + m.gjelder.sporing : ""}` : null });
-    }
+    const suggest = process.env.ANTHROPIC_API_KEY ? makeSuggester({ apiKey: process.env.ANTHROPIC_API_KEY, model: process.env.INNBOKS_MODEL || undefined, regler: readFileSync(path.join(DIR, "data", "innboks-regler.md"), "utf8"), redactFn: redact }) : null;
     // Only the hourly workflow may write the tracked cache file; local builds use a temp file.
     const innboksFile = process.env.INNBOKS_TEST ? path.join(os.tmpdir(), "innboks-test.enc") : process.env.GITHUB_ACTIONS === "true" ? undefined : path.join(os.tmpdir(), "innboks-local.enc");
     const res = await buildInbox({ pw, kilder, suggest, now: NOW, file: innboksFile });
