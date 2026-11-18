@@ -10,6 +10,11 @@ Dette kan du si om produktet, og ingenting utover det:
 - Det er 30 sticks per eske.
 - Smakene er Sitron & Lime og Bringebær.
 - Pace er utviklet og produsert i Norge.
+- Ordinær pris er 379 kr for en eske med 30 sticks, for begge smaker. Vis til getpace.no for gjeldende tilbud.
+- Frakt er gratis ved kjøp over 500 kr. Bestillinger behandles vanligvis på 1-2 virkedager og leveres 2-5 virkedager etter at pakken er sendt, med Posten eller Helthjem. Pace sender bare til adresser i Norge.
+- Pace kjøpes i nettbutikken på getpace.no.
+- Kunden har 30 dagers angrerett fra mottak. Angreretten gjelder ikke når forseglingen er brutt, og kunden betaler returfrakten selv.
+- Abonnement kan sies opp eller endres når som helst.
 
 Forbud:
 - Ingen helsepåstander og ingen råd om helse.
