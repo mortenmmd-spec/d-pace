@@ -46,16 +46,21 @@ jobs:
           GOOGLE_ADS_TOKEN: ${{ steps.gauth.outputs.access_token }}
           PACE_KASSE: ${{ vars.PACE_KASSE }}
           PACE_FORFALL: ${{ vars.PACE_FORFALL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          INNBOKS_MODEL: ${{ vars.INNBOKS_MODEL }}
           FORCE: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
         run: |
           set +x
           git config user.name "pace-quest-bot"
           git config user.email "actions@users.noreply.github.com"
           for i in 1 2 3; do
+            if [ "$i" != 1 ] && [ -f data/innboks.enc ]; then cp data/innboks.enc "$RUNNER_TEMP/innboks.enc"; fi
             git fetch origin main && git reset --hard origin/main
+            if [ -f "$RUNNER_TEMP/innboks.enc" ]; then mkdir -p data && cp "$RUNNER_TEMP/innboks.enc" data/innboks.enc; fi
             node scripts/build-pace-quest.mjs
             rm -f pace-quest-plain.html
             git add pace-quest.html
+            [ -f data/innboks.enc ] && git add data/innboks.enc
             if git diff --cached --quiet; then echo "ingen endring"; exit 0; fi
             git commit -m "pace-quest: auto-synk $(TZ=Europe/Oslo date '+%d.%m.%Y %H:%M')"
             if git push origin HEAD:main; then exit 0; fi
