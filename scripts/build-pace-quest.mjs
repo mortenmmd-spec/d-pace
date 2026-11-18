@@ -343,7 +343,8 @@ async function fetchMetaAnnonser() {
   try { aktive = await alle(`${act}/ads`, { fields: ADF + ",preview_shareable_link", effective_status: JSON.stringify(["ACTIVE"]), limit: "100" }); }
   catch { aktive = await alle(`${act}/ads`, { fields: ADF, effective_status: JSON.stringify(["ACTIVE"]), limit: "100" }); }
   const ids = new Set(aktive.map(a => a.id)), mangler = [...new Set(i30.filter(r => +r.spend > 0 && !ids.has(r.ad_id)).map(r => r.ad_id))];
-  for (let i = 0; i < mangler.length; i += 40) { const j = await get("", { ids: mangler.slice(i, i + 40).join(","), fields: ADF }); aktive.push(...Object.values(j).filter(x => x && typeof x.id === "string" && !x.error)); }
+  // avslåtte annonser med forbruk: én og én (?ids= er avviklet hos Meta, feil 100 i nov. 2026)
+  for (const id of mangler.slice(0, 40)) { try { const x = await get(id, { fields: ADF }); if (x && typeof x.id === "string") aktive.push(x); } catch {} }
   aktive = aktive.filter(a => a && typeof a.id === "string");
   // kjøp: én definisjon for antall OG verdi i hele bygget, første type som finnes i dataene (omni_purchase = nettside + Meta-butikk; ellers pikselkjøp)
   const KJOP = ["omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase"];
