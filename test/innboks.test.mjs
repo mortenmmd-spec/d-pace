@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { readCache } from "../scripts/innboks-cache.mjs";
 import { shortName, contactName, redact, excerpt, gmailLink, updateCache, pickNew, suggestAll, toPage, buildInbox } from "../scripts/innboks.mjs";
+import { makeSuggester } from "../scripts/innboks-ki.mjs";
 
 const now = new Date("2026-11-18T12:00:00Z");
 const later = new Date("2026-11-18T13:00:00Z");
@@ -194,11 +195,11 @@ test("suggestAll: unknown type counts as failed attempt", async () => {
 
 const ok1 = async () => ({ type: "sporsmal", svar: true, selv: false, forslag: "Hei" });
 
-test("updateCache stores at most 4000 characters of tekst", () => {
+test("updateCache stores at most 4200 characters of tekst", () => {
   const c = updateCache({ cache: empty(), kilder: src([raw("mail:a:1", { tekst: "x".repeat(50000) })]), now });
-  assert.equal(c.meldinger["mail:a:1"].tekst.length, 4000);
+  assert.equal(c.meldinger["mail:a:1"].tekst.length, 4200);
   const c2 = updateCache({ cache: c, kilder: src([raw("mail:a:1", { tekst: "y".repeat(50000) })]), now: later });
-  assert.equal(c2.meldinger["mail:a:1"].tekst.length, 4000);
+  assert.equal(c2.meldinger["mail:a:1"].tekst.length, 4200);
 });
 
 test("buildInbox cuts stored tekst to the page excerpt once classified, and keeps it cut", async () => {
@@ -216,7 +217,7 @@ test("buildInbox cuts tekst for answered and for exhausted entries", async () =>
   const file = path.join(mkdtempSync(path.join(tmpdir(), "innboks-")), "c.enc");
   const long = raw("mail:a:1", { tekst: "x".repeat(5000) });
   await buildInbox({ pw: "pw", kilder: src([long]), suggest: async () => { throw new Error("bad"); }, now, file });
-  assert.equal(readCache("pw", file).meldinger["mail:a:1"].tekst.length, 4000);
+  assert.equal(readCache("pw", file).meldinger["mail:a:1"].tekst.length, 4200);
   await buildInbox({ pw: "pw", kilder: src([long]), suggest: async () => { throw new Error("bad"); }, now, file });
   await buildInbox({ pw: "pw", kilder: src([long]), suggest: async () => { throw new Error("bad"); }, now, file });
   assert.equal(readCache("pw", file).meldinger["mail:a:1"].tekst.length, 601);
@@ -316,4 +317,128 @@ test("contactName: reads Navn from a contact form text", () => {
   assert.equal(contactName("Navn:\nPer Hansen\nTelefon: 123"), "Per H.");
   assert.equal(contactName("Hei, jeg lurer på noe"), "");
   assert.equal(contactName("Navn: " + "x".repeat(200)), "");
+});
+
+const fakeApi = () => {
+  const sent = [];
+  const fetchFn = async (url, init) => {
+    sent.push(JSON.parse(init.body).messages[0].content);
+    return { ok: true, status: 200, json: async () => ({ stop_reason: "end_turn", content: [{ type: "text", text: JSON.stringify({ type: "ros", svar: false, selv: false, forslag: "" }) }] }) };
+  };
+  return { sent, ask: makeSuggester({ apiKey: "k", regler: "r", redactFn: redact, fetchFn }) };
+};
+const status400 = () => Object.assign(new Error("Claude API error: HTTP 400"), { transient: true, status: 400 });
+
+test("suggestAll: a 400 counts a try and the round goes on", async () => {
+  const a = entry("a"), b = entry("b"), c = entry("c");
+  let n = 0;
+  const s = await suggestAll([a, b, c], async () => { if (n++ === 0) throw status400(); return ok1(); });
+  assert.equal(n, 3);
+  assert.equal(a.forsok, 1);
+  assert.equal(b.type, "sporsmal");
+  assert.equal(c.type, "sporsmal");
+  assert.deepEqual(s.status, { 400: 1 });
+});
+
+test("suggestAll: a second 400 in the same round stops it", async () => {
+  const a = entry("a"), b = entry("b"), c = entry("c");
+  let n = 0;
+  await suggestAll([a, b, c], async () => { n++; throw status400(); });
+  assert.equal(n, 2);
+  assert.deepEqual([a.forsok, b.forsok, c.forsok], [1, 1, 0]);
+});
+
+test("buildInbox: a message that always gets 400 is given up after three builds and does not hold back older ones", async () => {
+  const file = path.join(mkdtempSync(path.join(tmpdir(), "innboks-")), "c.enc");
+  const kilder = src([raw("mail:p:1", { ts: 3, tekst: "p" }), raw("mail:a:1", { ts: 2, tekst: "a" }), raw("mail:b:1", { ts: 1, tekst: "b" })]);
+  let calls = 0;
+  const suggest = async m => { calls++; if (m.tekst === "p") throw status400(); return ok1(); };
+  for (let h = 0; h < 4; h++) await buildInbox({ pw: "pw", kilder, suggest, now: new Date(now.getTime() + h * 3600000), file });
+  const c = readCache("pw", file).meldinger;
+  assert.equal(c["mail:p:1"].forsok, 3);
+  assert.equal(c["mail:a:1"].forslag, "Hei");
+  assert.equal(c["mail:b:1"].forslag, "Hei");
+  assert.equal(calls, 5);
+});
+
+test("updateCache and excerpt do not split a surrogate pair", () => {
+  const c = updateCache({ cache: empty(), kilder: src([raw("mail:a:1", { tekst: "a".repeat(4199) + "😀 takk" })]), now });
+  assert.equal(c.meldinger["mail:a:1"].tekst, "a".repeat(4199));
+  assert.ok(excerpt("a".repeat(599) + "😀 takk").isWellFormed());
+  assert.equal(excerpt("a".repeat(598) + "😀 takk"), "a".repeat(598) + "😀…");
+});
+
+test("an address at the 4000 cut is redacted before the text is cut", async () => {
+  const tekst = "x ".repeat(1993) + "kari.nordmann@gmail.com takk";
+  const c = updateCache({ cache: empty(), kilder: src([raw("mail:a:1", { tekst })]), now });
+  const { sent, ask } = fakeApi();
+  await ask({ kanal: "mail", emne: "Hei", tekst: c.meldinger["mail:a:1"].tekst, gjelder: null });
+  assert.ok(!sent[0].includes("kari.nordmann"));
+  assert.ok(sent[0].includes("[e-post]"));
+});
+
+test("suggestAll: tegn is capped at 4000 although 4200 characters are stored", async () => {
+  const c = updateCache({ cache: empty(), kilder: src([raw("mail:a:1", { tekst: "x".repeat(5000) })]), now });
+  assert.equal((await suggestAll([c.meldinger["mail:a:1"]], ok1)).tegn, 4000);
+});
+
+test("buildInbox without suggest stores only the excerpt", async () => {
+  const file = path.join(mkdtempSync(path.join(tmpdir(), "innboks-")), "c.enc");
+  await buildInbox({ pw: "pw", kilder: src([raw("mail:a:1", { tekst: "x".repeat(5000) })]), suggest: null, now, file });
+  assert.equal(readCache("pw", file).meldinger["mail:a:1"].tekst.length, 601);
+});
+
+test("buildInbox: once suggest is set, the suggestion gets the fresh full text", async () => {
+  const file = path.join(mkdtempSync(path.join(tmpdir(), "innboks-")), "c.enc");
+  const kilder = src([raw("mail:a:1", { tekst: "x".repeat(5000) })]);
+  await buildInbox({ pw: "pw", kilder, suggest: null, now, file });
+  let got;
+  await buildInbox({ pw: "pw", kilder, suggest: async m => { got = m.tekst; return ok1(); }, now: later, file });
+  assert.equal(got.length, 4200);
+});
+
+test("contactName: falls back to empty when the form is not as expected", () => {
+  assert.equal(contactName("Navn: Lise Hansen Kommentar: Hei, når kommer pakken"), "Lise H.");
+  assert.equal(contactName("Navn: Telefon: 91234567 Melding: hei"), "");
+  assert.equal(contactName("Navn: , Melding: hei"), "");
+  assert.equal(contactName("Landskode: NO Name: Lise Hansen Email: l@x.no Body: Hei"), "Lise H.");
+  assert.equal(contactName("Name: Lise Hansen Phone number: 912 34 567 Comment: Hei"), "Lise H.");
+  assert.equal(contactName("Navn: Hansen, Lise Melding: Hei"), "Lise H.");
+  assert.equal(contactName("Navn: Lise Hansen Telefonnummer: 91234567 Kommentar: Hei"), "Lise H.");
+  assert.equal(contactName("Navn: Lise Hansen Adresse: Storgata 1 Melding: Hei"), "");
+  assert.equal(contactName("Navn: Lise Hansen"), "Lise H.");
+});
+
+test("updateCache keeps the old navn when the text could not be fetched", () => {
+  const c = updateCache({ cache: empty(), kilder: src([raw("mail:a:1", { navn: "Lise H.", tekst: "Navn: Lise Hansen Melding: Hei" })]), now });
+  const c2 = updateCache({ cache: c, kilder: src([raw("mail:a:1", { navn: "Pace", tekst: "" })]), now: later });
+  assert.equal(c2.meldinger["mail:a:1"].navn, "Lise H.");
+});
+
+test("redact: Norwegian phone forms", () => {
+  assert.equal(redact("Ring 91 234 567 eller 9123 4567"), "Ring [telefon] eller [telefon]");
+  assert.equal(redact("Ring 912.34.567."), "Ring [telefon].");
+  assert.equal(redact("Ring 93412345."), "Ring [telefon].");
+  assert.equal(redact("Tlf 22 123 456"), "Tlf [telefon]");
+});
+
+test("redact: amounts, order numbers, postal codes and dates stay", () => {
+  for (const s of ["Beløp kr 1 299,00", "Pris 12 990 kr", "Omsetning 1 000 000 kr", "Omsetning 1 000 000 000 kr", "Ordre #1001 og #10023", "Ordre #53597120",
+    "Ordre 5359712", "Postnr 0150 Oslo", "Postnr 4010 Stavanger", "Dato 13.11.2026 og 2026-11-13", "Sesong 2026 2027", "Ordre 1001 1002",
+    "Orgnr 923 456 789", "Kontonr 1234.56.78901", "Beløp 12345678.50"]) assert.equal(redact(s), s);
+});
+
+test("redact: the value of a name field", () => {
+  assert.equal(redact("Navn: Lise Marie Hansen E-post: l@x.no Melding: Hei"), "Navn: [navn] E-post: [e-post] Melding: Hei");
+  assert.equal(redact("Name: Lise Hansen Phone number: 912 34 567"), "Name: [navn] number: [telefon]");
+  assert.equal(redact("Fornavn: Lise Etternavn: Hansen Melding: Hei"), "Fornavn: [navn] Etternavn: [navn] Melding: Hei");
+  assert.equal(redact("Navn: Lise Hansen"), "Navn: [navn]");
+  assert.equal(redact("Navn: Lise Hansen hei jeg lurer på noe"), "Navn: [navn] jeg lurer på noe");
+});
+
+test("the full name from a contact form is not sent to the API", async () => {
+  const { sent, ask } = fakeApi();
+  await ask({ kanal: "mail", emne: "Ny kundemelding", tekst: "Du har mottatt en ny melding. Landskode: NO Navn: Lise Marie Hansen E-post: lise@x.no Telefonnummer: 91 234 567 Kommentar: Når kommer pakken?", gjelder: null });
+  for (const s of ["Lise", "Marie", "Hansen", "lise@", "234 567"]) assert.ok(!sent[0].includes(s), s);
+  assert.ok(sent[0].includes("Når kommer pakken?"));
 });

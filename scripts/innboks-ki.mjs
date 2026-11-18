@@ -1,3 +1,5 @@
+import { cutText } from "./innboks.mjs";
+
 const API_URL = "https://api.anthropic.com/v1/messages";
 const TYPES = ["sporsmal", "ordre", "ros", "annet"];
 const MAX_TEXT = 4000;
@@ -18,10 +20,10 @@ const SCHEMA = {
 function userText(m, redactFn) {
   const parts = [
     `Kanal: ${m.kanal ?? ""}`,
-    `Emne: ${redactFn(String(m.emne ?? "")).slice(0, MAX_SUBJECT)}`,
+    `Emne: ${cutText(redactFn(String(m.emne ?? "")), MAX_SUBJECT)}`,
   ];
   if (m.gjelder) parts.push(`Gjelder: ${m.gjelder}`);
-  parts.push(`Melding:\n${redactFn(String(m.tekst ?? "")).slice(0, MAX_TEXT)}`);
+  parts.push(`Melding:\n${cutText(redactFn(String(m.tekst ?? "")), MAX_TEXT)}`);
   parts.push(
     'Svar bare med JSON: {"type": "sporsmal"|"ordre"|"ros"|"annet", "svar": boolean, "selv": boolean, "forslag": string}. Bruk tom streng i "forslag" når du ikke har noe forslag.'
   );
@@ -57,7 +59,8 @@ export function makeSuggester({ apiKey, model = "claude-haiku-5-5", regler, reda
     let data;
     try {
       data = await res.json();
-    } catch {
+    } catch (err) {
+      if (err?.name === "TimeoutError" || err?.name === "AbortError") throw transientError("Claude API response timed out");
       throw new Error("Claude API response is not valid JSON");
     }
     if (data.stop_reason === "refusal") throw new Error("Claude API refused the request");

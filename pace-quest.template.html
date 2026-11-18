@@ -1761,10 +1761,12 @@ function inbNote() {
   if (k.ok === false) return k.hentet ? `Mail kunne ikke hentes. Viser det som ble hentet ${inbLong(k.hentet)}.` : "Mail kunne ikke hentes.";
   return k.hentet ? `Hentet ${inbClock(new Date(k.hentet).getTime())} · oppdateres hver time` : "Oppdateres hver time";
 }
+// contact form ("Ny kundemelding"): the row shows the message field, not the fixed start of the notification
+const inbLine = m => (/ny kundemelding/i.test(m.emne || "") && /(?:^|\s)(?:Melding|Kommentar|Body|Message|Comment)\s*:\s*(\S.*)$/i.exec(m.tekst || "")?.[1]) || (m.tekst || "").split("\n")[0] || m.emne || "(ingen tekst)";
 function inbList() {
   const list = inbVisible();
   document.getElementById("inb-list").innerHTML = `<p class="inb-note">${esc(inbNote())}</p>` + (list.length ? list.map(m =>
-    `<button class="inb-row${m.id === inbSel ? " on" : ""}${inbDone(m) ? " done" : ""}" data-id="${esc(m.id)}"><span class="inb-row-top"><span><i class="inb-dot inb-dot-${esc(m.kanal)}"></i>${esc(m.navn)}</span><time>${esc(inbShort(m.ts))}</time></span><span class="inb-row-line">${esc((m.tekst || "").split("\n")[0] || m.emne || "(ingen tekst)")}</span></button>`).join("") : `<p class="inb-empty">Ingen meldinger her.</p>`);
+    `<button class="inb-row${m.id === inbSel ? " on" : ""}${inbDone(m) ? " done" : ""}" data-id="${esc(m.id)}"><span class="inb-row-top"><span><i class="inb-dot inb-dot-${esc(m.kanal)}"></i>${esc(m.navn)}</span><time>${esc(inbShort(m.ts))}</time></span><span class="inb-row-line">${esc(inbLine(m))}</span></button>`).join("") : `<p class="inb-empty">Ingen meldinger her.</p>`);
 }
 function inbDetail() {
   const el = document.getElementById("inb-detail"), m = inbMsgs.find(x => x.id === inbSel);
@@ -1798,7 +1800,7 @@ function inbRender() {
   inbSide(); inbList(); inbDetail(); inbUpdateBtn();
 }
 function inbSafeRender() {
-  try { inbRender(); } catch (e) { try { document.getElementById("inb-list").textContent = "Innboks er ikke tilgjengelig i dette bygget."; } catch (e2) {} }
+  try { inbRender(); } catch (e) { console.error("innboks", e); try { document.getElementById("inb-list").textContent = "Innboks er ikke tilgjengelig i dette bygget."; } catch (e2) {} }
 }
 function inbEnter() { inbSel = null; inbSafeRender(); }
 document.getElementById("inb-side").onclick = e => {

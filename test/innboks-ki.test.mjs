@@ -212,3 +212,15 @@ for (const [name, f] of [
 test("non-2xx status is exposed as e.status", async () => {
   await assert.rejects(make(fakeFetch(ok, { status: 429 }))(msg()), (e) => e.status === 429);
 });
+
+test("cuts at 4000 and 300 do not split a surrogate pair", async () => {
+  const f = fakeFetch(ok);
+  await make(f)(msg({ emne: "b".repeat(299) + "😀", tekst: "a".repeat(3999) + "😀 takk" }));
+  assert.ok(userContent(f).isWellFormed());
+  assert.ok(userContent(f).includes("a".repeat(3999) + "\n"));
+});
+
+test("timeout while reading the answer is transient", async () => {
+  const f = async () => ({ ok: true, status: 200, json: async () => { throw new DOMException("The operation was aborted due to timeout", "TimeoutError"); } });
+  await assert.rejects(make(f)(msg()), (e) => e.transient === true);
+});

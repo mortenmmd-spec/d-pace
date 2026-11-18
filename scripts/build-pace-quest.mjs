@@ -443,15 +443,17 @@ async function gmailAuth(refresh) {
 const AUTO_FROM = /no-?reply|notification|mailer-daemon|facebookmail|business-updates\.facebook|@google\.com|@accounts\.google|@shopify\.com|@stripe\.com|@klarna|@vipps|@dnb\.no|@360logistics|@bring\.com|@posten\.no|@postnord|newsletter|nyhetsbrev|info@|support@|kundeservice@|hello@|team@|@linkedin|@meta\.com|@fiken|@tripletex|@github\.com|production@adtraction\.com/i; // Adtraction månedsrapporter (Morten 09.11.2026)
 const OSS = /@getpace\.no/i; // hei@ og aliasene (morten@ osv.)
 // selve svarteksten i en melding (uten sitert tråd): text/plain, ellers html uten tagger; kuttes ved «skrev»/«wrote»-linjen og >-linjer
-async function svartekst(G, msgId) {
+// inbox = true is for the Innboks view only: also cut at "… skrev Pace <hei@getpace.no>:" and decode &lt; etc. in html. baretakk keeps the default, so the count is unchanged.
+async function svartekst(G, msgId, inbox = false) {
   const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=full`, { headers: G });
   if (!r.ok) throw new Error("Gmail message " + r.status);
   const m = await r.json(), dec = s => Buffer.from(s.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
   const parts = []; (function walk(p) { if (!p) return; if (p.body?.data) parts.push(p); (p.parts || []).forEach(walk); })(m.payload);
   const plain = parts.find(p => p.mimeType === "text/plain"), html = parts.find(p => p.mimeType === "text/html");
   let t = plain ? dec(plain.body.data) : html ? dec(html.body.data).replace(/<blockquote[\s\S]*$/i, "").replace(/<br\s*\/?>|<\/(p|div)>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ") : "";
+  if (inbox && !plain) t = t.replace(/&(lt|gt|amp|quot|#39);/g, (_, e) => ({ lt: "<", gt: ">", amp: "&", quot: '"', "#39": "'" })[e]);
   const ut = [];
-  for (const l of t.split(/\r?\n/)) { if (/^\s*>/.test(l) || /(skrev|wrote|schrieb|skrev følgende)\s*:?\s*$/i.test(l) || /\b(skrev|wrote|schrieb)\b.*>\s*:\s*$/i.test(l) || /^-{2,}\s*(original|opprinnelig|videresendt)/i.test(l) || /^(From|Fra):\s/i.test(l)) break; ut.push(l); }
+  for (const l of t.split(/\r?\n/)) { if (/^\s*>/.test(l) || /(skrev|wrote|schrieb|skrev følgende)\s*:?\s*$/i.test(l) || (inbox && /\b(skrev|wrote|schrieb)\b.*>\s*:\s*$/i.test(l)) || /^-{2,}\s*(original|opprinnelig|videresendt)/i.test(l) || /^(From|Fra):\s/i.test(l)) break; ut.push(l); }
   return ut.join("\n").replace(/\s+/g, " ").trim();
 }
 // «bare takk»: kort, inneholder takk, ingen spørsmål
@@ -491,7 +493,7 @@ async function fetchHenvendelser() {
     if (msgs.slice(0, -1).some(m => OSS.test(hdr(m, "From"))) && await baretakk(G, last.id)) { if (process.env.HENV_DEBUG) console.log("skjult takk-svar:", lastFrom, "|", subject); continue; }
     const avsender = vaarTraad ? lastFrom : from;
     const navn = avsender.replace(/<.*>/, "").replace(/"/g, "").trim() || avsender;
-    open.push({ d: osloDay(new Date(+last.internalDate)), navn, subject, thread: id, sisteId: last.id, ts: +last.internalDate, fra: avsender, tekst: await svartekst(G, last.id).catch(() => { noText++; return ""; }) });
+    open.push({ d: osloDay(new Date(+last.internalDate)), navn, subject, thread: id, sisteId: last.id, ts: +last.internalDate, fra: avsender, tekst: await svartekst(G, last.id, true).catch(() => { noText++; return ""; }) });
   }
   open.sort((a, b) => a.d < b.d ? -1 : 1);
   return { n: open.length, open, threads: ids.length, noText };
