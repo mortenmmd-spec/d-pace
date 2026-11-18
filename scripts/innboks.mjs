@@ -27,11 +27,13 @@ export function shortName(from) {
 
 export function redact(text) {
   return text
+    // links go first and whole, so an address or number inside one is not left half-replaced; trailing punctuation stays
+    .replace(/(?:https?:\/\/|www\.)[^\s<>"]*[^\s<>".,;:!?)\]]/gi, "[lenke]")
     // the value of a name field, up to the next "Label:" or else the next three words
     .replace(/((?:^|\s)(?:(?:For|Etter)?navn|Name)\s*:\s*)(?:[^:]{1,60}?(?=\s+\p{L}[\p{L}-]*\s*:)|[^:\s]+(?:\s+[^:\s]+){0,2})/giu, "$1[navn]")
     .replace(/[\p{L}\p{N}._+-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/gu, "[e-post]")
-    // "00" needs a country code (not 0), so "1 000 000 000" stays; "91 234 567" and "912.34.567" start with 2-9 and "9123 4567" with 4 or 9 (mobile), so amounts, years and order pairs stay
-    .replace(/(?<![\d#])(?:(?:\+|00(?=[1-9]))\d{1,3}(?:[ -]?\d){6,12}|\d{8}|\d{3}[ -]\d{2}[ -]\d{3}|\d{2}[ -]\d{2}[ -]\d{2}[ -]\d{2}|[2-9]\d \d{3} \d{3}|[49]\d{3} \d{4}|[2-9]\d{2}\.\d{2}\.\d{3})(?!\.?\d)/g, "[telefon]");
+    // "00" needs a country code (not 0), so "1 000 000 000" stays; "91 234 567", "912.34.567" and "2233 4455" start with 2-9, and two years ("2026 2027") are not a number, so amounts, years and order pairs stay
+    .replace(/(?<![\d#])(?:(?:\+|00(?=[1-9]))\d{1,3}(?:[ -]?\d){6,12}|\d{8}|\d{3}[ -]\d{2}[ -]\d{3}|\d{2}[ -]\d{2}[ -]\d{2}[ -]\d{2}|\d{2}\.\d{2}\.\d{2}\.\d{2}|[2-9]\d \d{3} \d{3}|(?!(?:19|20)\d\d[ -](?:19|20)\d\d)[2-9]\d{3}[ -]\d{4}|[2-9]\d{2}\.\d{2}\.\d{3})(?!\.?\d)/g, "[telefon]");
 }
 
 // Name from a contact form, only when the next field is a known one; otherwise "" and the caller falls back to the sender.
@@ -59,11 +61,17 @@ export function updateCache({ cache, kilder, now }) {
     const open = new Set(kilde.aapne.map(r => r.id));
     for (const raw of kilde.aapne) {
       const old = next.meldinger[raw.id];
-      if (!old) for (const [id, e] of Object.entries(next.meldinger)) if (e.kanal === kanal && e.besvart === null && !open.has(id) && threadOf(id) === threadOf(raw.id)) delete next.meldinger[id];
+      let prev = null;
+      if (!old) for (const [id, e] of Object.entries(next.meldinger)) if (e.kanal === kanal && e.besvart === null && !open.has(id) && threadOf(id) === threadOf(raw.id)) { prev = e; delete next.meldinger[id]; }
       const stored = { ...raw, tekst: cutText(raw.tekst, MAX_STORED_TEXT) };
-      next.meldinger[raw.id] = old
-        ? { ...old, ...stored, navn: raw.tekst ? raw.navn : old.navn, tekst: needsLongText(old) ? stored.tekst || old.tekst : old.tekst, gjelder: raw.gjelder ?? old.gjelder, sett: old.sett, besvart: null, type: old.type, forslag: old.forslag, selv: old.selv, forsok: old.forsok }
-        : { ...stored, sett: nowIso, besvart: null, type: null, forslag: null, selv: false, svar: null, forsok: 0 };
+      // gjelder undefined = the order lookup failed (keep what we had); null = looked up, no order
+      const m = old
+        ? { ...old, ...stored, navn: raw.tekst ? raw.navn : old.navn, tekst: old.gammelTekst || needsLongText(old) ? stored.tekst || old.tekst : old.tekst, gjelder: raw.gjelder === undefined ? old.gjelder : raw.gjelder, sett: old.sett, besvart: null, type: old.type, forslag: old.forslag, selv: old.selv, forsok: old.forsok }
+        : { ...stored, gjelder: raw.gjelder === undefined ? prev?.gjelder ?? null : raw.gjelder, sett: nowIso, besvart: null, type: null, forslag: null, selv: false, svar: null, forsok: 0 };
+      // a new message whose text could not be fetched keeps the previous message's text, marked, until its own arrives; never its suggestion
+      if (!old && !stored.tekst && prev?.tekst) Object.assign(m, { tekst: prev.tekst, gammelTekst: true });
+      if (stored.tekst) delete m.gammelTekst;
+      next.meldinger[raw.id] = m;
     }
     for (const [id, e] of Object.entries(next.meldinger)) {
       if (e.kanal !== kanal || open.has(id)) continue;
@@ -77,13 +85,14 @@ export function updateCache({ cache, kilder, now }) {
 
 export function pickNew(cache, max = 30) {
   return Object.values(cache.meldinger)
-    .filter(e => e.besvart === null && e.tekst !== "" && e.type === null && e.forsok < MAX_TRIES)
+    .filter(e => e.besvart === null && e.tekst !== "" && !e.gammelTekst && e.type === null && e.forsok < MAX_TRIES)
     .sort((a, b) => b.ts - a.ts)
     .slice(0, max);
 }
 
 export async function suggestAll(entries, suggest) {
   const stats = { kall: 0, tegn: 0, feil: 0, status: {} };
+  let prev = null; // the previous call, when it failed in the API call itself: { e, kind }
   for (const e of entries) {
     stats.kall++;
     stats.tegn += Math.min(e.tekst.length, MAX_SENT_TEXT);
@@ -94,14 +103,18 @@ export async function suggestAll(entries, suggest) {
       e.selv = r.selv === true;
       e.svar = r.svar;
       e.forslag = r.svar && !r.selv && r.forslag ? r.forslag : null;
+      prev = null;
     } catch (err) {
       stats.feil++;
       const code = err?.status ?? "annen";
       stats.status[code] = (stats.status[code] ?? 0) + 1;
-      // 400 rejects this message: count a try and go on; a second 400 in the same round means the request itself is wrong
-      if (err?.status === 400) { e.forsok++; if (stats.status[400] > 1) break; continue; }
-      if (err?.transient) break;
+      // a wrong key fails every message: stop without counting a try
+      if (err?.status === 401 || err?.status === 403) break;
+      // a failed call (timeout, network, HTTP error) counts a try and the round goes on; the same failure twice in a row is shared: give the first try back and stop
+      const kind = err?.transient ? err.status ?? "nett" : null;
+      if (kind !== null && prev?.kind === kind) { prev.e.forsok--; break; }
       e.forsok++;
+      prev = kind === null ? null : { e, kind };
     }
   }
   return stats;
@@ -124,6 +137,7 @@ export function toPage(cache, kilder, now) {
       selv: e.selv,
       svar: e.svar ?? null,
       besvart: e.besvart !== null,
+      gammelTekst: e.gammelTekst === true,
     }));
   const mail = { ok: kilder.mail.ok, hentet: cache.sistOk.mail };
   return { bygget: now.toISOString(), kilder: { mail }, meldinger };

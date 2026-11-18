@@ -1737,10 +1737,12 @@ const inbShort = ts => inbDay(ts) === inbDay(Date.now()) ? inbClock(ts) : inbDat
 const inbLong = iso => { const t = new Date(iso).getTime(); return inbDate(t) + " " + inbClock(t); };
 const inbDone = m => m.besvart || !!inbHidden[m.id];
 const inbCountOpen = () => inbMsgs.filter(m => !inbDone(m)).length;
+// the number on the Innboks button is the source count, as on the card «Ubesvarte henvendelser»; «Marker besvart» only changes the list
+const inbCountSource = () => inbMsgs.filter(m => !m.besvart).length;
 const inbByStatus = m => inbFilter.status === "alle" || (inbFilter.status === "besvart") === inbDone(m);
 const inbVisible = () => inbMsgs.filter(m => inbByStatus(m) && (!inbFilter.kanal || m.kanal === inbFilter.kanal) && (!inbFilter.type || m.type === inbFilter.type));
 function inbBtnCount(b) {
-  const n = INNBOKS ? inbCountOpen() : 0;
+  const n = INNBOKS ? inbCountSource() : 0;
   if (n > 0) { const s = document.createElement("span"); s.className = "inb-count"; s.textContent = n; b.append(s); }
 }
 function inbUpdateBtn() { const b = document.getElementById("inb-btn"), on = document.body.classList.contains("inb"); b.textContent = on ? "← Tilbake" : "Innboks"; if (!on) inbBtnCount(b); }
@@ -1777,6 +1779,7 @@ function inbDetail() {
   const when = inbDay(m.ts) === inbDay(Date.now()) ? "i dag " + inbClock(m.ts) : inbDate(m.ts) + " " + inbClock(m.ts);
   el.innerHTML = `<div class="inb-meta"><span><i class="inb-dot inb-dot-${esc(m.kanal)}"></i>${esc(m.navn)} · ${esc(INB_KANAL[m.kanal] || m.kanal)}</span><time>${esc(when)}</time></div>`
     + (m.emne ? `<p class="inb-subject">${esc(m.emne)}</p>` : "") + ctx
+    + (m.gammelTekst ? `<p class="inb-none">Den nye meldingen kunne ikke hentes. Teksten under er fra forrige melding i tråden.</p>` : "")
     + `<p class="inb-text">${esc(m.tekst || "(ingen tekst)")}</p><span class="inb-label">Forslag til svar · KI</span>${draft}`
     + `<div class="inb-actions"><button class="btn inb-btn inb-primary" id="inb-copy">Kopier og åpne i Gmail</button><button class="btn inb-btn" id="inb-done">Marker besvart</button></div>`;
   if (m.forslag) document.getElementById("inb-draft").value = m.forslag;

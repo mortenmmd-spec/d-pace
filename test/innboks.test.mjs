@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, existsSync } from "node:fs";
+import { mkdtempSync, existsSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { readCache } from "../scripts/innboks-cache.mjs";
+import { readCache, writeCache } from "../scripts/innboks-cache.mjs";
 import { shortName, contactName, redact, excerpt, gmailLink, updateCache, pickNew, suggestAll, toPage, buildInbox } from "../scripts/innboks.mjs";
 import { makeSuggester } from "../scripts/innboks-ki.mjs";
 
@@ -151,7 +151,8 @@ test("toPage shape", () => {
     assert.ok(!("forsok" in m));
     assert.ok(!("sett" in m));
   }
-  assert.deepEqual(Object.keys(p.meldinger[0]).sort(), ["besvart", "emne", "forslag", "gjelder", "id", "kanal", "lenke", "navn", "selv", "svar", "tekst", "ts", "type"]);
+  assert.deepEqual(Object.keys(p.meldinger[0]).sort(), ["besvart", "emne", "forslag", "gammelTekst", "gjelder", "id", "kanal", "lenke", "navn", "selv", "svar", "tekst", "ts", "type"]);
+  assert.equal(p.meldinger[0].gammelTekst, false);
   assert.equal(toPage(cache, src([]), now).kilder.mail.ok, true);
 });
 
@@ -227,7 +228,7 @@ test("buildInbox cuts tekst for answered and for exhausted entries", async () =>
   assert.equal(readCache("pw", file2).meldinger["mail:a:1"].tekst.length, 601);
 });
 
-test("suggestAll: transient error stops the round without counting a try", async () => {
+test("suggestAll: a timeout on one message counts a try and the round goes on", async () => {
   const a = entry("a"), b = entry("b"), c = entry("c");
   let n = 0;
   const s = await suggestAll([a, b, c], async () => {
@@ -235,10 +236,10 @@ test("suggestAll: transient error stops the round without counting a try", async
     if (n === 2) throw Object.assign(new Error("net"), { transient: true });
     return { type: "ros", svar: true, selv: false, forslag: "Takk" };
   });
-  assert.equal(n, 2);
+  assert.equal(n, 3);
   assert.equal(a.type, "ros");
-  assert.equal(b.forsok, 0);
-  assert.equal(c.forsok, 0);
+  assert.equal(b.forsok, 1);
+  assert.equal(c.type, "ros");
   assert.equal(s.feil, 1);
 });
 
@@ -298,7 +299,7 @@ test("updateCache: new message keeps answered entries and other threads", () => 
 test("updateCache: failed text or order lookup keeps the old values", () => {
   const gj = { type: "ordre", nr: "#1", dato: "2026-11-01", status: "sendt", sporing: "" };
   const c = updateCache({ cache: empty(), kilder: src([raw("mail:a:1", { tekst: "Hei der", gjelder: gj })]), now });
-  const c2 = updateCache({ cache: c, kilder: src([raw("mail:a:1", { tekst: "", gjelder: null })]), now: later });
+  const c2 = updateCache({ cache: c, kilder: src([raw("mail:a:1", { tekst: "", gjelder: undefined })]), now: later });
   assert.equal(c2.meldinger["mail:a:1"].tekst, "Hei der");
   assert.deepEqual(c2.meldinger["mail:a:1"].gjelder, gj);
 });
@@ -340,12 +341,14 @@ test("suggestAll: a 400 counts a try and the round goes on", async () => {
   assert.deepEqual(s.status, { 400: 1 });
 });
 
-test("suggestAll: a second 400 in the same round stops it", async () => {
-  const a = entry("a"), b = entry("b"), c = entry("c");
-  let n = 0;
-  await suggestAll([a, b, c], async () => { n++; throw status400(); });
-  assert.equal(n, 2);
-  assert.deepEqual([a.forsok, b.forsok, c.forsok], [1, 1, 0]);
+test("suggestAll: the same failure twice in a row is shared: the round stops and no try is used", async () => {
+  for (const fail of [status400, () => Object.assign(new Error("Claude API request failed (network error or timeout)"), { transient: true }), () => Object.assign(new Error("Claude API error: HTTP 500"), { transient: true, status: 500 })]) {
+    const a = entry("a"), b = entry("b"), c = entry("c");
+    let n = 0;
+    await suggestAll([a, b, c], async () => { n++; throw fail(); });
+    assert.equal(n, 2);
+    assert.deepEqual([a.forsok, b.forsok, c.forsok], [0, 0, 0]);
+  }
 });
 
 test("buildInbox: a message that always gets 400 is given up after three builds and does not hold back older ones", async () => {
@@ -442,3 +445,132 @@ test("the full name from a contact form is not sent to the API", async () => {
   for (const s of ["Lise", "Marie", "Hansen", "lise@", "234 567"]) assert.ok(!sent[0].includes(s), s);
   assert.ok(sent[0].includes("Når kommer pakken?"));
 });
+
+// Codex review 18.11.2026
+
+test("redact: fixed-line numbers in four plus four and with dots, and links", () => {
+  assert.equal(redact("Telefon: 2233 4455."), "Telefon: [telefon].");
+  assert.equal(redact("Ring 2233-4455 eller 22.33.44.55"), "Ring [telefon] eller [telefon]");
+  assert.equal(redact("Se https://example.test/kunde/abc. Eller http://x.no/a?b=1, www.kari.no!"), "Se [lenke]. Eller [lenke], [lenke]!");
+  assert.equal(redact("(HTTPS://x.no/kari@x.no/91234567)"), "([lenke])");
+  for (const s of ["Sesong 2026 2027", "Sesong 2026-2027", "Ordre 1001 1002", "Postnr 0150 Oslo", "Dato 13.11.2026"]) assert.equal(redact(s), s);
+});
+
+test("the whole API request holds no e-mail, phone or link from subject, text or signature", async () => {
+  const pii = ["kari.nordmann@example.test", "kari@x.no", "ola@x.no", "2233 4455", "22334455", "+47 912 34 567", "912 34 567", "91234567", "https://example.test/kunde/abc", "www.kari-butikk.no", "example.test", "kari-butikk", "http://x.no"];
+  const tekst = "Hei! Jeg heter Kari. Se https://example.test/kunde/abc for bildet, eller ring meg på 2233 4455. Hvor er pakken?\n\n--\nKari Nordmann\nTlf: 22334455 | Mob: +47 912 34 567\nkari.nordmann@example.test\nwww.kari-butikk.no";
+  const c = updateCache({ cache: empty(), kilder: src([raw("mail:a:1", { emne: "Fra kari@x.no (ola@x.no), tlf 912 34 567, http://x.no/sak", tekst })]), now });
+  const calls = [];
+  const fetchFn = async (url, init) => {
+    calls.push({ url, headers: init.headers, body: init.body });
+    return { ok: true, status: 200, json: async () => ({ stop_reason: "end_turn", content: [{ type: "text", text: JSON.stringify({ type: "ordre", svar: true, selv: false, forslag: "Hei!" }) }] }) };
+  };
+  const ask = makeSuggester({ apiKey: "k", regler: "r", redactFn: redact, fetchFn });
+  await suggestAll(pickNew(c), ask);
+  assert.equal(calls.length, 1);
+  const request = JSON.stringify(calls[0]), content = JSON.parse(calls[0].body).messages[0].content;
+  for (const s of pii) assert.ok(!request.includes(s) && !content.includes(s), s);
+  assert.ok(content.includes("Hvor er pakken?"));
+  assert.ok(content.includes("[lenke]") && content.includes("[telefon]") && content.includes("[e-post]"));
+});
+
+test("updateCache: a new message whose text and order could not be fetched keeps the old text and order, not the old suggestion", () => {
+  const gj = { type: "ordre", nr: "#1", dato: "2026-11-01", status: "sendt", sporing: "" };
+  const c = updateCache({ cache: empty(), kilder: src([raw("mail:t:m1", { tekst: "Hvor er pakken?", gjelder: gj })]), now });
+  Object.assign(c.meldinger["mail:t:m1"], { type: "ordre", svar: true, forslag: "Hei! Pakken er sendt.", forsok: 1 });
+  const c2 = updateCache({ cache: c, kilder: src([raw("mail:t:m2", { ts: 2, tekst: "", gjelder: undefined })]), now: later });
+  assert.deepEqual(Object.keys(c2.meldinger), ["mail:t:m2"]);
+  const e = c2.meldinger["mail:t:m2"];
+  assert.equal(e.tekst, "Hvor er pakken?");
+  assert.equal(e.gammelTekst, true);
+  assert.deepEqual(e.gjelder, gj);
+  assert.deepEqual([e.type, e.forslag, e.svar, e.forsok], [null, null, null, 0]);
+  assert.deepEqual(pickNew(c2), []);
+  const p = toPage(c2, src([]), later).meldinger[0];
+  assert.equal(p.gammelTekst, true);
+  assert.equal(p.forslag, null);
+  // the next build gets the new text, and the lookup now finds no order for this sender
+  const c3 = updateCache({ cache: c2, kilder: src([raw("mail:t:m2", { ts: 2, tekst: "Den kom ikke", gjelder: null })]), now: later });
+  const e3 = c3.meldinger["mail:t:m2"];
+  assert.equal(e3.tekst, "Den kom ikke");
+  assert.ok(!("gammelTekst" in e3));
+  assert.equal(e3.gjelder, null);
+  assert.deepEqual(pickNew(c3).map(x => x.id), ["mail:t:m2"]);
+});
+
+test("updateCache: a new message with its own text and no order found does not take the old order", () => {
+  const gj = { type: "ordre", nr: "#1", dato: "2026-11-01", status: "sendt", sporing: "" };
+  const c = updateCache({ cache: empty(), kilder: src([raw("mail:t:m1", { tekst: "Hei", gjelder: gj })]), now });
+  const e = updateCache({ cache: c, kilder: src([raw("mail:t:m2", { tekst: "Ny tekst", gjelder: null })]), now: later }).meldinger["mail:t:m2"];
+  assert.equal(e.tekst, "Ny tekst");
+  assert.equal(e.gjelder, null);
+  assert.ok(!("gammelTekst" in e));
+});
+
+for (const [name, write, pw] of [["cannot be decrypted", f => writeFileSync(f, "ikke-gyldig\n"), "pw"], ["has another password", f => writeCache("annet", { v: 1, sistOk: { mail: null }, meldinger: { x: { tekst: "hemmelig" } } }, f), "pw"]]) {
+  test(`buildInbox does not write over a cache that ${name}, also when mail is down`, async () => {
+    const file = path.join(mkdtempSync(path.join(tmpdir(), "innboks-")), "c.enc");
+    write(file);
+    const before = readFileSync(file, "utf8");
+    for (const ok of [true, false]) {
+      await assert.rejects(buildInbox({ pw, kilder: src([raw("mail:a:1")], ok), suggest: null, now, file }), e => e.code === "INNBOKS_CACHE" && !e.message.includes("hemmelig"));
+      assert.equal(readFileSync(file, "utf8"), before);
+    }
+  });
+}
+
+const timeout = () => Object.assign(new Error("Claude API request failed (network error or timeout)"), { transient: true });
+
+test("buildInbox: a message that always times out is called at most three times", async () => {
+  const file = path.join(mkdtempSync(path.join(tmpdir(), "innboks-")), "c.enc");
+  let calls = 0;
+  const suggest = async () => { calls++; throw timeout(); };
+  for (let h = 0; h < 5; h++) await buildInbox({ pw: "pw", kilder: src([raw("mail:p:1", { tekst: "p" })]), suggest, now: new Date(now.getTime() + h * 3600000), file });
+  assert.equal(calls, 3);
+  assert.equal(readCache("pw", file).meldinger["mail:p:1"].forsok, 3);
+  assert.deepEqual(pickNew(readCache("pw", file)), []);
+});
+
+test("suggestAll: a server error on one message counts a try and the round goes on", async () => {
+  const a = entry("a"), b = entry("b");
+  let n = 0;
+  await suggestAll([a, b], async () => { if (n++ === 0) throw Object.assign(new Error("Claude API error: HTTP 500"), { transient: true, status: 500 }); return ok1(); });
+  assert.equal(a.forsok, 1);
+  assert.equal(b.type, "sporsmal");
+});
+
+test("suggestAll: a wrong key (401, 403) stops the round without using a try", async () => {
+  for (const status of [401, 403]) {
+    const a = entry("a"), b = entry("b");
+    let n = 0;
+    const s = await suggestAll([a, b], async () => { n++; throw Object.assign(new Error("Claude API error: HTTP " + status), { transient: true, status }); });
+    assert.equal(n, 1);
+    assert.deepEqual([a.forsok, b.forsok], [0, 0]);
+    assert.deepEqual(s.status, { [status]: 1 });
+  }
+});
+
+test("suggestAll: two different failures in a row each count a try and the round goes on", async () => {
+  const a = entry("a"), b = entry("b"), c = entry("c");
+  let n = 0;
+  await suggestAll([a, b, c], async () => {
+    n++;
+    if (n === 1) throw Object.assign(new Error("Claude API error: HTTP 500"), { transient: true, status: 500 });
+    if (n === 2) throw timeout();
+    return ok1();
+  });
+  assert.deepEqual([a.forsok, b.forsok], [1, 1]);
+  assert.equal(c.type, "sporsmal");
+});
+
+test("updateCache: a marked entry that comes back after being answered takes its own text", () => {
+  const c = updateCache({ cache: empty(), kilder: src([raw("mail:t:m1", { tekst: "Gammel" })]), now });
+  const c2 = updateCache({ cache: c, kilder: src([raw("mail:t:m2", { tekst: "" })]), now: later });
+  const c3 = updateCache({ cache: c2, kilder: src([]), now: later });
+  assert.equal(c3.meldinger["mail:t:m2"].gammelTekst, true);
+  const e = updateCache({ cache: c3, kilder: src([raw("mail:t:m2", { tekst: "Ny" })]), now: later }).meldinger["mail:t:m2"];
+  assert.equal(e.tekst, "Ny");
+  assert.ok(!("gammelTekst" in e));
+});
+
+test("redact: a link glued to a word is removed too", () => assert.equal(redact("sehttps://x.no/a og kopi:www.x.no"), "se[lenke] og kopi:[lenke]"));

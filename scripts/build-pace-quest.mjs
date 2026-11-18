@@ -493,13 +493,14 @@ async function fetchHenvendelser() {
     if (msgs.slice(0, -1).some(m => OSS.test(hdr(m, "From"))) && await baretakk(G, last.id)) { if (process.env.HENV_DEBUG) console.log("skjult takk-svar:", lastFrom, "|", subject); continue; }
     const avsender = vaarTraad ? lastFrom : from;
     const navn = avsender.replace(/<.*>/, "").replace(/"/g, "").trim() || avsender;
-    open.push({ d: osloDay(new Date(+last.internalDate)), navn, subject, thread: id, sisteId: last.id, ts: +last.internalDate, fra: avsender, tekst: await svartekst(G, last.id, true).catch(() => { noText++; return ""; }) });
+    // fra is for the inbox only: the sender of the last message (never ours), so the inbox name and order lookup follow the message shown
+    open.push({ d: osloDay(new Date(+last.internalDate)), navn, subject, thread: id, sisteId: last.id, ts: +last.internalDate, fra: lastFrom, tekst: await svartekst(G, last.id, true).catch(() => { noText++; return ""; }) });
   }
   open.sort((a, b) => a.d < b.d ? -1 : 1);
   return { n: open.length, open, threads: ids.length, noText };
 }
 
-// latest order per e-mail address, for the inbox only; addresses are never logged or stored
+// latest order per e-mail address, for the inbox only; addresses are never logged or stored. null when the lookup failed.
 async function shopifyLatestOrders(emails) {
   const out = new Map();
   try {
@@ -519,6 +520,7 @@ async function shopifyLatestOrders(emails) {
     }
   } catch {
     console.log("innboks: ordreoppslag utilgjengelig");
+    return null;
   }
   return out;
 }
@@ -547,7 +549,8 @@ if (process.env.META_ACCESS_TOKEN) { try { annonser = await fetchMetaAnnonser();
 else if (process.env.META_ANNONSER_TEST) { try { annonser = JSON.parse(readFileSync(process.env.META_ANNONSER_TEST, "utf8")); } catch (e) { annonserErr = e.message; } } // lokal test med eksempeldata
 const metaKilde = meta?.source === "api" ? "Meta API": meta?.source === "manuell" ? "Meta manuelt" : "Meta-kvitteringer";
 let henv = null, henvErr = "";
-try { henv = await fetchHenvendelser(); } catch (e) { henvErr = e.message; console.error("Henvendelser utilgjengelig:", e.message); }
+// the log gets only our own fixed texts with a status code (or OAuth error code); anything else, such as a parse error quoting the answer, becomes the error type
+try { henv = await fetchHenvendelser(); } catch (e) { henvErr = e.message; console.error("Henvendelser utilgjengelig:", /^(Gmail \w+ \d{3}|Gmail: token-feil (\d{3}|invalid_grant|invalid_client|invalid_request|unauthorized_client)|mangler env \w+)$/.test(e?.message) ? e.message : "uventet svar eller feil (" + (e?.name || "ukjent") + ")"); }
 const T = parseKasse();
 let plan = null;
 try { plan = readPlan(env("STATICRYPT_PASSWORD", "")); } catch (e) { console.error("Pace 2.0-plan utilgjengelig:", e.message); }
@@ -970,7 +973,8 @@ try {
       const addr = x => (/<([^>]+)>/.exec(x.fra)?.[1] || x.fra).trim().toLowerCase();
       const lookups = items.filter(x => !/ny kundemelding/i.test(x.subject));
       const orders = lookups.length ? await shopifyLatestOrders([...new Set(lookups.map(addr))]) : new Map();
-      kilder = { mail: { ok: !!henv, aapne: items.map(x => ({ id: "mail:" + x.thread + ":" + x.sisteId, kanal: "mail", navn: /ny kundemelding/i.test(x.subject) ? contactName(x.tekst) || shortName(x.fra) : shortName(x.fra), ts: x.ts, emne: x.subject, tekst: x.tekst, lenke: gmailLink(x.thread), gjelder: /ny kundemelding/i.test(x.subject) ? null : orders.get(addr(x)) || null })) } };
+      // gjelder undefined when the order lookup failed, so the cache keeps what it had
+      kilder = { mail: { ok: !!henv, aapne: items.map(x => ({ id: "mail:" + x.thread + ":" + x.sisteId, kanal: "mail", navn: /ny kundemelding/i.test(x.subject) ? contactName(x.tekst) || shortName(x.fra) : shortName(x.fra), ts: x.ts, emne: x.subject, tekst: x.tekst, lenke: gmailLink(x.thread), gjelder: /ny kundemelding/i.test(x.subject) ? null : orders ? orders.get(addr(x)) || null : undefined })) } };
     }
     let suggest = null;
     if (process.env.ANTHROPIC_API_KEY) {
@@ -984,7 +988,7 @@ try {
     const feilPerStatus = Object.entries(res.stats.status).map(([k, n]) => `${k}: ${n}`).join(", ");
     console.log(`innboks: mail ${kilder.mail.ok ? "oppe" : "nede"}, ${res.stats.aapne} åpne, ${henv ? henv.threads : "ukjent antall"} tråder | nye ${res.stats.nye} | KI-kall ${res.stats.kall}, tegn ${res.stats.tegn}, feil ${res.stats.feil}${feilPerStatus ? " (" + feilPerStatus + ")" : ""} | uten tekst ${noText}`);
   }
-} catch (e) { INNBOKS = null; console.error("Innboks utilgjengelig:", e.message); }
+} catch (e) { INNBOKS = null; console.error("Innboks utilgjengelig:", e?.code || e?.name || "ukjent feil"); } // never e.message: it can hold a bit of an answer or of the cache
 
 // ---------- 7. Bygg HTML ----------
 let html = readFileSync(TEMPLATE, "utf8");

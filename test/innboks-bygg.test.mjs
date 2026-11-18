@@ -54,3 +54,82 @@ test("inbSafeRender logs the error and shows the fallback text", () => {
   assert.equal(logged[0][0], "innboks");
   assert.equal(el.textContent, "Innboks er ikke tilgjengelig i dette bygget.");
 });
+
+// Codex review 18.11.2026
+
+const capture = () => { const logged = []; return { logged, console: { error: (...a) => logged.push(a.join(" ")), log: (...a) => logged.push(a.join(" ")) } }; };
+
+test("the Gmail error log has no bit of the answer, and the card keeps the message as on main", async () => {
+  const run = new Function("fetchHenvendelser", "console", `return (async () => { let henv = null, henvErr = ""; ${line(build, "try { henv = await fetchHenvendelser();")} return henvErr; })();`);
+  let parseError;
+  try { JSON.parse("Kari Nordmann skrev: hvor er pakken"); } catch (e) { parseError = e; }
+  const c1 = capture();
+  assert.equal(await run(async () => { throw parseError; }, c1.console), parseError.message);
+  assert.equal(c1.logged.length, 1);
+  assert.ok(!c1.logged[0].includes("Kari"), c1.logged[0]);
+  assert.ok(c1.logged[0].includes("SyntaxError"));
+  for (const msg of ["Gmail threads 401", "Gmail: token-feil invalid_grant", "mangler env GMAIL_CLIENT_ID"]) {
+    const c = capture();
+    await run(async () => { throw new Error(msg); }, c.console);
+    assert.equal(c.logged[0], "Henvendelser utilgjengelig: " + msg);
+  }
+  const c2 = capture();
+  await run(async () => { throw new Error("Gmail: token-feil Kari Nordmann"); }, c2.console);
+  assert.ok(!c2.logged[0].includes("Kari"));
+});
+
+test("the Innboks error log has only the error code or type", () => {
+  const c = capture();
+  const inb = new Function("console", "err", `let INNBOKS = 1; try { throw err; ${line(build, "} catch (e) { INNBOKS = null;")}\nreturn INNBOKS;`);
+  let parseError;
+  try { JSON.parse("Kari Nordmann"); } catch (e) { parseError = e; }
+  assert.equal(inb(c.console, parseError), null);
+  assert.equal(inb(c.console, Object.assign(new Error("innboks cache unreadable"), { code: "INNBOKS_CACHE" })), null);
+  assert.deepEqual(c.logged, ["Innboks utilgjengelig: SyntaxError", "Innboks utilgjengelig: INNBOKS_CACHE"]);
+});
+
+test("the number on the Innboks button stays the source count after «Marker besvart»", () => {
+  const code = `${line(template, "const inbDone")}\n${template.split("\n").filter(l => l.startsWith("const inbCount")).join("\n")}\n${block(template, "function inbBtnCount")}\nreturn inbBtnCount;`;
+  const msgs = [{ id: "m1", besvart: false }, { id: "m2", besvart: true }];
+  const btnCount = new Function("INNBOKS", "inbMsgs", "inbHidden", "document", code)({ meldinger: msgs }, msgs, { m1: Date.now() + 3600000 }, { createElement: () => ({}) });
+  const shown = [];
+  btnCount({ append: s => shown.push(s.textContent) });
+  assert.deepEqual(shown, [1]);
+});
+
+const T0 = Date.UTC(2026, 10, 17, 9);
+const henvendelser = threads => {
+  const msgs = {}, threadJson = {};
+  for (const [tid, list] of Object.entries(threads)) threadJson[tid] = { messages: list.map(([from, subject, text], i) => {
+    const id = `${tid}m${i}`; msgs[id] = { mimeType: "text/plain", body: { data: b64(text) } };
+    return { id, internalDate: String(T0 + i * 3600000), payload: { headers: [{ name: "From", value: from }, { name: "Subject", value: subject }] } };
+  }) };
+  const fetch = async url => { const u = String(url); return { ok: true, status: 200, json: async () => u.includes("/threads?") ? { threads: Object.keys(threads).map(id => ({ id })) } : u.includes("/threads/") ? threadJson[u.split("/threads/")[1].split("?")[0]] : { payload: msgs[u.split("/messages/")[1].split("?")[0]] } }; };
+  const body = [line(build, "const HENV_FRA"), line(build, "const AUTO_FROM"), line(build, "const OSS"), block(build, "async function svartekst"), line(build, "const baretakk"), block(build, "async function fetchHenvendelser"), "return fetchHenvendelser;"].join("\n");
+  const addDays = (ymd, n) => { const [y, m, d] = ymd.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
+  const osloDay = d => new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Oslo", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  return new Function("fetch", "Buffer", "gmailAuth", "addDays", "osloDay", "readFileSync", "path", "DIR", "process", body)(fetch, Buffer, async () => ({}), addDays, osloDay, () => '{"lukket":[]}', { join: () => "" }, "", { env: {} })();
+};
+
+test("the inbox identity is the last sender, while the card still shows the thread's first sender as on main", async () => {
+  const h = await henvendelser({ t1: [["Kari <kari@x.no>", "Pakke", "Hvor er pakken?"], ["Ola <ola@x.no>", "Re: Pakke", "Jeg venter også på min."]] });
+  assert.equal(h.n, 1);
+  assert.equal(h.open[0].navn, "Kari");
+  assert.equal(h.open[0].fra, "Ola <ola@x.no>");
+  assert.equal(h.open[0].tekst, "Jeg venter også på min.");
+});
+
+test("a message shown with the previous message's text says so and offers no suggestion", () => {
+  const els = {};
+  const msg = { id: "m2", kanal: "mail", navn: "Kari N.", ts: T0, emne: "Pakke", tekst: "Hvor er pakken?", gjelder: null, type: null, forslag: null, selv: false, svar: null, besvart: false, gammelTekst: true };
+  const detail = new Function("inbMsgs", "inbSel", "document", "INNBOKS", "INB_KANAL", "inbDay", "inbClock", "inbDate", `${line(template, "const esc")}\n${block(template, "function inbDetail")}\nreturn inbDetail;`)(
+    [msg], "m2", { getElementById: id => (els[id] ||= {}) }, {}, { mail: "Mail" }, () => "2026-11-17", () => "10:00", () => "17.11");
+  detail();
+  const h = els["inb-detail"].innerHTML;
+  assert.ok(h.includes("Den nye meldingen kunne ikke hentes. Teksten under er fra forrige melding i tråden."));
+  assert.ok(h.includes("Ingen forslag"));
+  assert.ok(!h.includes("inb-draft"));
+  msg.gammelTekst = false;
+  detail();
+  assert.ok(!els["inb-detail"].innerHTML.includes("forrige melding"));
+});

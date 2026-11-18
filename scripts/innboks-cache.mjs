@@ -9,13 +9,14 @@ export const CACHE_FILE = path.join(DIR, "data", "innboks.enc");
 
 const emptyCache = () => ({ v: 1, sistOk: { mail: null }, meldinger: {} });
 
+// Only a missing file gives an empty cache. A file that cannot be read or decrypted throws, so the build does not write over it.
 export function readCache(pw, file = CACHE_FILE) {
   if (!existsSync(file)) return emptyCache();
   try {
     return decryptJson(pw, readFileSync(file, "utf8"));
   } catch {
     console.log("innboks: cache kunne ikke leses");
-    return emptyCache();
+    throw Object.assign(new Error("innboks cache unreadable"), { code: "INNBOKS_CACHE" });
   }
 }
 

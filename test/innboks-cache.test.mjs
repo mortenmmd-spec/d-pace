@@ -17,6 +17,9 @@ test("writeCache then readCache gives the same cache, and the file holds no plai
   writeCache("pw", c, f); assert.deepEqual(readCache("pw", f), c);
   assert.ok(!readFileSync(f, "utf8").includes("hemmelig"));
 });
-test("readCache returns an empty cache when the file cannot be decrypted", () => {
-  const f = tmp(); writeFileSync(f, "ikke-gyldig"); assert.deepEqual(readCache("pw", f).meldinger, {});
+test("readCache throws, without the contents, when the file cannot be decrypted or has another password", () => {
+  const f = tmp(); writeFileSync(f, "ikke-gyldig");
+  assert.throws(() => readCache("pw", f), e => e.code === "INNBOKS_CACHE");
+  const g = tmp(); writeCache("annet", { v: 1, sistOk: { mail: null }, meldinger: { x: { tekst: "hemmelig" } } }, g);
+  assert.throws(() => readCache("pw", g), e => e.code === "INNBOKS_CACHE" && !e.message.includes("hemmelig"));
 });
