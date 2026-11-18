@@ -1723,7 +1723,8 @@ const inbMsgs = INNBOKS ? INNBOKS.meldinger : [];
 let inbFilter = { status: "ubesvart", kanal: null, type: null }, inbSel = null;
 const inbHidden = (() => {
   let h = {};
-  try { h = JSON.parse(localStorage.getItem(INB_KEY)) || {}; } catch (e) { h = {}; }
+  try { h = JSON.parse(localStorage.getItem(INB_KEY)); } catch (e) { h = null; }
+  if (!(h && typeof h === "object" && !Array.isArray(h))) h = {};
   const now = Date.now();
   for (const id of Object.keys(h)) if (!(h[id] > now)) delete h[id];
   try { localStorage.setItem(INB_KEY, JSON.stringify(h)); } catch (e) {}
@@ -1780,8 +1781,9 @@ function inbDetail() {
   document.getElementById("inb-copy").onclick = () => {
     const d = document.getElementById("inb-draft");
     const open = () => { if (typeof m.lenke === "string" && m.lenke.startsWith("https://")) window.open(m.lenke, "_blank", "noopener"); };
-    if (d && navigator.clipboard) navigator.clipboard.writeText(d.value).then(() => { toast("Svaret er kopiert"); open(); }, () => toast("Kunne ikke kopiere", true));
-    else open();
+    const fail = () => { toast("Kunne ikke kopiere svaret. Kopier det selv.", true); open(); };
+    if (!d) { open(); return; }
+    try { navigator.clipboard.writeText(d.value).then(() => { toast("Svaret er kopiert"); open(); }, fail); } catch (e) { fail(); }
   };
   document.getElementById("inb-done").onclick = () => {
     inbHidden[m.id] = Date.now() + 24 * 3600 * 1000;
