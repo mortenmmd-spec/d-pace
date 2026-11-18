@@ -28,7 +28,7 @@ function userText(m, redactFn) {
   return parts.join("\n");
 }
 
-const transientError = message => Object.assign(new Error(message), { transient: true });
+const transientError = (message, status) => Object.assign(new Error(message), { transient: true, status });
 
 export function makeSuggester({ apiKey, model = "claude-haiku-5-5", regler, redactFn, fetchFn = fetch }) {
   return async (m) => {
@@ -53,7 +53,7 @@ export function makeSuggester({ apiKey, model = "claude-haiku-5-5", regler, reda
     } catch {
       throw transientError("Claude API request failed (network error or timeout)");
     }
-    if (!res.ok) throw transientError(`Claude API error: HTTP ${res.status}`);
+    if (!res.ok) throw transientError(`Claude API error: HTTP ${res.status}`, res.status);
     let data;
     try {
       data = await res.json();

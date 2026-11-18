@@ -4,7 +4,7 @@ import { mkdtempSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { readCache } from "../scripts/innboks-cache.mjs";
-import { shortName, redact, excerpt, gmailLink, updateCache, pickNew, suggestAll, toPage, buildInbox } from "../scripts/innboks.mjs";
+import { shortName, contactName, redact, excerpt, gmailLink, updateCache, pickNew, suggestAll, toPage, buildInbox } from "../scripts/innboks.mjs";
 
 const now = new Date("2026-11-18T12:00:00Z");
 const later = new Date("2026-11-18T13:00:00Z");
@@ -100,7 +100,7 @@ test("suggestAll: answer suggestion", async () => {
   const s = await suggestAll([e], async m => { arg = m; return { type: "sporsmal", svar: true, selv: false, forslag: "Hei Per!" }; });
   assert.equal(e.type, "sporsmal");
   assert.equal(e.forslag, "Hei Per!");
-  assert.deepEqual(s, { kall: 1, tegn: 3, feil: 0 });
+  assert.deepEqual(s, { kall: 1, tegn: 3, feil: 0, status: {} });
   assert.deepEqual(Object.keys(arg).sort(), ["emne", "gjelder", "kanal", "tekst"]);
 });
 
@@ -150,7 +150,7 @@ test("toPage shape", () => {
     assert.ok(!("forsok" in m));
     assert.ok(!("sett" in m));
   }
-  assert.deepEqual(Object.keys(p.meldinger[0]).sort(), ["besvart", "emne", "forslag", "gjelder", "id", "kanal", "lenke", "navn", "selv", "tekst", "ts", "type"]);
+  assert.deepEqual(Object.keys(p.meldinger[0]).sort(), ["besvart", "emne", "forslag", "gjelder", "id", "kanal", "lenke", "navn", "selv", "svar", "tekst", "ts", "type"]);
   assert.equal(toPage(cache, src([]), now).kilder.mail.ok, true);
 });
 
@@ -160,7 +160,7 @@ test("buildInbox with suggest null, then second run", async () => {
   assert.ok(existsSync(file));
   assert.equal(r1.page.meldinger.length, 2);
   assert.ok(r1.page.meldinger.every(m => m.forslag === null));
-  assert.deepEqual(r1.stats, { aapne: 2, nye: 0, kall: 0, tegn: 0, feil: 0 });
+  assert.deepEqual(r1.stats, { aapne: 2, nye: 0, kall: 0, tegn: 0, feil: 0, status: {} });
   const r2 = await buildInbox({ pw: "pw", kilder: src([raw("mail:a:2", { ts: 2 })]), suggest: null, now: later, file });
   assert.equal(r2.page.meldinger.find(m => m.id === "mail:a:1").besvart, true);
   assert.equal(r2.page.meldinger.find(m => m.id === "mail:a:2").besvart, false);
@@ -171,7 +171,7 @@ test("buildInbox with suggest fills suggestions", async () => {
   const file = path.join(mkdtempSync(path.join(tmpdir(), "innboks-")), "c.enc");
   const r = await buildInbox({ pw: "pw", kilder: src([raw("mail:a:1")]), suggest: async () => ({ type: "sporsmal", svar: true, selv: false, forslag: "Hei" }), now, file });
   assert.equal(r.page.meldinger[0].forslag, "Hei");
-  assert.deepEqual(r.stats, { aapne: 1, nye: 1, kall: 1, tegn: 1, feil: 0 });
+  assert.deepEqual(r.stats, { aapne: 1, nye: 1, kall: 1, tegn: 1, feil: 0, status: {} });
 });
 
 test("redact: unicode letters in e-mail", () => assert.equal(redact("Skriv til bjørn.ås@x.no."), "Skriv til [e-post]."));
@@ -253,3 +253,67 @@ test("suggestAll: non-transient error counts a try and continues", async () => {
 
 test("shortName: leading comma does not throw", () => assert.equal(shortName('", Per" <p@x.no>'), "Per"));
 test("shortName: empty from gives empty string", () => assert.equal(shortName(""), ""));
+
+test("suggestAll: tegn counts characters sent, capped at 4000", async () => {
+  const e = entry("a", { tekst: "x".repeat(50000) });
+  const s = await suggestAll([e], ok1);
+  assert.equal(s.tegn, 4000);
+});
+
+test("suggestAll: svar is stored, also when false", async () => {
+  const e = entry("a");
+  await suggestAll([e], async () => ({ type: "annet", svar: false, selv: false, forslag: null }));
+  assert.equal(e.svar, false);
+  assert.equal(toPage({ ...empty(), meldinger: { a: e } }, src([]), now).meldinger[0].svar, false);
+});
+
+test("suggestAll: counts errors per HTTP status", async () => {
+  const es = [entry("a"), entry("b"), entry("c"), entry("d")];
+  let n = 0;
+  const s = await suggestAll(es, async () => {
+    n++;
+    if (n <= 2) throw Object.assign(new Error("x"), { status: 429 });
+    if (n === 3) throw new Error("shape");
+    return { type: "ros", svar: true, selv: false, forslag: "Takk" };
+  });
+  assert.deepEqual(s.status, { 429: 2, annen: 1 });
+  assert.equal(s.feil, 3);
+});
+
+test("updateCache: new message in same thread removes the old unanswered entry", () => {
+  const c = updateCache({ cache: empty(), kilder: src([raw("mail:a:1")]), now });
+  const c2 = updateCache({ cache: c, kilder: src([raw("mail:a:2")]), now: later });
+  assert.deepEqual(Object.keys(c2.meldinger), ["mail:a:2"]);
+});
+
+test("updateCache: new message keeps answered entries and other threads", () => {
+  let c = updateCache({ cache: empty(), kilder: src([raw("mail:a:1"), raw("mail:b:1")]), now });
+  c = updateCache({ cache: c, kilder: src([raw("mail:b:1")]), now: later });
+  const c2 = updateCache({ cache: c, kilder: src([raw("mail:b:1"), raw("mail:a:2")]), now: later });
+  assert.deepEqual(Object.keys(c2.meldinger).sort(), ["mail:a:1", "mail:a:2", "mail:b:1"]);
+  assert.notEqual(c2.meldinger["mail:a:1"].besvart, null);
+});
+
+test("updateCache: failed text or order lookup keeps the old values", () => {
+  const gj = { type: "ordre", nr: "#1", dato: "2026-11-01", status: "sendt", sporing: "" };
+  const c = updateCache({ cache: empty(), kilder: src([raw("mail:a:1", { tekst: "Hei der", gjelder: gj })]), now });
+  const c2 = updateCache({ cache: c, kilder: src([raw("mail:a:1", { tekst: "", gjelder: null })]), now: later });
+  assert.equal(c2.meldinger["mail:a:1"].tekst, "Hei der");
+  assert.deepEqual(c2.meldinger["mail:a:1"].gjelder, gj);
+});
+
+test("redact: international phone numbers", () => {
+  assert.equal(redact("Ring +46 70 123 45 67"), "Ring [telefon]");
+  assert.equal(redact("Ring +45 12 34 56 78 nå"), "Ring [telefon] nå");
+  assert.equal(redact("Ring +46701234567."), "Ring [telefon].");
+  assert.equal(redact("Ring 0046 70 123 45 67"), "Ring [telefon]");
+  assert.equal(redact("Ordre 5359712 kom 13.11.2026"), "Ordre 5359712 kom 13.11.2026");
+});
+
+test("contactName: reads Navn from a contact form text", () => {
+  assert.equal(contactName("Navn: Lise Marie Hansen E-post: l@x.no Melding: Hei"), "Lise H.");
+  assert.equal(contactName("Navn: Lise M. Melding: Kan jeg bytte?"), "Lise M.");
+  assert.equal(contactName("Navn:\nPer Hansen\nTelefon: 123"), "Per H.");
+  assert.equal(contactName("Hei, jeg lurer på noe"), "");
+  assert.equal(contactName("Navn: " + "x".repeat(200)), "");
+});

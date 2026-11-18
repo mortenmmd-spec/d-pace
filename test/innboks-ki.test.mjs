@@ -208,3 +208,7 @@ for (const [name, f] of [
     await assert.rejects(make(f)(msg()), (e) => e.transient !== true);
   });
 }
+
+test("non-2xx status is exposed as e.status", async () => {
+  await assert.rejects(make(fakeFetch(ok, { status: 429 }))(msg()), (e) => e.status === 429);
+});

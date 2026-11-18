@@ -23,7 +23,12 @@ export function shortName(from) {
 export function redact(text) {
   return text
     .replace(/[\p{L}\p{N}._+-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/gu, "[e-post]")
-    .replace(/(?<!\d)(?:(?:\+|00)47\s?)?(?:\d{8}|\d{3}[ -]\d{2}[ -]\d{3}|\d{2}[ -]\d{2}[ -]\d{2}[ -]\d{2})(?!\d)/g, "[telefon]");
+    .replace(/(?<!\d)(?:(?:\+|00)\d{1,3}(?:[ -]?\d){6,12}|\d{8}|\d{3}[ -]\d{2}[ -]\d{3}|\d{2}[ -]\d{2}[ -]\d{2}[ -]\d{2})(?!\d)/g, "[telefon]");
+}
+
+export function contactName(tekst) {
+  const name = /(?:^|\s)Navn:\s*(.{1,60}?)(?=\s+(?:E-post|Epost|E-mail|Email|Telefon\w*|Melding|Message|Phone|Body)\s*:|$)/i.exec(tekst)?.[1].trim();
+  return name && !/[@<]/.test(name) ? shortName(name) : "";
 }
 
 export function excerpt(text, n = 600) {
@@ -34,6 +39,7 @@ export function gmailLink(threadId) {
   return `https://mail.google.com/mail/?authuser=hei@getpace.no#all/${threadId}`;
 }
 
+const threadOf = id => id.split(":").slice(0, 2).join(":");
 const needsLongText = e => e.besvart === null && e.type === null && e.forsok < MAX_TRIES;
 
 export function updateCache({ cache, kilder, now }) {
@@ -41,14 +47,14 @@ export function updateCache({ cache, kilder, now }) {
   const nowIso = now.toISOString();
   for (const [kanal, kilde] of Object.entries(kilder)) {
     if (!kilde.ok) continue;
-    const open = new Set();
+    const open = new Set(kilde.aapne.map(r => r.id));
     for (const raw of kilde.aapne) {
-      open.add(raw.id);
       const old = next.meldinger[raw.id];
+      if (!old) for (const [id, e] of Object.entries(next.meldinger)) if (e.kanal === kanal && e.besvart === null && !open.has(id) && threadOf(id) === threadOf(raw.id)) delete next.meldinger[id];
       const stored = { ...raw, tekst: raw.tekst.slice(0, MAX_STORED_TEXT) };
       next.meldinger[raw.id] = old
-        ? { ...old, ...stored, tekst: needsLongText(old) ? stored.tekst : old.tekst, sett: old.sett, besvart: null, type: old.type, forslag: old.forslag, selv: old.selv, forsok: old.forsok }
-        : { ...stored, sett: nowIso, besvart: null, type: null, forslag: null, selv: false, forsok: 0 };
+        ? { ...old, ...stored, tekst: needsLongText(old) ? stored.tekst || old.tekst : old.tekst, gjelder: raw.gjelder ?? old.gjelder, sett: old.sett, besvart: null, type: old.type, forslag: old.forslag, selv: old.selv, forsok: old.forsok }
+        : { ...stored, sett: nowIso, besvart: null, type: null, forslag: null, selv: false, svar: null, forsok: 0 };
     }
     for (const [id, e] of Object.entries(next.meldinger)) {
       if (e.kanal !== kanal || open.has(id)) continue;
@@ -68,18 +74,21 @@ export function pickNew(cache, max = 30) {
 }
 
 export async function suggestAll(entries, suggest) {
-  const stats = { kall: 0, tegn: 0, feil: 0 };
+  const stats = { kall: 0, tegn: 0, feil: 0, status: {} };
   for (const e of entries) {
     stats.kall++;
-    stats.tegn += e.tekst.length;
+    stats.tegn += Math.min(e.tekst.length, MAX_STORED_TEXT);
     try {
       const r = await suggest({ kanal: e.kanal, emne: e.emne, tekst: e.tekst, gjelder: e.gjelder });
       if (!TYPES.includes(r.type)) throw new Error("bad type");
       e.type = r.type;
       e.selv = r.selv === true;
+      e.svar = r.svar;
       e.forslag = r.svar && !r.selv && r.forslag ? r.forslag : null;
     } catch (err) {
       stats.feil++;
+      const code = err?.status ?? "annen";
+      stats.status[code] = (stats.status[code] ?? 0) + 1;
       if (err?.transient) break;
       e.forsok++;
     }
@@ -102,6 +111,7 @@ export function toPage(cache, kilder, now) {
       type: e.type,
       forslag: e.forslag,
       selv: e.selv,
+      svar: e.svar ?? null,
       besvart: e.besvart !== null,
     }));
   const mail = { ok: kilder.mail.ok, hentet: cache.sistOk.mail };
@@ -111,7 +121,7 @@ export function toPage(cache, kilder, now) {
 export async function buildInbox({ pw, kilder, suggest, now, file }) {
   const cache = updateCache({ cache: readCache(pw, file), kilder, now });
   const picked = suggest ? pickNew(cache) : [];
-  const run = suggest ? await suggestAll(picked, suggest) : { kall: 0, tegn: 0, feil: 0 };
+  const run = suggest ? await suggestAll(picked, suggest) : { kall: 0, tegn: 0, feil: 0, status: {} };
   for (const e of Object.values(cache.meldinger)) if (!needsLongText(e)) e.tekst = excerpt(e.tekst);
   writeCache(pw, cache, file);
   const aapne = Object.values(cache.meldinger).filter(e => e.besvart === null).length;

@@ -1764,14 +1764,14 @@ function inbNote() {
 function inbList() {
   const list = inbVisible();
   document.getElementById("inb-list").innerHTML = `<p class="inb-note">${esc(inbNote())}</p>` + (list.length ? list.map(m =>
-    `<button class="inb-row${m.id === inbSel ? " on" : ""}${inbDone(m) ? " done" : ""}" data-id="${esc(m.id)}"><span class="inb-row-top"><span><i class="inb-dot inb-dot-${esc(m.kanal)}"></i>${esc(m.navn)}</span><time>${esc(inbShort(m.ts))}</time></span><span class="inb-row-line">${esc(m.emne || m.tekst || "(ingen tekst)")}</span></button>`).join("") : `<p class="inb-empty">Ingen meldinger her.</p>`);
+    `<button class="inb-row${m.id === inbSel ? " on" : ""}${inbDone(m) ? " done" : ""}" data-id="${esc(m.id)}"><span class="inb-row-top"><span><i class="inb-dot inb-dot-${esc(m.kanal)}"></i>${esc(m.navn)}</span><time>${esc(inbShort(m.ts))}</time></span><span class="inb-row-line">${esc((m.tekst || "").split("\n")[0] || m.emne || "(ingen tekst)")}</span></button>`).join("") : `<p class="inb-empty">Ingen meldinger her.</p>`);
 }
 function inbDetail() {
   const el = document.getElementById("inb-detail"), m = inbMsgs.find(x => x.id === inbSel);
   if (!m) { el.innerHTML = `<p class="inb-empty">${INNBOKS ? "Ingen melding valgt." : ""}</p>`; return; }
   const g = m.gjelder;
   const ctx = g ? `<div class="inb-context">${esc(["Gjelder ordre " + g.nr, g.dato, g.status, g.sporing].filter(Boolean).join(" · "))}</div>` : "";
-  const draft = m.forslag ? `<textarea class="inb-draft" id="inb-draft" aria-label="Forslag til svar"></textarea>` : `<p class="inb-none">${m.selv ? "Svar selv: kunden nevner helse" : "Ingen forslag"}</p>`;
+  const draft = m.forslag ? `<textarea class="inb-draft" id="inb-draft" aria-label="Forslag til svar"></textarea>` : `<p class="inb-none">${m.selv ? "Svar selv: kunden nevner helse" : m.svar === false ? "KI: trenger trolig ikke svar" : "Ingen forslag"}</p>`;
   const when = inbDay(m.ts) === inbDay(Date.now()) ? "i dag " + inbClock(m.ts) : inbDate(m.ts) + " " + inbClock(m.ts);
   el.innerHTML = `<div class="inb-meta"><span><i class="inb-dot inb-dot-${esc(m.kanal)}"></i>${esc(m.navn)} · ${esc(INB_KANAL[m.kanal] || m.kanal)}</span><time>${esc(when)}</time></div>`
     + (m.emne ? `<p class="inb-subject">${esc(m.emne)}</p>` : "") + ctx

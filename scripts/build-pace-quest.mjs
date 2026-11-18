@@ -20,7 +20,7 @@ import { readFileSync, writeFileSync, copyFileSync, rmSync, existsSync } from "n
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import os from "node:os";
-import { buildInbox, shortName, redact, gmailLink } from "./innboks.mjs";
+import { buildInbox, shortName, contactName, redact, gmailLink } from "./innboks.mjs";
 import { makeSuggester } from "./innboks-ki.mjs";
 
 const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -451,7 +451,7 @@ async function svartekst(G, msgId) {
   const plain = parts.find(p => p.mimeType === "text/plain"), html = parts.find(p => p.mimeType === "text/html");
   let t = plain ? dec(plain.body.data) : html ? dec(html.body.data).replace(/<blockquote[\s\S]*$/i, "").replace(/<br\s*\/?>|<\/(p|div)>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ") : "";
   const ut = [];
-  for (const l of t.split(/\r?\n/)) { if (/^\s*>/.test(l) || /(skrev|wrote|schrieb|skrev følgende)\s*:?\s*$/i.test(l) || /^-{2,}\s*(original|opprinnelig|videresendt)/i.test(l) || /^(From|Fra):\s/i.test(l)) break; ut.push(l); }
+  for (const l of t.split(/\r?\n/)) { if (/^\s*>/.test(l) || /(skrev|wrote|schrieb|skrev følgende)\s*:?\s*$/i.test(l) || /\b(skrev|wrote|schrieb)\b.*>\s*:\s*$/i.test(l) || /^-{2,}\s*(original|opprinnelig|videresendt)/i.test(l) || /^(From|Fra):\s/i.test(l)) break; ut.push(l); }
   return ut.join("\n").replace(/\s+/g, " ").trim();
 }
 // «bare takk»: kort, inneholder takk, ingen spørsmål
@@ -546,32 +546,6 @@ else if (process.env.META_ANNONSER_TEST) { try { annonser = JSON.parse(readFileS
 const metaKilde = meta?.source === "api" ? "Meta API": meta?.source === "manuell" ? "Meta manuelt" : "Meta-kvitteringer";
 let henv = null, henvErr = "";
 try { henv = await fetchHenvendelser(); } catch (e) { henvErr = e.message; console.error("Henvendelser utilgjengelig:", e.message); }
-let INNBOKS = null;
-try {
-  const pw = process.env.STATICRYPT_PASSWORD;
-  if (!pw) console.log("innboks: hoppet over (mangler passord)");
-  else {
-    let kilder, noText = 0;
-    if (process.env.INNBOKS_TEST) kilder = { mail: { ok: true, aapne: JSON.parse(readFileSync(process.env.INNBOKS_TEST, "utf8")) } };
-    else {
-      const items = henv ? henv.open : []; noText = henv ? henv.noText : 0;
-      const addr = x => (/<([^>]+)>/.exec(x.fra)?.[1] || x.fra).trim().toLowerCase();
-      const lookups = items.filter(x => !/ny kundemelding/i.test(x.subject));
-      const orders = lookups.length ? await shopifyLatestOrders([...new Set(lookups.map(addr))]) : new Map();
-      kilder = { mail: { ok: !!henv, aapne: items.map(x => ({ id: "mail:" + x.thread + ":" + x.sisteId, kanal: "mail", navn: shortName(x.fra), ts: x.ts, emne: x.subject, tekst: x.tekst, lenke: gmailLink(x.thread), gjelder: /ny kundemelding/i.test(x.subject) ? null : orders.get(addr(x)) || null })) } };
-    }
-    let suggest = null;
-    if (process.env.ANTHROPIC_API_KEY) {
-      const ask = makeSuggester({ apiKey: process.env.ANTHROPIC_API_KEY, model: process.env.INNBOKS_MODEL || undefined, regler: readFileSync(path.join(DIR, "data", "innboks-regler.md"), "utf8"), redactFn: redact });
-      suggest = m => ask({ ...m, gjelder: m.gjelder ? `Ordre ${m.gjelder.nr}, ${m.gjelder.dato}, ${m.gjelder.status}${m.gjelder.sporing ? ", " + m.gjelder.sporing : ""}` : null });
-    }
-    // Only the hourly workflow may write the tracked cache file; local builds use a temp file.
-    const innboksFile = process.env.INNBOKS_TEST ? path.join(os.tmpdir(), "innboks-test.enc") : process.env.GITHUB_ACTIONS === "true" ? undefined : path.join(os.tmpdir(), "innboks-local.enc");
-    const res = await buildInbox({ pw, kilder, suggest, now: NOW, file: innboksFile });
-    INNBOKS = res.page;
-    console.log(`innboks: mail ${res.stats.aapne} åpne | nye ${res.stats.nye} | KI-kall ${res.stats.kall}, tegn ${res.stats.tegn}, feil ${res.stats.feil} | uten tekst ${noText}`);
-  }
-} catch (e) { INNBOKS = null; console.error("Innboks utilgjengelig:", e.message); }
 const T = parseKasse();
 let plan = null;
 try { plan = readPlan(env("STATICRYPT_PASSWORD", "")); } catch (e) { console.error("Pace 2.0-plan utilgjengelig:", e.message); }
@@ -981,6 +955,34 @@ const fokusItems = tasks.filter(t => t.fokus && t.sec !== "Ferdig").sort((a, b) 
 const dueTxt = d => { if (!d) return ""; const n = Math.round((Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) - Date.UTC(+TODAY.slice(0, 4), +TODAY.slice(5, 7) - 1, +TODAY.slice(8, 10))) / 864e5); return `<span class="f-due${n < 0 ? " f-late" : n <= 3 ? " f-soon" : ""}">${fmtD(d)}${n < 0 ? ` · ${-n} d over` : n === 0 ? " · i dag" : ` · ${n} d`}</span>`; };
 const fokusRows = PERSONER.map(pn => { const mine = fokusItems.filter(t => t.owner.split(" & ").includes(pn)); return `<div class="f-row"><div class="f-who">${pn}</div><div class="f-what">${mine.length ? mine.map(t => `<span class="f-item">${esc(t.txt)} ${dueTxt(t.due)}</span>`).join("") : `<span class="f-none">ingen fokusoppgave</span>`}</div></div>`; }).join("");
 const fokusHtml = ""; // Fokus nå fjernet fra dashboardet (Morten 13.11.2026: for mye rot). Feltet Fokus finnes fortsatt på boardet.
+
+let INNBOKS = null;
+try {
+  const pw = process.env.STATICRYPT_PASSWORD;
+  if (!pw) console.log("innboks: hoppet over (mangler passord)");
+  else {
+    let kilder, noText = 0;
+    if (process.env.INNBOKS_TEST) kilder = { mail: { ok: true, aapne: JSON.parse(readFileSync(process.env.INNBOKS_TEST, "utf8")) } };
+    else {
+      const items = henv ? henv.open : []; noText = henv ? henv.noText : 0;
+      const addr = x => (/<([^>]+)>/.exec(x.fra)?.[1] || x.fra).trim().toLowerCase();
+      const lookups = items.filter(x => !/ny kundemelding/i.test(x.subject));
+      const orders = lookups.length ? await shopifyLatestOrders([...new Set(lookups.map(addr))]) : new Map();
+      kilder = { mail: { ok: !!henv, aapne: items.map(x => ({ id: "mail:" + x.thread + ":" + x.sisteId, kanal: "mail", navn: /ny kundemelding/i.test(x.subject) ? contactName(x.tekst) || shortName(x.fra) : shortName(x.fra), ts: x.ts, emne: x.subject, tekst: x.tekst, lenke: gmailLink(x.thread), gjelder: /ny kundemelding/i.test(x.subject) ? null : orders.get(addr(x)) || null })) } };
+    }
+    let suggest = null;
+    if (process.env.ANTHROPIC_API_KEY) {
+      const ask = makeSuggester({ apiKey: process.env.ANTHROPIC_API_KEY, model: process.env.INNBOKS_MODEL || undefined, regler: readFileSync(path.join(DIR, "data", "innboks-regler.md"), "utf8"), redactFn: redact });
+      suggest = m => ask({ ...m, gjelder: m.gjelder ? `Ordre ${m.gjelder.nr}, ${m.gjelder.dato}, ${m.gjelder.status}${m.gjelder.sporing ? ", " + m.gjelder.sporing : ""}` : null });
+    }
+    // Only the hourly workflow may write the tracked cache file; local builds use a temp file.
+    const innboksFile = process.env.INNBOKS_TEST ? path.join(os.tmpdir(), "innboks-test.enc") : process.env.GITHUB_ACTIONS === "true" ? undefined : path.join(os.tmpdir(), "innboks-local.enc");
+    const res = await buildInbox({ pw, kilder, suggest, now: NOW, file: innboksFile });
+    INNBOKS = res.page;
+    const feilPerStatus = Object.entries(res.stats.status).map(([k, n]) => `${k}: ${n}`).join(", ");
+    console.log(`innboks: mail ${kilder.mail.ok ? "oppe" : "nede"}, ${res.stats.aapne} åpne, ${henv ? henv.threads : "ukjent antall"} tråder | nye ${res.stats.nye} | KI-kall ${res.stats.kall}, tegn ${res.stats.tegn}, feil ${res.stats.feil}${feilPerStatus ? " (" + feilPerStatus + ")" : ""} | uten tekst ${noText}`);
+  }
+} catch (e) { INNBOKS = null; console.error("Innboks utilgjengelig:", e.message); }
 
 // ---------- 7. Bygg HTML ----------
 let html = readFileSync(TEMPLATE, "utf8");
