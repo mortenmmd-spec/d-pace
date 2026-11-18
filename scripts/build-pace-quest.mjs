@@ -19,6 +19,7 @@ import { readPlan } from "./plan-crypt.mjs";
 import { readFileSync, writeFileSync, copyFileSync, rmSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import os from "node:os";
 import { buildInbox, shortName, redact, gmailLink } from "./innboks.mjs";
 import { makeSuggester } from "./innboks-ki.mjs";
 
@@ -467,7 +468,7 @@ async function fetchHenvendelser() {
   const hdr = (m, n) => (m.payload?.headers || []).find(h => h.name.toLowerCase() === n.toLowerCase())?.value || "";
   // data/henvendelser-lukket.json: tråder Morten har avgjort at ikke trenger svar; skjules bare så lenge siste melding er uendret
   let lukket = {}; try { for (const x of JSON.parse(readFileSync(path.join(DIR, "data", "henvendelser-lukket.json"), "utf8")).lukket || []) lukket[x.thread] = x.sisteMelding; } catch {}
-  const open = [];
+  const open = []; let noText = 0;
   for (const id of ids) {
     const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=Auto-Submitted&metadataHeaders=List-Unsubscribe&metadataHeaders=Precedence`, { headers: G });
     if (!r.ok) throw new Error("Gmail thread " + r.status);
@@ -490,10 +491,10 @@ async function fetchHenvendelser() {
     if (msgs.slice(0, -1).some(m => OSS.test(hdr(m, "From"))) && await baretakk(G, last.id)) { if (process.env.HENV_DEBUG) console.log("skjult takk-svar:", lastFrom, "|", subject); continue; }
     const avsender = vaarTraad ? lastFrom : from;
     const navn = avsender.replace(/<.*>/, "").replace(/"/g, "").trim() || avsender;
-    open.push({ d: osloDay(new Date(+last.internalDate)), navn, subject, thread: id, sisteId: last.id, ts: +last.internalDate, fra: avsender, tekst: await svartekst(G, last.id).catch(() => "") });
+    open.push({ d: osloDay(new Date(+last.internalDate)), navn, subject, thread: id, sisteId: last.id, ts: +last.internalDate, fra: avsender, tekst: await svartekst(G, last.id).catch(() => { noText++; return ""; }) });
   }
   open.sort((a, b) => a.d < b.d ? -1 : 1);
-  return { n: open.length, open, threads: ids.length };
+  return { n: open.length, open, threads: ids.length, noText };
 }
 
 // latest order per e-mail address, for the inbox only; addresses are never logged or stored
@@ -505,16 +506,17 @@ async function shopifyLatestOrders(emails) {
     const tok = (await r0.json()).access_token;
     if (!tok) throw new Error("no token");
     for (const email of emails) {
-      const r = await fetch(`https://${SHOP}/admin/api/${API}/orders.json?email=${encodeURIComponent(email)}&status=any&limit=1&fields=name,created_at,fulfillment_status,fulfillments`, { headers: { "X-Shopify-Access-Token": tok } });
+      const addr = String(email || "").trim().toLowerCase();
+      if (!addr) continue;
+      const r = await fetch(`https://${SHOP}/admin/api/${API}/orders.json?email=${encodeURIComponent(addr)}&status=any&limit=1&fields=name,email,created_at,fulfillment_status,fulfillments`, { headers: { "X-Shopify-Access-Token": tok } });
       if (!r.ok) throw new Error("status " + r.status);
       const o = ((await r.json()).orders || [])[0];
-      if (!o) continue;
+      if (!o || String(o.email || "").trim().toLowerCase() !== addr) continue;
       const f = (o.fulfillments || [])[0];
-      out.set(email, { nr: o.name, dato: String(o.created_at).slice(0, 10), status: o.fulfillment_status === "fulfilled" ? "sendt" : "ikke sendt", sporing: f ? [f.tracking_company, f.tracking_number].filter(Boolean).join(" ") : "" });
+      out.set(addr, { type: "ordre", nr: o.name, dato: String(o.created_at).slice(0, 10), status: o.fulfillment_status === "fulfilled" ? "sendt" : "ikke sendt", sporing: f ? [f.tracking_company, f.tracking_number].filter(Boolean).join(" ") : "" });
     }
   } catch {
     console.log("innboks: ordreoppslag utilgjengelig");
-    return new Map();
   }
   return out;
 }
@@ -549,10 +551,10 @@ try {
   const pw = process.env.STATICRYPT_PASSWORD;
   if (!pw) console.log("innboks: hoppet over (mangler passord)");
   else {
-    let kilder;
+    let kilder, noText = 0;
     if (process.env.INNBOKS_TEST) kilder = { mail: { ok: true, aapne: JSON.parse(readFileSync(process.env.INNBOKS_TEST, "utf8")) } };
     else {
-      const items = henv ? henv.open : [];
+      const items = henv ? henv.open : []; noText = henv ? henv.noText : 0;
       const addr = x => (/<([^>]+)>/.exec(x.fra)?.[1] || x.fra).trim().toLowerCase();
       const lookups = items.filter(x => !/ny kundemelding/i.test(x.subject));
       const orders = lookups.length ? await shopifyLatestOrders([...new Set(lookups.map(addr))]) : new Map();
@@ -563,9 +565,9 @@ try {
       const ask = makeSuggester({ apiKey: process.env.ANTHROPIC_API_KEY, model: process.env.INNBOKS_MODEL || undefined, regler: readFileSync(path.join(DIR, "data", "innboks-regler.md"), "utf8"), redactFn: redact });
       suggest = m => ask({ ...m, gjelder: m.gjelder ? `Ordre ${m.gjelder.nr}, ${m.gjelder.dato}, ${m.gjelder.status}${m.gjelder.sporing ? ", " + m.gjelder.sporing : ""}` : null });
     }
-    const res = await buildInbox({ pw, kilder, suggest, now: NOW });
+    const res = await buildInbox({ pw, kilder, suggest, now: NOW, file: process.env.INNBOKS_TEST ? path.join(os.tmpdir(), "innboks-test.enc") : undefined });
     INNBOKS = res.page;
-    console.log(`innboks: mail ${res.stats.aapne} åpne | nye ${res.stats.nye} | KI-kall ${res.stats.kall}, tegn ${res.stats.tegn}, feil ${res.stats.feil}`);
+    console.log(`innboks: mail ${res.stats.aapne} åpne | nye ${res.stats.nye} | KI-kall ${res.stats.kall}, tegn ${res.stats.tegn}, feil ${res.stats.feil} | uten tekst ${noText}`);
   }
 } catch (e) { INNBOKS = null; console.error("Innboks utilgjengelig:", e.message); }
 const T = parseKasse();
