@@ -19,6 +19,8 @@ import { readPlan } from "./plan-crypt.mjs";
 import { readFileSync, writeFileSync, copyFileSync, rmSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { buildInbox, shortName, redact, gmailLink } from "./innboks.mjs";
+import { makeSuggester } from "./innboks-ki.mjs";
 
 const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const TEMPLATE = path.join(DIR, "pace-quest.template.html");
@@ -488,10 +490,33 @@ async function fetchHenvendelser() {
     if (msgs.slice(0, -1).some(m => OSS.test(hdr(m, "From"))) && await baretakk(G, last.id)) { if (process.env.HENV_DEBUG) console.log("skjult takk-svar:", lastFrom, "|", subject); continue; }
     const avsender = vaarTraad ? lastFrom : from;
     const navn = avsender.replace(/<.*>/, "").replace(/"/g, "").trim() || avsender;
-    open.push({ d: osloDay(new Date(+last.internalDate)), navn, subject });
+    open.push({ d: osloDay(new Date(+last.internalDate)), navn, subject, thread: id, sisteId: last.id, ts: +last.internalDate, fra: avsender, tekst: await svartekst(G, last.id).catch(() => "") });
   }
   open.sort((a, b) => a.d < b.d ? -1 : 1);
   return { n: open.length, open, threads: ids.length };
+}
+
+// latest order per e-mail address, for the inbox only; addresses are never logged or stored
+async function shopifyLatestOrders(emails) {
+  const out = new Map();
+  try {
+    const SHOP = env("SHOPIFY_SHOP");
+    const r0 = await fetch(`https://${SHOP}/admin/oauth/access_token`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ client_id: env("SHOPIFY_CLIENT_ID"), client_secret: env("SHOPIFY_CLIENT_SECRET"), grant_type: "client_credentials" }) });
+    const tok = (await r0.json()).access_token;
+    if (!tok) throw new Error("no token");
+    for (const email of emails) {
+      const r = await fetch(`https://${SHOP}/admin/api/${API}/orders.json?email=${encodeURIComponent(email)}&status=any&limit=1&fields=name,created_at,fulfillment_status,fulfillments`, { headers: { "X-Shopify-Access-Token": tok } });
+      if (!r.ok) throw new Error("status " + r.status);
+      const o = ((await r.json()).orders || [])[0];
+      if (!o) continue;
+      const f = (o.fulfillments || [])[0];
+      out.set(email, { nr: o.name, dato: String(o.created_at).slice(0, 10), status: o.fulfillment_status === "fulfilled" ? "sendt" : "ikke sendt", sporing: f ? [f.tracking_company, f.tracking_number].filter(Boolean).join(" ") : "" });
+    }
+  } catch {
+    console.log("innboks: ordreoppslag utilgjengelig");
+    return new Map();
+  }
+  return out;
 }
 
 // ---------- 4. Kasse (manuell) og kjente forfall ----------
@@ -519,6 +544,30 @@ else if (process.env.META_ANNONSER_TEST) { try { annonser = JSON.parse(readFileS
 const metaKilde = meta?.source === "api" ? "Meta API": meta?.source === "manuell" ? "Meta manuelt" : "Meta-kvitteringer";
 let henv = null, henvErr = "";
 try { henv = await fetchHenvendelser(); } catch (e) { henvErr = e.message; console.error("Henvendelser utilgjengelig:", e.message); }
+let INNBOKS = null;
+try {
+  const pw = process.env.STATICRYPT_PASSWORD;
+  if (!pw) console.log("innboks: hoppet over (mangler passord)");
+  else {
+    let kilder;
+    if (process.env.INNBOKS_TEST) kilder = { mail: { ok: true, aapne: JSON.parse(readFileSync(process.env.INNBOKS_TEST, "utf8")) } };
+    else {
+      const items = henv ? henv.open : [];
+      const addr = x => (/<([^>]+)>/.exec(x.fra)?.[1] || x.fra).trim().toLowerCase();
+      const lookups = items.filter(x => !/ny kundemelding/i.test(x.subject));
+      const orders = lookups.length ? await shopifyLatestOrders([...new Set(lookups.map(addr))]) : new Map();
+      kilder = { mail: { ok: !!henv, aapne: items.map(x => ({ id: "mail:" + x.thread + ":" + x.sisteId, kanal: "mail", navn: shortName(x.fra), ts: x.ts, emne: x.subject, tekst: x.tekst, lenke: gmailLink(x.thread), gjelder: /ny kundemelding/i.test(x.subject) ? null : orders.get(addr(x)) || null })) } };
+    }
+    let suggest = null;
+    if (process.env.ANTHROPIC_API_KEY) {
+      const ask = makeSuggester({ apiKey: process.env.ANTHROPIC_API_KEY, model: process.env.INNBOKS_MODEL || undefined, regler: readFileSync(path.join(DIR, "data", "innboks-regler.md"), "utf8"), redactFn: redact });
+      suggest = m => ask({ ...m, gjelder: m.gjelder ? `Ordre ${m.gjelder.nr}, ${m.gjelder.dato}, ${m.gjelder.status}${m.gjelder.sporing ? ", " + m.gjelder.sporing : ""}` : null });
+    }
+    const res = await buildInbox({ pw, kilder, suggest, now: NOW });
+    INNBOKS = res.page;
+    console.log(`innboks: mail ${res.stats.aapne} åpne | nye ${res.stats.nye} | KI-kall ${res.stats.kall}, tegn ${res.stats.tegn}, feil ${res.stats.feil}`);
+  }
+} catch (e) { INNBOKS = null; console.error("Innboks utilgjengelig:", e.message); }
 const T = parseKasse();
 let plan = null;
 try { plan = readPlan(env("STATICRYPT_PASSWORD", "")); } catch (e) { console.error("Pace 2.0-plan utilgjengelig:", e.message); }
@@ -934,6 +983,7 @@ let html = readFileSync(TEMPLATE, "utf8");
 const js = s => JSON.stringify(s).replace(/</g, "\\u003c").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
 const put = (re, val, label) => { if (!re.test(html)) throw new Error("template mangler " + label); html = html.replace(re, () => val); };
 put(/\/\*__TASKS__\*\/[\s\S]*?\/\*__TASKS_END__\*\//, `/*__TASKS__*/ const SNAPSHOT = ${js(tasks)}; /*__TASKS_END__*/`, "TASKS");
+put(/\/\*__INNBOKS__\*\/[\s\S]*?\/\*__INNBOKS_END__\*\//, `/*__INNBOKS__*/ const INNBOKS = ${js(INNBOKS)}; /*__INNBOKS_END__*/`, "INNBOKS");
 put(/\/\*__META__\*\/[\s\S]*?\/\*__META_END__\*\//, `/*__META__*/ const META = ${js(metaInfo)}; /*__META_END__*/`, "META");
 put(/\/\*__PAGE_TOKEN__\*\/[\s\S]*?\/\*__PAGE_TOKEN_END__\*\//, `/*__PAGE_TOKEN__*/ const PAGE_TOKEN = ${js(process.env.PACE_PAGE_TOKEN || "")}; /*__PAGE_TOKEN_END__*/`, "PAGE_TOKEN");
 for (const [k, , h] of TABS) put(new RegExp(`<!--STATS_${k}-->[\\s\\S]*?<!--\\/STATS_${k}-->`), `<!--STATS_${k}-->${h}<!--/STATS_${k}-->`, "STATS_" + k);
