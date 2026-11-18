@@ -493,6 +493,10 @@ details.about summary:hover, details.fold > summary:hover { color: var(--ink); }
 .chip { border-radius: 6px; padding: 5px 10px; background: transparent; }
 .chip:hover { background: var(--surface); }
 .chip.on { background: var(--surface-2); border-color: var(--ink-muted); color: var(--ink); }
+.tool-h { display: flex; gap: 8px; align-items: center; flex: none; }
+.sok { width: 190px; background: transparent; color: var(--ink); border: 1px solid var(--hairline); border-radius: 6px; padding: 6px 10px; font: inherit; font-size: .85rem; transition: width .15s; }
+.sok::placeholder { color: var(--ink-muted); }
+.sok:focus, .sok:not(:placeholder-shown) { outline: none; width: 250px; border-color: var(--ink-muted); background: var(--surface); }
 
 /* Tavle og oppgaver */
 .board { gap: 9px; }
@@ -527,6 +531,7 @@ footer { margin-top: 38px; padding-top: 16px; border-top: 1px solid var(--hairli
   .tab { padding-inline: 10px; }
   .toolrow { display: block; }
   .toolrow .toolbar { margin-bottom: 8px; }
+  .sok, .sok:focus, .sok:not(:placeholder-shown) { flex: 1; width: auto; min-width: 0; font-size: 16px; }
   .board { grid-template-columns: 1fr; }
   .dagens-board .col { grid-template-columns: 1fr; }
   .chart { padding-inline: 10px; overflow: hidden; }
@@ -618,7 +623,7 @@ a.h-merke { color: inherit; text-decoration: none; cursor: pointer; } /* pace.®
 
   <div class="goal" id="goal" hidden></div>
 
-  <div class="toolrow"><div class="toolbar" id="filters"></div><button class="btn" id="add-open" title="Ny oppgave (tast N)">+ Oppgave</button></div>
+  <div class="toolrow"><div class="toolbar" id="filters"></div><div class="tool-h"><input type="search" id="task-sok" class="sok" placeholder="Søk i oppgaver" aria-label="Søk i oppgaver (tast /)" title="Søk i tittel og beskrivelse (tast /)" autocomplete="off" maxlength="80"><button class="btn" id="add-open" title="Ny oppgave (tast N)">+ Oppgave</button></div></div>
 
   <div class="add-bar">
     <input id="new-task" placeholder="Ny oppgave … (Enter legger i Idéer, tast N for å hoppe hit)" maxlength="200">
@@ -978,7 +983,10 @@ const sortTasks = a => a.slice().sort((x, y) => {
   const dx = x.due || "9999", dy = y.due || "9999"; return dx < dy ? -1 : dx > dy ? 1 : 0;
 });
 const passesFor = (t, f) => f === "Alle" ? true : f === "Over frist" ? isOver(t) : t.owner === f || (t.owner.includes("&") && t.owner.split("&").map(s => s.trim()).includes(f)) || (t.owner === "Alle" && f !== "Ikke fordelt");
-const passes = t => passesFor(t, filter);
+// søk i oppgaver (Morten 18.11.2026): alle ordene må finnes i tittel eller beskrivelse, kombineres med personfilteret
+let sok = "";
+const treff = t => !sok || sok.split(/\s+/).every(w => `${t.txt} ${t.body || ""}`.toLowerCase().includes(w));
+const passes = t => passesFor(t, filter) && treff(t);
 
 function render() {
   renderFilters();
@@ -994,8 +1002,8 @@ function render() {
     const col = document.createElement("div");
     col.className = "col" + (compact ? " compact" : "");
     col.innerHTML = `<h2><span class="dot" style="background:${meta.color}"></span>${esc(name)}<span class="count">${items.length}</span></h2>`;
-    if (!items.length) col.insertAdjacentHTML("beforeend", `<div class="empty">${meta.empty}</div>`);
-    const kutt = !UNDER.includes(name) && items.length > MAXVIS;
+    if (!items.length) col.insertAdjacentHTML("beforeend", `<div class="empty">${sok ? "Ingen treff" : meta.empty}</div>`);
+    const kutt = !sok && !UNDER.includes(name) && items.length > MAXVIS;
     for (const t of (kutt && !expanded.has(name) ? items.slice(0, MAXVIS) : items)) col.appendChild(taskCard(t, compact));
     if (kutt) { const m = document.createElement("button"); m.type = "button"; m.className = "more"; m.textContent = expanded.has(name) ? "Vis færre ▴" : `Vis alle ${items.length} ▾`;
       m.onclick = () => { expanded.has(name) ? expanded.delete(name) : expanded.add(name); render(); }; col.appendChild(m); }
@@ -1658,7 +1666,11 @@ document.addEventListener("keydown", e => {
   if (e.key === "Escape") { closePop(); hideToast(); if (document.activeElement) document.activeElement.blur(); return; }
   if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.key === "n" || e.key === "N") { if (live) { e.preventDefault(); openAdd(); } }
+  if (e.key === "/") { e.preventDefault(); sokFelt.focus(); }
 });
+const sokFelt = document.getElementById("task-sok");
+sokFelt.addEventListener("input", () => { sok = sokFelt.value.trim().toLowerCase(); render(); });
+sokFelt.addEventListener("keydown", e => { if (e.key === "Escape" && sokFelt.value) { e.stopPropagation(); sokFelt.value = ""; sok = ""; render(); } });
 (function staleCheck() {
   if (!META.shopify_at) return;
   const age = (Date.now() - new Date(META.shopify_at)) / 36e5;
