@@ -643,6 +643,7 @@ a.h-merke { color: inherit; text-decoration: none; cursor: pointer; } /* pace.®
     <div class="sec-h">Partnere</div>
     <details class="chart fold" id="b2b" style="margin-bottom:10px" open></details>
     <details class="chart fold" id="avtaler" style="margin-bottom:10px" open></details>
+    <details class="chart fold" id="mellomledd" style="margin-bottom:10px" open></details>
   </div>
 
   <div id="strat-view">
@@ -817,7 +818,8 @@ const isUke = t => /^ukesjekk$/i.test((t.txt || "").trim()); // logg: «2026-W45
 const isGoal = t => /^ukens mål$/i.test((t.txt || "").trim());
 const isStrat = t => /^strategi$/i.test((t.txt || "").trim());
 const isAar = t => /^årshjul$/i.test((t.txt || "").trim());
-const quests = () => tasks.filter(t => !isMile(t) && !isRole(t) && !isB2B(t) && !isAvtaler(t) && !isCoins(t) && !isUke(t) && !isGoal(t) && !isStrat(t) && !isAar(t));
+const isMellomledd = t => /^mellomledd$/i.test((t.txt || "").trim());
+const quests = () => tasks.filter(t => !isMile(t) && !isRole(t) && !isB2B(t) && !isAvtaler(t) && !isCoins(t) && !isUke(t) && !isGoal(t) && !isStrat(t) && !isAar(t) && !isMellomledd(t));
 const isOver = t => !!t.due && !isDone(t) && t.due < todayOslo();
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const owners = () => project?.ansvarligField?.options.map(o => o.name) || OWNERS_FALLBACK;
@@ -1017,7 +1019,7 @@ function render() {
   // ukjente statuser (nye kolonner på boardet) vises sist
   const unknown = q.filter(t => !SECTIONS.includes(t.sec) && passes(t));
   for (const sec of [...new Set(unknown.map(t => t.sec))]) { const items = unknown.filter(t => t.sec === sec); const col = document.createElement("div"); col.className = "col"; col.innerHTML = `<h2>${esc(sec)}<span class="count">${items.length}</span></h2>`; for (const t of items) col.appendChild(taskCard(t)); board.appendChild(col); }
-  renderMiles(); renderStrat(); renderAarshjul(); renderRoles(); renderB2B(); renderAvtaler(); renderCoins(); renderUke(); renderFokus(); visGjg(); renderHero(); renderOwnerSelect();
+  renderMiles(); renderStrat(); renderAarshjul(); renderRoles(); renderB2B(); renderAvtaler(); renderMellomledd(); renderCoins(); renderUke(); renderFokus(); visGjg(); renderHero(); renderOwnerSelect();
 }
 
 function renderFilters() {
@@ -1364,6 +1366,19 @@ function renderAvtaler() {
   const rows = (card.body || "").split(/\r?\n/).map(l => l.split("|").map(s => s.trim())).filter(c => c.length >= 2 && c[0] && !/^(partner|én avtale per linje)/i.test(c[0]));
   el.innerHTML = `<summary><span class="k">Samarbeidsavtaler <b>${rows.length}</b></span><span class="sec-sub fold-vis">vis ▾</span></summary><div class="sec-sub">rediger kortet «Avtaler» på boardet</div>`
     + (rows.length ? `<table class="b2b"><tr><th>Partner</th><th>Type</th><th>Vilkår</th><th>Kode</th><th>Status</th><th>Sist kontakt</th><th>Neste steg</th></tr>${rows.map(c => `<tr><td>${esc(c[0])}</td><td>${esc(c[1] || "")}</td><td>${esc(c[2] || "")}</td><td>${esc(c[3] || "")}</td><td>${esc(c[4] || "")}</td>${sistKontaktCelle(c[0])}<td>${esc(c[6] || "–")}</td></tr>`).join("")}</table>` : `<div class="empty">Ingen avtaler i kortet ennå.</div>`);
+}
+
+// MELLOMLEDD (Morten 18.11.2026): byråer og plattformer for kommersiell kontakt med influensere, innholdsprodusenter og utøvere.
+// Fra kortet «Mellomledd» på boardet, én linje per aktør: Aktør | Gjelder | Hva | Pris/modell | Kontakt | Merknad. Gjelder «Ute» vises dempet nederst.
+function renderMellomledd() {
+  const el = document.getElementById("mellomledd"); if (!el) return;
+  const card = tasks.find(isMellomledd);
+  if (!card) { el.innerHTML = `<summary><span class="k">Mellomledd</span></summary><div class="empty">Lag et kort som heter «Mellomledd» på boardet.</div>`; return; }
+  const rows = (card.body || "").split(/\r?\n/).map(l => l.split("|").map(s => s.trim())).filter(c => c.length >= 2 && c[0] && !/^aktør$/i.test(c[0]));
+  const inne = rows.filter(c => !/^ute$/i.test(c[1] || "")), ute = rows.filter(c => /^ute$/i.test(c[1] || ""));
+  el.innerHTML = `<summary><span class="k">Mellomledd: byråer og plattformer <b>${inne.length}</b></span><span class="sec-sub fold-vis">vis ▾</span></summary><div class="sec-sub">kommersiell kontakt (Morten og Anders) · rediger kortet «Mellomledd» på boardet</div>`
+    + (inne.length ? `<table class="b2b"><tr><th>Aktør</th><th>Gjelder</th><th>Hva</th><th>Pris/modell</th><th>Kontakt</th><th>Merknad</th></tr>${inne.map(c => `<tr><td>${esc(c[0])}</td><td>${esc(c[1] || "")}</td><td>${esc(c[2] || "")}</td><td>${esc(c[3] || "")}</td><td>${esc(c[4] || "")}</td><td>${esc(c[5] || "")}</td></tr>`).join("")}</table>` : `<div class="empty">Ingen aktører i kortet ennå.</div>`)
+    + (ute.length ? `<div class="sec-sub" style="margin-top:8px">Ute: ${ute.map(c => `<b>${esc(c[0])}</b> (${esc(c[2] || "")})`).join(" · ")}</div>` : "");
 }
 
 // STRATEGI: tekst fra boardkortet «Strategi». «# Overskrift» starter en blokk. Linjer med «Navn | Verdi | Forklaring» blir mål-fliser,
