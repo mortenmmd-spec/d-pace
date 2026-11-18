@@ -289,7 +289,7 @@
   #add-open { display: none; flex: none; } body.live #add-open { display: inline-block; }
   body.live .add-bar:not(.open) { display: none; }
   .me-sel { font: inherit; font-size: 0.85rem; color: var(--ink); background: var(--surface); border: 1px solid var(--hairline); border-radius: 999px; padding: 5px 10px; }
-  body.team #main-view, body.strat #main-view, body.aar #main-view { display: none; } body:not(.team) #team-view { display: none; } body:not(.strat) #strat-view { display: none; } body:not(.aar) #aar-view { display: none; } body.par #main-view { display: none; } body:not(.par) #par-view { display: none; } body.lnk #main-view { display: none; } body:not(.lnk) #lnk-view { display: none; } /* Roller og Årshjul er egne visninger (Morten 14.11.2026) */
+  body.team #main-view, body.strat #main-view, body.aar #main-view { display: none; } body:not(.team) #team-view { display: none; } body:not(.strat) #strat-view { display: none; } body:not(.aar) #aar-view { display: none; } body.par #main-view { display: none; } body:not(.par) #par-view { display: none; } body.lnk #main-view { display: none; } body:not(.lnk) #lnk-view { display: none; } body.inb #main-view { display: none; } body:not(.inb) #inb-view { display: none; } /* Roller og Årshjul er egne visninger (Morten 14.11.2026) */
   /* strategiside (Morten 14.11.2026): teksten kommer fra boardkortet «Strategi» */
   .strat-blokk { background: var(--surface); border: 1px solid var(--hairline); border-radius: 14px; padding: 16px 20px; margin: 0 0 12px; }
   .strat-blokk h2 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-muted); margin: 0 0 8px; }
@@ -573,6 +573,7 @@ a.h-merke { color: inherit; text-decoration: none; cursor: pointer; } /* pace.®
     </h1>
     <div class="hdr-actions">
       <select id="coin-me" class="me-sel" aria-label="Hvem er du?" title="Hvem er du?"></select>
+      <button class="btn" id="inb-btn" aria-pressed="false">Innboks</button>
       <button class="btn" id="strat-btn" aria-pressed="false">Strategi</button>
       <button class="btn" id="par-btn" aria-pressed="false">Partnere</button>
       <button class="btn" id="team-btn" aria-pressed="false">Roller</button>
@@ -751,6 +752,47 @@ a.h-merke { color: inherit; text-decoration: none; cursor: pointer; } /* pace.®
     <a class="lk-kort" href="https://docs.google.com/spreadsheets/d/12Y-k2e6uy6opjz3ZUJ0OTqYm5xHm2yyngqKoJFayqMc/edit" target="_blank" rel="noopener"><span class="l-t"><b>Butikker oppfølging</b><small>Google-ark</small></span><span class="l-pil">↗</span></a>
   </div>
   </div><!-- /lnk-view (lenker) -->
+  <style id="inb-style">
+  .inb-panes { display: grid; grid-template-columns: 170px 320px 1fr; border: 1px solid var(--hairline); border-radius: 8px; overflow: hidden; min-height: 430px; }
+  .inb-pane { padding: 14px; border-right: 1px solid var(--hairline); min-width: 0; }
+  .inb-pane:last-child { border-right: 0; }
+  .inb-label { display: block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-muted); margin: 16px 8px 6px; }
+  .inb-label:first-child { margin-top: 0; }
+  .inb-nav { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 6px 8px; border: 0; border-radius: 6px; background: transparent; color: var(--ink-muted); font: inherit; font-size: 0.82rem; text-align: left; cursor: pointer; }
+  .inb-nav:hover { color: var(--ink); }
+  .inb-nav.on { background: var(--surface); color: var(--ink); }
+  .inb-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .inb-dot-instagram { background: var(--magenta); }
+  .inb-dot-facebook { background: var(--blue); }
+  .inb-dot-mail { background: var(--aqua); }
+  .inb-note { margin: 0 0 10px; font-size: 0.72rem; color: var(--ink-muted); }
+  .inb-row { display: block; width: 100%; padding: 10px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+  .inb-row + .inb-row { margin-top: 4px; }
+  .inb-row.on { background: var(--surface); border-color: var(--hairline); }
+  .inb-row-top { display: flex; justify-content: space-between; gap: 8px; font-size: 0.82rem; font-weight: 600; }
+  .inb-row-top time { color: var(--ink-muted); font-size: 0.72rem; font-weight: 400; }
+  .inb-row-line { display: block; color: var(--ink-muted); font-size: 0.82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .inb-row.done .inb-row-top { color: var(--ink-muted); font-weight: 400; }
+  .inb-meta { display: flex; justify-content: space-between; gap: 8px; font-size: 0.82rem; font-weight: 600; }
+  .inb-meta time { color: var(--ink-muted); font-size: 0.72rem; font-weight: 400; }
+  .inb-subject { margin: 8px 0 0; font-size: 0.92rem; font-weight: 600; }
+  .inb-text { margin: 12px 0 18px; font-size: 0.92rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .inb-draft { display: block; width: 100%; min-height: 110px; margin: 8px 0 12px; padding: 12px 14px; background: var(--surface-2); color: var(--ink); border: 1px solid var(--hairline); border-left: 2px solid var(--blue); border-radius: 7px; font: inherit; font-size: 0.92rem; resize: vertical; }
+  .inb-none { margin: 8px 0 12px; font-size: 0.82rem; color: var(--ink-muted); }
+  .inb-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .inb-btn { font-size: 0.82rem; }
+  .inb-btn.inb-primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .inb-count { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; background: var(--blue); color: #fff; font-size: 0.72rem; }
+  .inb-empty { color: var(--ink-muted); font-size: 0.82rem; }
+  @media (max-width: 860px) { .inb-panes { grid-template-columns: 1fr; } .inb-pane { border-right: 0; border-bottom: 1px solid var(--hairline); } }
+  </style>
+  <div id="inb-view">
+    <div class="inb-panes">
+      <nav class="inb-pane" id="inb-side" aria-label="Filter"></nav>
+      <div class="inb-pane" id="inb-list"></div>
+      <div class="inb-pane" id="inb-detail"></div>
+    </div>
+  </div><!-- /inb-view (innboks) -->
 
   <footer>
     Dra kort mellom kolonnene, huk av, klikk 👤 for ansvarlig, klikk på en oppgave for å redigere den. Endringer lagres direkte på GitHub-boardet.
@@ -787,6 +829,7 @@ const getToken = () => PAGE_TOKEN || localStorage.getItem(TOKEN_KEY);
 // Snapshot + tall. Skrives av scripts/build-pace-quest.mjs — ikke rediger for hånd.
 /*__META__*/ const META = {}; /*__META_END__*/
 /*__TASKS__*/ const SNAPSHOT = []; /*__TASKS_END__*/
+/*__INNBOKS__*/ const INNBOKS = null; /*__INNBOKS_END__*/
 
 const SECTION_META = {
   "Idéer":   { color: "var(--ink-muted)", empty: "Tomt." },
@@ -1672,10 +1715,108 @@ function setMode(mode, msg) {
 document.getElementById("token-clear").onclick = () => { localStorage.removeItem(TOKEN_KEY); tasks = SNAPSHOT.slice(); project = null; setMode("off", "🔒 koblet fra"); render(); };
 document.getElementById("reload-btn").onclick = async () => { try { if (await loadBoard()) { render(); toast("Boardet oppdatert"); } } catch (e) { toast("Kunne ikke hente boardet: " + e.message, true); } };
 document.getElementById("uke-btn").onclick = startGjennomgang;
+// Innboks: visning av meldinger fra INNBOKS (bygd inn av build-pace-quest.mjs)
+const INB_KEY = "pace-inb-skjult", INB_KANAL = { instagram: "Instagram", facebook: "Facebook", mail: "Mail" }, INB_TYPE = { sporsmal: "Spørsmål", ordre: "Ordre", ros: "Ros" };
+const inbMsgs = INNBOKS ? INNBOKS.meldinger : [];
+let inbFilter = { status: "ubesvart", kanal: null, type: null }, inbSel = null;
+const inbHidden = (() => {
+  let h = {};
+  try { h = JSON.parse(localStorage.getItem(INB_KEY)); } catch (e) { h = null; }
+  if (!(h && typeof h === "object" && !Array.isArray(h))) h = {};
+  const now = Date.now();
+  for (const id of Object.keys(h)) if (!(h[id] > now)) delete h[id];
+  try { localStorage.setItem(INB_KEY, JSON.stringify(h)); } catch (e) {}
+  return h;
+})();
+const inbDay = ts => new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Oslo", year: "numeric", month: "2-digit", day: "2-digit" }).format(ts);
+const inbClock = ts => new Intl.DateTimeFormat("nb-NO", { timeZone: "Europe/Oslo", hour: "2-digit", minute: "2-digit", hour12: false }).format(ts);
+const inbDate = ts => { const p = inbDay(ts).split("-"); return p[2] + "." + p[1]; };
+const inbShort = ts => inbDay(ts) === inbDay(Date.now()) ? inbClock(ts) : inbDate(ts);
+const inbLong = iso => { const t = new Date(iso).getTime(); return inbDate(t) + " " + inbClock(t); };
+const inbDone = m => m.besvart || !!inbHidden[m.id];
+const inbCountOpen = () => inbMsgs.filter(m => !inbDone(m)).length;
+const inbByStatus = m => inbFilter.status === "alle" || (inbFilter.status === "besvart") === inbDone(m);
+const inbVisible = () => inbMsgs.filter(m => inbByStatus(m) && (!inbFilter.kanal || m.kanal === inbFilter.kanal) && (!inbFilter.type || m.type === inbFilter.type));
+// the number on the Innboks button is the card «Ubesvarte henvendelser» (META.henv_n, null while mail is down), also when the inbox data is missing; «Marker besvart» only changes the list
+function inbBtnCount(b) {
+  const n = META.henv_n || 0;
+  if (n > 0) { const s = document.createElement("span"); s.className = "inb-count"; s.textContent = n; b.append(s); }
+}
+function inbUpdateBtn() { const b = document.getElementById("inb-btn"), on = document.body.classList.contains("inb"); b.textContent = on ? "← Tilbake" : "Innboks"; if (!on) inbBtnCount(b); }
+function inbSide() {
+  const base = inbMsgs.filter(inbByStatus);
+  const item = (grp, key, label, n, dot) => `<button class="inb-nav${(grp === "status" ? inbFilter.status === key : inbFilter[grp] === key) ? " on" : ""}" data-grp="${grp}" data-key="${esc(key)}"><span>${dot ? `<i class="inb-dot inb-dot-${esc(key)}"></i>` : ""}${esc(label)}</span><span>${n}</span></button>`;
+  const open = inbCountOpen(), kilder = INNBOKS.kilder || {};
+  let h = item("status", "ubesvart", "Ubesvart", open) + item("status", "alle", "Alle", inbMsgs.length) + item("status", "besvart", "Besvart", inbMsgs.length - open);
+  h += `<span class="inb-label">Kanal</span>`;
+  for (const k of ["instagram", "facebook", "mail"]) if (kilder[k]) h += item("kanal", k, INB_KANAL[k], base.filter(m => m.kanal === k).length, true);
+  h += `<span class="inb-label">Type</span>`;
+  for (const t of Object.keys(INB_TYPE)) h += item("type", t, INB_TYPE[t], base.filter(m => m.type === t).length);
+  document.getElementById("inb-side").innerHTML = h;
+}
+function inbNote() {
+  if (!INNBOKS) return "Innboks er ikke tilgjengelig i dette bygget.";
+  const k = INNBOKS.kilder.mail || {};
+  if (k.ok === false) return k.hentet ? `Mail kunne ikke hentes. Viser det som ble hentet ${inbLong(k.hentet)}.` : "Mail kunne ikke hentes.";
+  return k.hentet ? `Hentet ${inbClock(new Date(k.hentet).getTime())} · oppdateres hver time` : "Oppdateres hver time";
+}
+// contact form ("Ny kundemelding"): the row shows the message field, not the fixed start of the notification
+const inbLine = m => (/ny kundemelding/i.test(m.emne || "") && /(?:^|\s)(?:Melding|Kommentar|Body|Message|Comment)\s*:\s*(\S.*)$/i.exec(m.tekst || "")?.[1]) || (m.tekst || "").split("\n")[0] || m.emne || "(ingen tekst)";
+function inbList() {
+  const list = inbVisible();
+  document.getElementById("inb-list").innerHTML = `<p class="inb-note">${esc(inbNote())}</p>` + (list.length ? list.map(m =>
+    `<button class="inb-row${m.id === inbSel ? " on" : ""}${inbDone(m) ? " done" : ""}" data-id="${esc(m.id)}"><span class="inb-row-top"><span><i class="inb-dot inb-dot-${esc(m.kanal)}"></i>${esc(m.navn)}</span><time>${esc(inbShort(m.ts))}</time></span><span class="inb-row-line">${esc(inbLine(m))}</span></button>`).join("") : `<p class="inb-empty">Ingen meldinger her.</p>`);
+}
+function inbDetail() {
+  const el = document.getElementById("inb-detail"), m = inbMsgs.find(x => x.id === inbSel);
+  if (!m) { el.innerHTML = `<p class="inb-empty">${INNBOKS ? "Ingen melding valgt." : ""}</p>`; return; }
+  const draft = m.forslag ? `<textarea class="inb-draft" id="inb-draft" aria-label="Forslag til svar"></textarea>` : `<p class="inb-none">${m.selv ? "Svar selv: kunden nevner helse" : m.svar === false ? "KI: trenger trolig ikke svar" : "Ingen forslag"}</p>`;
+  const when = inbDay(m.ts) === inbDay(Date.now()) ? "i dag " + inbClock(m.ts) : inbDate(m.ts) + " " + inbClock(m.ts);
+  el.innerHTML = `<div class="inb-meta"><span><i class="inb-dot inb-dot-${esc(m.kanal)}"></i>${esc(m.navn)} · ${esc(INB_KANAL[m.kanal] || m.kanal)}</span><time>${esc(when)}</time></div>`
+    + (m.emne ? `<p class="inb-subject">${esc(m.emne)}</p>` : "")
+    + (m.gammelTekst ? `<p class="inb-none">Den nye meldingen kunne ikke hentes. Teksten under er fra forrige melding i tråden.</p>` : "")
+    + `<p class="inb-text">${esc(m.tekst || "(ingen tekst)")}</p><span class="inb-label">Forslag til svar · KI</span>${draft}`
+    + `<div class="inb-actions"><button class="btn inb-btn inb-primary" id="inb-copy">Kopier og åpne i Gmail</button><button class="btn inb-btn" id="inb-done">Marker besvart</button></div>`;
+  if (m.forslag) document.getElementById("inb-draft").value = m.forslag;
+  document.getElementById("inb-copy").onclick = () => {
+    const d = document.getElementById("inb-draft");
+    const open = () => { if (typeof m.lenke === "string" && m.lenke.startsWith("https://")) window.open(m.lenke, "_blank", "noopener"); };
+    const fail = () => { toast("Kunne ikke kopiere svaret. Kopier det selv.", true); open(); };
+    if (!d) { open(); return; }
+    try { navigator.clipboard.writeText(d.value).then(() => { toast("Svaret er kopiert"); open(); }, fail); } catch (e) { fail(); }
+  };
+  document.getElementById("inb-done").onclick = () => {
+    inbHidden[m.id] = Date.now() + 24 * 3600 * 1000;
+    try { localStorage.setItem(INB_KEY, JSON.stringify(inbHidden)); } catch (e) {}
+    inbSel = null; inbRender();
+  };
+}
+function inbRender() {
+  if (!INNBOKS) { document.getElementById("inb-side").innerHTML = ""; inbList(); inbDetail(); inbUpdateBtn(); return; }
+  const list = inbVisible();
+  if (!list.some(m => m.id === inbSel)) inbSel = list.length ? list[0].id : null;
+  inbSide(); inbList(); inbDetail(); inbUpdateBtn();
+}
+function inbSafeRender() {
+  try { inbRender(); } catch (e) { console.error("innboks", e); try { document.getElementById("inb-list").textContent = "Innboks er ikke tilgjengelig i dette bygget."; } catch (e2) {} }
+}
+function inbEnter() { inbSel = null; inbSafeRender(); }
+document.getElementById("inb-side").onclick = e => {
+  const b = e.target.closest(".inb-nav"); if (!b) return;
+  const g = b.dataset.grp, k = b.dataset.key;
+  if (g === "status") inbFilter.status = k; else inbFilter[g] = inbFilter[g] === k ? null : k;
+  inbSel = null; inbRender();
+};
+document.getElementById("inb-list").onclick = e => {
+  const r = e.target.closest(".inb-row"); if (!r) return;
+  inbSel = r.dataset.id; inbList(); inbDetail();
+};
+inbSafeRender();
 // Roller og årshjul i egen visning (rydding 13.11.2026)
-const VISNINGER = { strat: ["strat-btn", "Strategi"], par: ["par-btn", "Partnere"], team: ["team-btn", "Roller"], aar: ["aar-btn", "Årshjul"], lnk: ["lnk-btn", "Lenker"] };
+const VISNINGER = { inb: ["inb-btn", "Innboks"], strat: ["strat-btn", "Strategi"], par: ["par-btn", "Partnere"], team: ["team-btn", "Roller"], aar: ["aar-btn", "Årshjul"], lnk: ["lnk-btn", "Lenker"] };
 function visning(navn) { // navn = "strat" | "team" | "aar" | "" (hovedsiden)
   for (const [k, [id, tekst]] of Object.entries(VISNINGER)) { const on = k === navn, b = document.getElementById(id); document.body.classList.toggle(k, on); b.setAttribute("aria-pressed", on); b.textContent = on ? "← Tilbake" : tekst; }
+  if (navn === "inb") inbEnter(); else inbUpdateBtn();
   window.scrollTo(0, 0);
 }
 document.getElementById("hjem-btn").onclick = e => { e.preventDefault(); if (gjg) lukkGjg(); closePop(); visning(""); };
