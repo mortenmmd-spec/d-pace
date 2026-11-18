@@ -31,11 +31,20 @@ export function redact(text) {
     .replace(/(?:https?:\/\/|www\.)[^\s<>"]*[^\s<>".,;:!?)\]]/gi, "[lenke]")
     // the value of a name field, up to the next "Label:" or else the next three words
     .replace(/((?:^|\s)(?:(?:For|Etter)?navn|Name)\s*:\s*)(?:[^:]{1,60}?(?=\s+\p{L}[\p{L}-]*\s*:)|[^:\s]+(?:\s+[^:\s]+){0,2})/giu, "$1[navn]")
-    .replace(/[\p{L}\p{N}._+-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/gu, "[e-post]")
+    // a quoted local part ("kari nordmann"@x.no) goes whole
+    .replace(/(?:"(?:[^"\\\n]|\\.){1,64}"|[\p{L}\p{N}._+-]+)@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/gu, "[e-post]")
     // hard and other Unicode spaces become plain spaces, so the phone forms below see them
     .replace(/\p{Zs}/gu, " ")
     // "00" needs a country code (not 0), so "1 000 000 000" stays; an area code in brackets ("+1 (212) 555-1234") only after a country code; "91 234 567", "912.34.567" and "2233 4455" start with 2-9, and two years ("2026 2027") are not a number, so amounts, years and order pairs stay
-    .replace(/(?<![\d#])(?:(?:\+|00(?=[1-9]))\d{1,3}(?:[ -]?\(\d{1,4}\))?(?:[ -]?\d){6,12}|\d{8}|\d{3}[ -]\d{2}[ -]\d{3}|\d{2}[ -]\d{2}[ -]\d{2}[ -]\d{2}|\d{2}\.\d{2}\.\d{2}\.\d{2}|[2-9]\d \d{3} \d{3}|(?!(?:19|20)\d\d[ -](?:19|20)\d\d)[2-9]\d{3}[ -]\d{4}|[2-9]\d{2}\.\d{2}\.\d{3})(?!\.?\d)/g, "[telefon]");
+    .replace(/(?<![\d#])(?:(?:\+|00(?=[1-9]))\d{1,3}(?:[ -]?\(\d{1,4}\))?(?:[ -]?\d){6,12}|\d{8}|\d{3}[ -]\d{2}[ -]\d{3}|\d{2}[ -]\d{2}[ -]\d{2}[ -]\d{2}|\d{2}\.\d{2}\.\d{2}\.\d{2}|[2-9]\d \d{3} \d{3}|(?!(?:19|20)\d\d[ -](?:19|20)\d\d)[2-9]\d{3}[ -]\d{4}|[2-9]\d{2}\.\d{2}\.\d{3})(?!\.?\d)/g, "[telefon]")
+    // any other split of eight digits starting with 2-9 ("912 345 67", "912-345-67", "91.234.567"), one kind of separator throughout;
+    // not a date ("20.11.2026", "2026-11-20") or two years, and never part of a longer number. An amount with dots from 20.000.000 up is hit too.
+    .replace(/(?<![\d#])[2-9]\d*([ .-])\d+(?:\1\d+)*(?!\.?\d)/g, (m, sep) => {
+      const g = m.split(sep), shape = g.map(x => x.length).join(" "), year = y => /^(?:19|20)\d\d$/.test(y);
+      const date = (d, mo, y) => +d >= 1 && +d <= 31 && +mo >= 1 && +mo <= 12 && year(y);
+      if (g.join("").length !== 8 || shape === "2 2 4" && date(g[0], g[1], g[2]) || shape === "4 2 2" && date(g[2], g[1], g[0]) || shape === "4 4" && year(g[0]) && year(g[1])) return m;
+      return "[telefon]";
+    });
 }
 
 // Name from a contact form, only when the next field is a known one; otherwise "" and the caller falls back to the sender.

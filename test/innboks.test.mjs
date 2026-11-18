@@ -596,3 +596,47 @@ test("redact: amounts, order numbers, postal codes and dates with hard or narrow
     for (const sp of [" ", " "]) assert.equal(redact(s.replace(/ /g, sp)), s);
   }
 });
+
+// Codex review 3, 19.11.2026
+
+test("redact: a Norwegian eight-digit number in any split with spaces, dots or dashes", () => {
+  for (const s of ["912 345 67", "912-345-67", "912.345.67", "91 23 4567", "9123 45 67", "9 12 34 567", "91-234-567", "91.234.567", "2233.4455", "2233 44 55"])
+    assert.equal(redact(`Ring ${s}.`), "Ring [telefon].", s);
+  assert.equal(redact("Ring +47 912.345.67"), "Ring +47 [telefon]");
+  assert.equal(redact("Ring 912 34-567 eller 912 345 67"), "Ring [telefon] eller [telefon]");
+});
+
+test("redact: an e-mail address with a quoted local part", () => {
+  assert.equal(redact('Skriv til "kari nordmann"@example.no.'), "Skriv til [e-post].");
+  assert.equal(redact('"kari.n"@x.no og "a\\"b"@x.no'), "[e-post] og [e-post]");
+  assert.equal(redact('Han sa "hei" og "ring meg" til kari@x.no'), 'Han sa "hei" og "ring meg" til [e-post]');
+  assert.equal(redact('"Kari Nordmann" <kari@x.no>'), '"Kari Nordmann" <[e-post]>');
+});
+
+test("redact: amounts, order numbers, postal codes, dates and times are not hit by the wider phone forms", () => {
+  for (const s of ["Kr 2.500.000", "Kr 2.345.678", "Totalt 1.299,- og 2.499,-", "Omsetning 2 000 000 000 kr", "Beløp 2 345 678,50", "Pris 249,00 kr",
+    "Ordre #2345 6789", "Ordrenr. 1042", "Ordre #1042-2", "Sporing 70725512345678", "Kontonr 3000.12.34567", "Orgnr 923456789",
+    "Storgata 25, 2050 Jessheim", "Kirkeveien 25 3015 Drammen", "Postboks 2233, 0150 Oslo",
+    "Dato 20.11.2026", "Den 31.12.2026", "Den 25.12.2026.", "2026-11-20", "2026.11.20", "20-11-2026", "20 11 2026", "1.12.2026", "20.1.2026",
+    "Uke 47 2026", "Sesong 2026.2027", "20.-22.11.2026", "24-25.12",
+    "kl. 20.00", "kl 20.00-22.00", "kl 20.00 - 22.30", "kl. 10.00-12.00", "20:00-22:00", "Fra 20.15 til 21.45", "20.11 kl 20.30", "20.11.2026 kl. 20.00", "2026-11-20 20.30"])
+    assert.equal(redact(s), s);
+  // known and accepted: an amount with dots from 20 million up has the shape of a phone number
+  assert.equal(redact("Kr 25.000.000"), "Kr [telefon]");
+});
+
+test("the whole API request holds none of the wider phone forms or a quoted e-mail address", async () => {
+  const pii = ["912 345 67", "912-345-67", "912.345.67", "91.234.567", "kari nordmann", "example.no", "ola.n"];
+  const tekst = 'Hei! Ring meg på 912 345 67 eller 912-345-67, jobb 91.234.567. Skriv til "kari nordmann"@example.no. Ordre #2345 levert 20.11.2026 kl. 20.00, kr 1 299,00 til 2050 Jessheim. Hvor er pakken?\n\n--\nMob: +47 912.345.67';
+  const c = updateCache({ cache: empty(), kilder: src([raw("mail:a:1", { emne: 'Fra "ola.n"@x.no, tlf 912 345 67', tekst })]), now });
+  const calls = [];
+  const fetchFn = async (url, init) => {
+    calls.push({ url, headers: init.headers, body: init.body });
+    return { ok: true, status: 200, json: async () => ({ stop_reason: "end_turn", content: [{ type: "text", text: JSON.stringify({ type: "ordre", svar: true, selv: false, forslag: "Hei!" }) }] }) };
+  };
+  await suggestAll(pickNew(c), makeSuggester({ apiKey: "k", regler: "r", redactFn: redact, fetchFn }));
+  assert.equal(calls.length, 1);
+  const request = JSON.stringify(calls[0]), content = JSON.parse(calls[0].body).messages[0].content;
+  for (const s of pii) assert.ok(!request.includes(s) && !content.includes(s), s);
+  for (const s of ["Ordre #2345 levert 20.11.2026 kl. 20.00, kr 1 299,00 til 2050 Jessheim. Hvor er pakken?", "[telefon]", "[e-post]"]) assert.ok(content.includes(s), s);
+});

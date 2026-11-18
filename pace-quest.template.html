@@ -1738,9 +1738,9 @@ const inbDone = m => m.besvart || !!inbHidden[m.id];
 const inbCountOpen = () => inbMsgs.filter(m => !inbDone(m)).length;
 const inbByStatus = m => inbFilter.status === "alle" || (inbFilter.status === "besvart") === inbDone(m);
 const inbVisible = () => inbMsgs.filter(m => inbByStatus(m) && (!inbFilter.kanal || m.kanal === inbFilter.kanal) && (!inbFilter.type || m.type === inbFilter.type));
-// the number on the Innboks button follows the card «Ubesvarte henvendelser»: the source count, and none while mail is down; «Marker besvart» only changes the list
+// the number on the Innboks button is the card «Ubesvarte henvendelser» (META.henv_n, null while mail is down), also when the inbox data is missing; «Marker besvart» only changes the list
 function inbBtnCount(b) {
-  const n = INNBOKS && INNBOKS.kilder.mail.ok ? inbMsgs.filter(m => !m.besvart).length : 0;
+  const n = META.henv_n || 0;
   if (n > 0) { const s = document.createElement("span"); s.className = "inb-count"; s.textContent = n; b.append(s); }
 }
 function inbUpdateBtn() { const b = document.getElementById("inb-btn"), on = document.body.classList.contains("inb"); b.textContent = on ? "← Tilbake" : "Innboks"; if (!on) inbBtnCount(b); }

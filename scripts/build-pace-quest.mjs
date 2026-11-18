@@ -443,9 +443,9 @@ async function gmailAuth(refresh) {
 const AUTO_FROM = /no-?reply|notification|mailer-daemon|facebookmail|business-updates\.facebook|@google\.com|@accounts\.google|@shopify\.com|@stripe\.com|@klarna|@vipps|@dnb\.no|@360logistics|@bring\.com|@posten\.no|@postnord|newsletter|nyhetsbrev|info@|support@|kundeservice@|hello@|team@|@linkedin|@meta\.com|@fiken|@tripletex|@github\.com|production@adtraction\.com/i; // Adtraction månedsrapporter (Morten 09.11.2026)
 const OSS = /@getpace\.no/i; // hei@ og aliasene (morten@ osv.)
 // selve svarteksten i en melding (uten sitert tråd): text/plain, ellers html uten tagger; kuttes ved «skrev»/«wrote»-linjen og >-linjer
-// inbox = true is for the Innboks view only: also cut at "… skrev Pace <hei@getpace.no>:" and decode &lt; etc. in html. baretakk keeps the default, so the count is unchanged.
-async function svartekst(G, msgId, inbox = false) {
-  const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=full`, { headers: G });
+// inbox = true is for the Innboks view only: also cut at "… skrev Pace <hei@getpace.no>:" and decode &lt; etc. in html, and give up after ms (reading the answer included). baretakk keeps the default, so the count is unchanged.
+async function svartekst(G, msgId, inbox = false, ms = 10000) {
+  const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=full`, inbox ? { headers: G, signal: AbortSignal.timeout(ms) } : { headers: G });
   if (!r.ok) throw new Error("Gmail message " + r.status);
   const m = await r.json(), dec = s => Buffer.from(s.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
   const parts = []; (function walk(p) { if (!p) return; if (p.body?.data) parts.push(p); (p.parts || []).forEach(walk); })(m.payload);
@@ -470,7 +470,7 @@ async function fetchHenvendelser() {
   const hdr = (m, n) => (m.payload?.headers || []).find(h => h.name.toLowerCase() === n.toLowerCase())?.value || "";
   // data/henvendelser-lukket.json: tråder Morten har avgjort at ikke trenger svar; skjules bare så lenge siste melding er uendret
   let lukket = {}; try { for (const x of JSON.parse(readFileSync(path.join(DIR, "data", "henvendelser-lukket.json"), "utf8")).lukket || []) lukket[x.thread] = x.sisteMelding; } catch {}
-  const open = []; let noText = 0;
+  const open = []; let noText = 0, textMs = 60000; // the inbox texts share 60 s per build (10 s each); a text not fetched in time is missing, as when the fetch fails
   for (const id of ids) {
     const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=Auto-Submitted&metadataHeaders=List-Unsubscribe&metadataHeaders=Precedence`, { headers: G });
     if (!r.ok) throw new Error("Gmail thread " + r.status);
@@ -494,7 +494,9 @@ async function fetchHenvendelser() {
     const avsender = vaarTraad ? lastFrom : from;
     const navn = avsender.replace(/<.*>/, "").replace(/"/g, "").trim() || avsender;
     // fra is for the inbox only: the sender of the last message (never ours), so the inbox name follows the message shown
-    open.push({ d: osloDay(new Date(+last.internalDate)), navn, subject, thread: id, sisteId: last.id, ts: +last.internalDate, fra: lastFrom, tekst: await svartekst(G, last.id, true).catch(() => { noText++; return ""; }) });
+    const t0 = Date.now(), tekst = await (textMs > 0 ? svartekst(G, last.id, true, Math.min(10000, textMs)) : Promise.reject()).catch(() => { noText++; return ""; });
+    textMs -= Date.now() - t0;
+    open.push({ d: osloDay(new Date(+last.internalDate)), navn, subject, thread: id, sisteId: last.id, ts: +last.internalDate, fra: lastFrom, tekst });
   }
   open.sort((a, b) => a.d < b.d ? -1 : 1);
   return { n: open.length, open, threads: ids.length, noText };
@@ -927,7 +929,7 @@ try {
   }
   console.log("Sist kontakt:", Object.entries(sistKontakt).map(([k, v]) => `${k.slice(0, 18)} ${v.d} ${v.ret}${v.navn ? "*" : ""}`).join(" | "), "| postbokser:", bokser.length);
 } catch (e) { console.error("Sist kontakt utilgjengelig:", e.message); }
-const metaInfo = { sistKontakt, maal: maalTall, built_at: NOW.toISOString(), shopify_at: shop.at, label: stamp, today: TODAY, meta_through: meta ? meta.coveredThrough : null, totalt: shop.totalt ?? null, daily: series.slice(-30), ukedag: shop.ukedag, geo: shop.geo, kart: { w: KART.w, h: KART.h, fylker: KART.fylker } };
+const metaInfo = { sistKontakt, maal: maalTall, built_at: NOW.toISOString(), shopify_at: shop.at, label: stamp, today: TODAY, meta_through: meta ? meta.coveredThrough : null, totalt: shop.totalt ?? null, daily: series.slice(-30), ukedag: shop.ukedag, geo: shop.geo, kart: { w: KART.w, h: KART.h, fylker: KART.fylker }, henv_n: henv ? henv.n : null };
 
 // ---------- 6b. Fokus nå: én linje per person, kun kort med Fokus = Nå (settes av Morten på boardet), ikke Ferdig ----------
 const PERSONER = ["Anders", "Victoria", "Anna", "Martin", "Morten"];

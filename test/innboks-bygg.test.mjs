@@ -88,28 +88,31 @@ test("the Innboks error log has only the error code or type", () => {
   assert.deepEqual(c.logged, ["Innboks utilgjengelig: SyntaxError", "Innboks utilgjengelig: INNBOKS_CACHE"]);
 });
 
-test("the number on the Innboks button stays the source count after «Marker besvart», and is not shown while mail is down", () => {
-  const btnCount = new Function("INNBOKS", "inbMsgs", "document", `${block(template, "function inbBtnCount")}\nreturn inbBtnCount;`);
-  const msgs = [{ id: "m1", besvart: false }, { id: "m2", besvart: true }];
-  for (const [ok, want] of [[true, [1]], [false, []]]) {
+test("the number on the Innboks button is the card's count, also when the inbox data is missing, and is not shown while mail is down", () => {
+  assert.ok(line(build, "const metaInfo").includes("henv_n: henv ? henv.n : null"));
+  const btnCount = new Function("META", "INNBOKS", "inbMsgs", "document", `${block(template, "function inbBtnCount")}\nreturn inbBtnCount;`);
+  const msgs = [{ id: "m1", besvart: true }];
+  for (const [henv_n, innboks, want] of [[1, null, [1]], [1, { kilder: { mail: { ok: true } }, meldinger: msgs }, [1]], [0, null, []], [null, null, []]]) {
     const shown = [];
-    btnCount({ kilder: { mail: { ok } }, meldinger: msgs }, msgs, { createElement: () => ({}) })({ append: s => shown.push(s.textContent) });
+    btnCount({ henv_n }, innboks, innboks ? msgs : [], { createElement: () => ({}) })({ append: s => shown.push(s.textContent) });
     assert.deepEqual(shown, want);
   }
 });
 
 const T0 = Date.UTC(2026, 10, 17, 9);
-const henvendelser = threads => {
+// message(id, init, normal) can replace the answer to a message fetch; AbortSignal and Date can be replaced to control the time limits
+const henvendelser = (threads, { message = (id, init, normal) => normal, AbortSignal: AS = AbortSignal, Date: D = Date } = {}) => {
   const msgs = {}, threadJson = {};
   for (const [tid, list] of Object.entries(threads)) threadJson[tid] = { messages: list.map(([from, subject, text], i) => {
     const id = `${tid}m${i}`; msgs[id] = { mimeType: "text/plain", body: { data: b64(text) } };
     return { id, internalDate: String(T0 + i * 3600000), payload: { headers: [{ name: "From", value: from }, { name: "Subject", value: subject }] } };
   }) };
-  const fetch = async url => { const u = String(url); return { ok: true, status: 200, json: async () => u.includes("/threads?") ? { threads: Object.keys(threads).map(id => ({ id })) } : u.includes("/threads/") ? threadJson[u.split("/threads/")[1].split("?")[0]] : { payload: msgs[u.split("/messages/")[1].split("?")[0]] } }; };
+  const fetch = async (url, init) => { const u = String(url), json = async () => u.includes("/threads?") ? { threads: Object.keys(threads).map(id => ({ id })) } : u.includes("/threads/") ? threadJson[u.split("/threads/")[1].split("?")[0]] : { payload: msgs[u.split("/messages/")[1].split("?")[0]] };
+    return u.includes("/messages/") ? message(u.split("/messages/")[1].split("?")[0], init, { ok: true, status: 200, json }) : { ok: true, status: 200, json }; };
   const body = [line(build, "const HENV_FRA"), line(build, "const AUTO_FROM"), line(build, "const OSS"), block(build, "async function svartekst"), line(build, "const baretakk"), block(build, "async function fetchHenvendelser"), "return fetchHenvendelser;"].join("\n");
   const addDays = (ymd, n) => { const [y, m, d] = ymd.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
   const osloDay = d => new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Oslo", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
-  return new Function("fetch", "Buffer", "gmailAuth", "addDays", "osloDay", "readFileSync", "path", "DIR", "process", body)(fetch, Buffer, async () => ({}), addDays, osloDay, () => '{"lukket":[]}', { join: () => "" }, "", { env: {} })();
+  return new Function("fetch", "Buffer", "gmailAuth", "addDays", "osloDay", "readFileSync", "path", "DIR", "process", "AbortSignal", "Date", body)(fetch, Buffer, async () => ({}), addDays, osloDay, () => '{"lukket":[]}', { join: () => "" }, "", { env: {} }, AS, D)();
 };
 
 test("the inbox identity is the last sender, while the card still shows the thread's first sender as on main", async () => {
@@ -133,4 +136,37 @@ test("a message shown with the previous message's text says so and offers no sug
   msg.gammelTekst = false;
   detail();
   assert.ok(!els["inb-detail"].innerHTML.includes("forrige melding"));
+});
+
+// Codex review 3, 19.11.2026
+
+// a request that ends only when its signal aborts, as fetch does
+const stall = init => new Promise((_, reject) => init.signal.addEventListener("abort", () => reject(init.signal.reason)));
+
+test("an inbox text that gets no answer, or whose answer stalls, is given up; the count and baretakk are as on main", async () => {
+  const threads = { t1: [["Kari <kari@x.no>", "Pakke", "Hvor er pakken?"]], t2: [["Ola <ola@x.no>", "Bytte", "Kan jeg bytte?"], ["Pace <hei@getpace.no>", "Re: Bytte", "Ja"], ["Ola <ola@x.no>", "Re: Bytte", "Takk!"]] };
+  const fast = { timeout: ms => AbortSignal.timeout(ms / 1000) };
+  for (const mode of ["no answer", "stalled answer"]) {
+    const calls = [];
+    const message = (id, init, normal) => { calls.push([id, Object.keys(init)]); return id !== "t1m0" ? normal : mode === "no answer" ? stall(init) : { ok: true, status: 200, json: () => stall(init) }; };
+    const h = await henvendelser(threads, { message, AbortSignal: fast });
+    assert.equal(h.n, 1, mode);
+    assert.equal(h.noText, 1, mode);
+    assert.equal(h.open[0].tekst, "", mode);
+    assert.deepEqual(calls, [["t1m0", ["headers", "signal"]], ["t2m2", ["headers"]]], mode);
+  }
+});
+
+test("the inbox texts share one time limit per build: 10 s each and 60 s in all", async () => {
+  let clock = T0;
+  class SlowDate extends Date { static now() { return clock; } }
+  const threads = Object.fromEntries(Array.from({ length: 10 }, (_, i) => [`t${i}`, [[`Kari${i} <k${i}@x.no>`, "Pakke", "Hvor er pakken?"]]]));
+  const asked = [];
+  // each text takes 7 s, or the whole limit when that is shorter
+  const message = (id, init) => { asked.push(init.signal.ms); clock += Math.min(7000, init.signal.ms); return Promise.reject(new Error("timeout")); };
+  const h = await henvendelser(threads, { message, AbortSignal: { timeout: ms => ({ ms }) }, Date: SlowDate });
+  assert.deepEqual(asked, [10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 4000]);
+  assert.equal(clock - T0, 60000);
+  assert.equal(h.n, 10);
+  assert.equal(h.noText, 10);
 });
