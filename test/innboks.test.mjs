@@ -172,3 +172,21 @@ test("buildInbox with suggest fills suggestions", async () => {
   assert.equal(r.page.meldinger[0].forslag, "Hei");
   assert.deepEqual(r.stats, { aapne: 1, nye: 1, kall: 1, tegn: 1, feil: 0 });
 });
+
+test("redact: unicode letters in e-mail", () => assert.equal(redact("Skriv til bjørn.ås@x.no."), "Skriv til [e-post]."));
+test("redact: phone variants", () => {
+  assert.equal(redact("Tlf.93412345"), "Tlf.[telefon]");
+  assert.equal(redact("0047 93412345"), "[telefon]");
+  assert.equal(redact("934-12-345"), "[telefon]");
+  assert.equal(redact("13.11.2026"), "13.11.2026");
+});
+test("shortName: surname first with comma", () => assert.equal(shortName('"Hansen, Per" <p@x.no>'), "Per H."));
+test("shortName: bare address in brackets", () => assert.equal(shortName("<k@x.no>"), "k"));
+test("suggestAll: unknown type counts as failed attempt", async () => {
+  const e = entry("a");
+  const s = await suggestAll([e], async () => ({ type: "spam", svar: true, selv: false, forslag: "x" }));
+  assert.equal(e.type, null);
+  assert.equal(e.forsok, 1);
+  assert.equal(e.forslag, null);
+  assert.equal(s.feil, 1);
+});

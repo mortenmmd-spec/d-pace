@@ -3,6 +3,7 @@ import { readCache, writeCache } from "./innboks-cache.mjs";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_TRIES = 3;
+const TYPES = ["sporsmal", "ordre", "ros", "annet"];
 
 export function shortName(from) {
   const name = from.split("<")[0].replace(/["']/g, "").trim();
@@ -10,6 +11,8 @@ export function shortName(from) {
     const addr = (from.match(/<([^>]*)>/)?.[1] ?? from).trim();
     return addr.split("@")[0];
   }
+  const [surnameFirst, rest] = name.split(",").map(p => p.trim());
+  if (rest) return `${rest.split(/\s+/)[0]} ${surnameFirst[0].toUpperCase()}.`;
   const words = name.split(/\s+/);
   if (words.length === 1) return words[0];
   return `${words[0]} ${words[words.length - 1][0].toUpperCase()}.`;
@@ -17,8 +20,8 @@ export function shortName(from) {
 
 export function redact(text) {
   return text
-    .replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, "[e-post]")
-    .replace(/(?<![\d.])(?:\+47\s?)?(?:\d{8}|\d{3} \d{2} \d{3}|\d{2} \d{2} \d{2} \d{2})(?![\d])/g, "[telefon]");
+    .replace(/[\p{L}\p{N}._+-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/gu, "[e-post]")
+    .replace(/(?<!\d)(?:(?:\+|00)47\s?)?(?:\d{8}|\d{3}[ -]\d{2}[ -]\d{3}|\d{2}[ -]\d{2}[ -]\d{2}[ -]\d{2})(?!\d)/g, "[telefon]");
 }
 
 export function excerpt(text, n = 600) {
@@ -66,6 +69,7 @@ export async function suggestAll(entries, suggest) {
     stats.tegn += e.tekst.length;
     try {
       const r = await suggest({ kanal: e.kanal, emne: e.emne, tekst: e.tekst, gjelder: e.gjelder });
+      if (!TYPES.includes(r.type)) throw new Error("bad type");
       e.type = r.type;
       e.selv = r.selv === true;
       e.forslag = r.svar && !r.selv && r.forslag ? r.forslag : null;
