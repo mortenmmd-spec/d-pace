@@ -1,0 +1,71 @@
+const URL = "https://api.anthropic.com/v1/messages";
+const TYPES = ["sporsmal", "ordre", "ros", "annet"];
+const MAX_TEXT = 4000;
+
+const SCHEMA = {
+  type: "object",
+  properties: {
+    type: { type: "string", enum: TYPES },
+    svar: { type: "boolean" },
+    selv: { type: "boolean" },
+    forslag: { type: ["string", "null"] },
+  },
+  required: ["type", "svar", "selv", "forslag"],
+  additionalProperties: false,
+};
+
+function userText(m, redactFn) {
+  const parts = [
+    `Kanal: ${m.kanal ?? ""}`,
+    `Emne: ${redactFn(String(m.emne ?? ""))}`,
+  ];
+  if (m.gjelder) parts.push(`Gjelder: ${m.gjelder}`);
+  parts.push(`Melding:\n${redactFn(String(m.tekst ?? "")).slice(0, MAX_TEXT)}`);
+  parts.push(
+    'Svar bare med JSON: {"type": "sporsmal"|"ordre"|"ros"|"annet", "svar": boolean, "selv": boolean, "forslag": string|null}.'
+  );
+  return parts.join("\n");
+}
+
+export function makeSuggester({ apiKey, model = "claude-haiku-5-5", regler, redactFn, fetchFn = fetch }) {
+  return async (m) => {
+    const res = await fetchFn(URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2026-10-21",
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 4000,
+        system: regler,
+        output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
+        messages: [{ role: "user", content: userText(m, redactFn) }],
+      }),
+    });
+    if (!res.ok) throw new Error(`Claude API error: HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.stop_reason === "refusal") throw new Error("Claude API refused the request");
+    const block = (data.content ?? []).find((b) => b.type === "text");
+    let out;
+    try {
+      out = JSON.parse(block?.text);
+    } catch {
+      throw new Error("Claude API answer is not valid JSON");
+    }
+    if (
+      !out ||
+      !TYPES.includes(out.type) ||
+      typeof out.svar !== "boolean" ||
+      typeof out.selv !== "boolean"
+    ) {
+      throw new Error("Claude API answer has an unexpected shape");
+    }
+    const forslag =
+      out.selv || !out.svar || typeof out.forslag !== "string" || !out.forslag.trim()
+        ? null
+        : out.forslag;
+    return { type: out.type, svar: out.svar, selv: out.selv, forslag };
+  };
+}
