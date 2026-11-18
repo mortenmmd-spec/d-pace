@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { readCache } from "../scripts/innboks-cache.mjs";
 import { shortName, redact, excerpt, gmailLink, updateCache, pickNew, suggestAll, toPage, buildInbox } from "../scripts/innboks.mjs";
 
 const now = new Date("2026-11-18T12:00:00Z");
@@ -190,3 +191,65 @@ test("suggestAll: unknown type counts as failed attempt", async () => {
   assert.equal(e.forslag, null);
   assert.equal(s.feil, 1);
 });
+
+const ok1 = async () => ({ type: "sporsmal", svar: true, selv: false, forslag: "Hei" });
+
+test("updateCache stores at most 4000 characters of tekst", () => {
+  const c = updateCache({ cache: empty(), kilder: src([raw("mail:a:1", { tekst: "x".repeat(50000) })]), now });
+  assert.equal(c.meldinger["mail:a:1"].tekst.length, 4000);
+  const c2 = updateCache({ cache: c, kilder: src([raw("mail:a:1", { tekst: "y".repeat(50000) })]), now: later });
+  assert.equal(c2.meldinger["mail:a:1"].tekst.length, 4000);
+});
+
+test("buildInbox cuts stored tekst to the page excerpt once classified, and keeps it cut", async () => {
+  const file = path.join(mkdtempSync(path.join(tmpdir(), "innboks-")), "c.enc");
+  const long = raw("mail:a:1", { tekst: "x".repeat(50000) });
+  const r1 = await buildInbox({ pw: "pw", kilder: src([long]), suggest: ok1, now, file });
+  assert.equal(readCache("pw", file).meldinger["mail:a:1"].tekst.length, 601);
+  const r2 = await buildInbox({ pw: "pw", kilder: src([long]), suggest: ok1, now: later, file });
+  assert.equal(readCache("pw", file).meldinger["mail:a:1"].tekst.length, 601);
+  assert.deepEqual(r2.page.meldinger, r1.page.meldinger);
+  assert.equal(r1.page.meldinger[0].tekst, excerpt("x".repeat(50000)));
+});
+
+test("buildInbox cuts tekst for answered and for exhausted entries", async () => {
+  const file = path.join(mkdtempSync(path.join(tmpdir(), "innboks-")), "c.enc");
+  const long = raw("mail:a:1", { tekst: "x".repeat(5000) });
+  await buildInbox({ pw: "pw", kilder: src([long]), suggest: async () => { throw new Error("bad"); }, now, file });
+  assert.equal(readCache("pw", file).meldinger["mail:a:1"].tekst.length, 4000);
+  await buildInbox({ pw: "pw", kilder: src([long]), suggest: async () => { throw new Error("bad"); }, now, file });
+  await buildInbox({ pw: "pw", kilder: src([long]), suggest: async () => { throw new Error("bad"); }, now, file });
+  assert.equal(readCache("pw", file).meldinger["mail:a:1"].tekst.length, 601);
+  const file2 = path.join(mkdtempSync(path.join(tmpdir(), "innboks-")), "c.enc");
+  await buildInbox({ pw: "pw", kilder: src([long]), suggest: null, now, file: file2 });
+  await buildInbox({ pw: "pw", kilder: src([]), suggest: null, now: later, file: file2 });
+  assert.equal(readCache("pw", file2).meldinger["mail:a:1"].tekst.length, 601);
+});
+
+test("suggestAll: transient error stops the round without counting a try", async () => {
+  const a = entry("a"), b = entry("b"), c = entry("c");
+  let n = 0;
+  const s = await suggestAll([a, b, c], async () => {
+    n++;
+    if (n === 2) throw Object.assign(new Error("net"), { transient: true });
+    return { type: "ros", svar: true, selv: false, forslag: "Takk" };
+  });
+  assert.equal(n, 2);
+  assert.equal(a.type, "ros");
+  assert.equal(b.forsok, 0);
+  assert.equal(c.forsok, 0);
+  assert.equal(s.feil, 1);
+});
+
+test("suggestAll: non-transient error counts a try and continues", async () => {
+  const a = entry("a"), b = entry("b");
+  let n = 0;
+  const s = await suggestAll([a, b], async () => { n++; throw Object.assign(new Error("shape"), { transient: false }); });
+  assert.equal(n, 2);
+  assert.equal(a.forsok, 1);
+  assert.equal(b.forsok, 1);
+  assert.equal(s.feil, 2);
+});
+
+test("shortName: leading comma does not throw", () => assert.equal(shortName('", Per" <p@x.no>'), "Per"));
+test("shortName: empty from gives empty string", () => assert.equal(shortName(""), ""));

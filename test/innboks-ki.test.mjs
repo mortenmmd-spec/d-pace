@@ -177,3 +177,34 @@ test("forslag schema is a plain string and no effort is sent", async () => {
   assert.deepEqual(body.output_config.format.schema.properties.forslag, { type: "string" });
   assert.equal(body.output_config.effort, undefined);
 });
+
+test("passes an abort signal to fetchFn", async () => {
+  const f = fakeFetch(ok);
+  await make(f)(msg());
+  assert.ok(f.calls[0].init.signal instanceof AbortSignal);
+});
+
+test("network error is transient", async () => {
+  const f = async () => { throw new TypeError("fetch failed"); };
+  await assert.rejects(make(f)(msg({ tekst: "hemmelig" })), (e) => {
+    assert.equal(e.transient, true);
+    assert.ok(!e.message.includes("hemmelig"));
+    return true;
+  });
+});
+
+test("non-2xx status is transient", async () => {
+  await assert.rejects(make(fakeFetch(ok, { status: 401 }))(msg()), (e) => e.transient === true);
+});
+
+for (const [name, f] of [
+  ["not JSON", fakeFetch(null, { raw: "ikke json" })],
+  ["wrong shape", fakeFetch({ ...ok, type: "annen" })],
+  ["refusal", fakeFetch(ok, { stopReason: "refusal" })],
+  ["max_tokens", fakeFetch(ok, { stopReason: "max_tokens" })],
+  ["bad body", fakeFetch(ok, { badBody: true })],
+]) {
+  test(`unusable 200 answer (${name}) is not transient`, async () => {
+    await assert.rejects(make(f)(msg()), (e) => e.transient !== true);
+  });
+}

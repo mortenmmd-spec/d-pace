@@ -4,6 +4,7 @@ import { readCache, writeCache } from "./innboks-cache.mjs";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_TRIES = 3;
 const TYPES = ["sporsmal", "ordre", "ros", "annet"];
+const MAX_STORED_TEXT = 4000;
 
 export function shortName(from) {
   const name = from.split("<")[0].replace(/["']/g, "").trim();
@@ -12,6 +13,7 @@ export function shortName(from) {
     return addr.split("@")[0];
   }
   const [surnameFirst, rest] = name.split(",").map(p => p.trim());
+  if (rest && !surnameFirst) return rest.split(/\s+/)[0];
   if (rest) return `${rest.split(/\s+/)[0]} ${surnameFirst[0].toUpperCase()}.`;
   const words = name.split(/\s+/);
   if (words.length === 1) return words[0];
@@ -32,6 +34,8 @@ export function gmailLink(threadId) {
   return `https://mail.google.com/mail/?authuser=hei@getpace.no#all/${threadId}`;
 }
 
+const needsLongText = e => e.besvart === null && e.type === null && e.forsok < MAX_TRIES;
+
 export function updateCache({ cache, kilder, now }) {
   const next = structuredClone(cache);
   const nowIso = now.toISOString();
@@ -41,9 +45,10 @@ export function updateCache({ cache, kilder, now }) {
     for (const raw of kilde.aapne) {
       open.add(raw.id);
       const old = next.meldinger[raw.id];
+      const stored = { ...raw, tekst: raw.tekst.slice(0, MAX_STORED_TEXT) };
       next.meldinger[raw.id] = old
-        ? { ...old, ...raw, sett: old.sett, besvart: null, type: old.type, forslag: old.forslag, selv: old.selv, forsok: old.forsok }
-        : { ...raw, sett: nowIso, besvart: null, type: null, forslag: null, selv: false, forsok: 0 };
+        ? { ...old, ...stored, tekst: needsLongText(old) ? stored.tekst : old.tekst, sett: old.sett, besvart: null, type: old.type, forslag: old.forslag, selv: old.selv, forsok: old.forsok }
+        : { ...stored, sett: nowIso, besvart: null, type: null, forslag: null, selv: false, forsok: 0 };
     }
     for (const [id, e] of Object.entries(next.meldinger)) {
       if (e.kanal !== kanal || open.has(id)) continue;
@@ -73,9 +78,10 @@ export async function suggestAll(entries, suggest) {
       e.type = r.type;
       e.selv = r.selv === true;
       e.forslag = r.svar && !r.selv && r.forslag ? r.forslag : null;
-    } catch {
-      e.forsok++;
+    } catch (err) {
       stats.feil++;
+      if (err?.transient) break;
+      e.forsok++;
     }
   }
   return stats;
@@ -106,6 +112,7 @@ export async function buildInbox({ pw, kilder, suggest, now, file }) {
   const cache = updateCache({ cache: readCache(pw, file), kilder, now });
   const picked = suggest ? pickNew(cache) : [];
   const run = suggest ? await suggestAll(picked, suggest) : { kall: 0, tegn: 0, feil: 0 };
+  for (const e of Object.values(cache.meldinger)) if (!needsLongText(e)) e.tekst = excerpt(e.tekst);
   writeCache(pw, cache, file);
   const aapne = Object.values(cache.meldinger).filter(e => e.besvart === null).length;
   return { page: toPage(cache, kilder, now), stats: { aapne, nye: picked.length, ...run } };

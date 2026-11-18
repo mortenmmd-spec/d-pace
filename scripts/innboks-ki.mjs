@@ -28,24 +28,32 @@ function userText(m, redactFn) {
   return parts.join("\n");
 }
 
+const transientError = message => Object.assign(new Error(message), { transient: true });
+
 export function makeSuggester({ apiKey, model = "claude-haiku-5-5", regler, redactFn, fetchFn = fetch }) {
   return async (m) => {
-    const res = await fetchFn(API_URL, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2026-10-21",
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 4000,
-        system: regler,
-        output_config: { format: { type: "json_schema", schema: SCHEMA } },
-        messages: [{ role: "user", content: userText(m, redactFn) }],
-      }),
-    });
-    if (!res.ok) throw new Error(`Claude API error: HTTP ${res.status}`);
+    let res;
+    try {
+      res = await fetchFn(API_URL, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2026-10-21",
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 4000,
+          system: regler,
+          output_config: { format: { type: "json_schema", schema: SCHEMA } },
+          messages: [{ role: "user", content: userText(m, redactFn) }],
+        }),
+        signal: AbortSignal.timeout(30000),
+      });
+    } catch {
+      throw transientError("Claude API request failed (network error or timeout)");
+    }
+    if (!res.ok) throw transientError(`Claude API error: HTTP ${res.status}`);
     let data;
     try {
       data = await res.json();

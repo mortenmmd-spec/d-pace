@@ -1797,7 +1797,10 @@ function inbRender() {
   if (!list.some(m => m.id === inbSel)) inbSel = list.length ? list[0].id : null;
   inbSide(); inbList(); inbDetail(); inbUpdateBtn();
 }
-function inbEnter() { inbSel = null; inbRender(); }
+function inbSafeRender() {
+  try { inbRender(); } catch (e) { try { document.getElementById("inb-list").textContent = "Innboks er ikke tilgjengelig i dette bygget."; } catch (e2) {} }
+}
+function inbEnter() { inbSel = null; inbSafeRender(); }
 document.getElementById("inb-side").onclick = e => {
   const b = e.target.closest(".inb-nav"); if (!b) return;
   const g = b.dataset.grp, k = b.dataset.key;
@@ -1808,7 +1811,7 @@ document.getElementById("inb-list").onclick = e => {
   const r = e.target.closest(".inb-row"); if (!r) return;
   inbSel = r.dataset.id; inbList(); inbDetail();
 };
-inbRender();
+inbSafeRender();
 // Roller og årshjul i egen visning (rydding 13.11.2026)
 const VISNINGER = { inb: ["inb-btn", "Innboks"], strat: ["strat-btn", "Strategi"], par: ["par-btn", "Partnere"], team: ["team-btn", "Roller"], aar: ["aar-btn", "Årshjul"], lnk: ["lnk-btn", "Lenker"] };
 function visning(navn) { // navn = "strat" | "team" | "aar" | "" (hovedsiden)

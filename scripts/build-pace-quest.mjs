@@ -565,7 +565,9 @@ try {
       const ask = makeSuggester({ apiKey: process.env.ANTHROPIC_API_KEY, model: process.env.INNBOKS_MODEL || undefined, regler: readFileSync(path.join(DIR, "data", "innboks-regler.md"), "utf8"), redactFn: redact });
       suggest = m => ask({ ...m, gjelder: m.gjelder ? `Ordre ${m.gjelder.nr}, ${m.gjelder.dato}, ${m.gjelder.status}${m.gjelder.sporing ? ", " + m.gjelder.sporing : ""}` : null });
     }
-    const res = await buildInbox({ pw, kilder, suggest, now: NOW, file: process.env.INNBOKS_TEST ? path.join(os.tmpdir(), "innboks-test.enc") : undefined });
+    // Only the hourly workflow may write the tracked cache file; local builds use a temp file.
+    const innboksFile = process.env.INNBOKS_TEST ? path.join(os.tmpdir(), "innboks-test.enc") : process.env.GITHUB_ACTIONS === "true" ? undefined : path.join(os.tmpdir(), "innboks-local.enc");
+    const res = await buildInbox({ pw, kilder, suggest, now: NOW, file: innboksFile });
     INNBOKS = res.page;
     console.log(`innboks: mail ${res.stats.aapne} åpne | nye ${res.stats.nye} | KI-kall ${res.stats.kall}, tegn ${res.stats.tegn}, feil ${res.stats.feil} | uten tekst ${noText}`);
   }
