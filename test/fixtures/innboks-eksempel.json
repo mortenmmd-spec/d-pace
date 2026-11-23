@@ -1,0 +1,74 @@
+[
+  {
+    "id": "mail:t1:m1",
+    "kanal": "mail",
+    "navn": "Kari N.",
+    "ts": 1795003600000,
+    "emne": "Når kommer pakken min?",
+    "tekst": "Hei, jeg bestilte for en uke siden og har ikke fått noe. Kan dere sjekke? Ring meg på 12345678.",
+    "lenke": "https://mail.google.com/mail/?authuser=hei@getpace.no#all/t1"
+  },
+  {
+    "id": "mail:t2:m2",
+    "kanal": "mail",
+    "navn": "Ola T.",
+    "ts": 1795007200000,
+    "emne": "Spørsmål om smak",
+    "tekst": "Hvilken smak anbefaler dere til trening? Skriv til ola@example.com.",
+    "lenke": "https://mail.google.com/mail/?authuser=hei@getpace.no#all/t2"
+  },
+  {
+    "id": "mail:t3:m3",
+    "kanal": "mail",
+    "navn": "Eva S.",
+    "ts": 1795010800000,
+    "emne": "Takk!",
+    "tekst": "Fikk pakken, veldig fornøyd med Sitron & Lime.",
+    "lenke": "https://mail.google.com/mail/?authuser=hei@getpace.no#all/t3"
+  },
+  {
+    "id": "mail:t4:m4",
+    "kanal": "mail",
+    "navn": "Test P.",
+    "ts": 1795014400000,
+    "emne": "Skript i tekst",
+    "tekst": "Hei <script>alert(1)</script><b>fet</b> hilsen Test",
+    "lenke": "https://mail.google.com/mail/?authuser=hei@getpace.no#all/t4"
+  },
+  {
+    "id": "mail:t5:m5",
+    "kanal": "mail",
+    "navn": "Nils B.",
+    "ts": 1795018000000,
+    "emne": "Tom melding",
+    "tekst": "",
+    "lenke": "https://mail.google.com/mail/?authuser=hei@getpace.no#all/t5"
+  },
+  {
+    "id": "mail:t6:m6",
+    "kanal": "mail",
+    "navn": "Lise M.",
+    "ts": 1795021600000,
+    "emne": "Ny kundemelding",
+    "tekst": "Navn: Lise M. Melding: Kan jeg bytte smak på abonnementet mitt?",
+    "lenke": "https://mail.google.com/mail/?authuser=hei@getpace.no#all/t6"
+  },
+  {
+    "id": "mail:t7:m7",
+    "kanal": "mail",
+    "navn": "Arne K.",
+    "ts": 1795025200000,
+    "emne": "Veldig lang melding",
+    "tekst": "Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. Lang tekst. ",
+    "lenke": "https://mail.google.com/mail/?authuser=hei@getpace.no#all/t7"
+  },
+  {
+    "id": "mail:t8:m8",
+    "kanal": "mail",
+    "navn": "Mona R.",
+    "ts": 1795028800000,
+    "emne": "Retur",
+    "tekst": "Jeg vil gjerne returnere en eske, hvordan gjør jeg det?",
+    "lenke": "https://mail.google.com/mail/?authuser=hei@getpace.no#all/t8"
+  }
+]

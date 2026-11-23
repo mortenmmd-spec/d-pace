@@ -19,6 +19,9 @@ import { readPlan } from "./plan-crypt.mjs";
 import { readFileSync, writeFileSync, copyFileSync, rmSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import os from "node:os";
+import { buildInbox, shortName, contactName, redact, gmailLink } from "./innboks.mjs";
+import { makeSuggester } from "./innboks-ki.mjs";
 
 const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const TEMPLATE = path.join(DIR, "pace-quest.template.html");
@@ -440,15 +443,17 @@ async function gmailAuth(refresh) {
 const AUTO_FROM = /no-?reply|notification|mailer-daemon|facebookmail|business-updates\.facebook|@google\.com|@accounts\.google|@shopify\.com|@stripe\.com|@klarna|@vipps|@dnb\.no|@360logistics|@bring\.com|@posten\.no|@postnord|newsletter|nyhetsbrev|info@|support@|kundeservice@|hello@|team@|@linkedin|@meta\.com|@fiken|@tripletex|@github\.com|production@adtraction\.com/i; // Adtraction månedsrapporter (Morten 09.11.2026)
 const OSS = /@getpace\.no/i; // hei@ og aliasene (morten@ osv.)
 // selve svarteksten i en melding (uten sitert tråd): text/plain, ellers html uten tagger; kuttes ved «skrev»/«wrote»-linjen og >-linjer
-async function svartekst(G, msgId) {
-  const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=full`, { headers: G });
+// inbox = true is for the Innboks view only: also cut at "… skrev Pace <hei@getpace.no>:" and decode &lt; etc. in html, and give up after ms (reading the answer included). baretakk keeps the default, so the count is unchanged.
+async function svartekst(G, msgId, inbox = false, ms = 10000) {
+  const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=full`, inbox ? { headers: G, signal: AbortSignal.timeout(ms) } : { headers: G });
   if (!r.ok) throw new Error("Gmail message " + r.status);
   const m = await r.json(), dec = s => Buffer.from(s.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
   const parts = []; (function walk(p) { if (!p) return; if (p.body?.data) parts.push(p); (p.parts || []).forEach(walk); })(m.payload);
   const plain = parts.find(p => p.mimeType === "text/plain"), html = parts.find(p => p.mimeType === "text/html");
   let t = plain ? dec(plain.body.data) : html ? dec(html.body.data).replace(/<blockquote[\s\S]*$/i, "").replace(/<br\s*\/?>|<\/(p|div)>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ") : "";
+  if (inbox && !plain) t = t.replace(/&(lt|gt|amp|quot|#39);/g, (_, e) => ({ lt: "<", gt: ">", amp: "&", quot: '"', "#39": "'" })[e]);
   const ut = [];
-  for (const l of t.split(/\r?\n/)) { if (/^\s*>/.test(l) || /(skrev|wrote|schrieb|skrev følgende)\s*:?\s*$/i.test(l) || /^-{2,}\s*(original|opprinnelig|videresendt)/i.test(l) || /^(From|Fra):\s/i.test(l)) break; ut.push(l); }
+  for (const l of t.split(/\r?\n/)) { if (/^\s*>/.test(l) || /(skrev|wrote|schrieb|skrev følgende)\s*:?\s*$/i.test(l) || (inbox && /\b(skrev|wrote|schrieb)\b.*>\s*:\s*$/i.test(l)) || /^-{2,}\s*(original|opprinnelig|videresendt)/i.test(l) || /^(From|Fra):\s/i.test(l)) break; ut.push(l); }
   return ut.join("\n").replace(/\s+/g, " ").trim();
 }
 // «bare takk»: kort, inneholder takk, ingen spørsmål
@@ -465,7 +470,7 @@ async function fetchHenvendelser() {
   const hdr = (m, n) => (m.payload?.headers || []).find(h => h.name.toLowerCase() === n.toLowerCase())?.value || "";
   // data/henvendelser-lukket.json: tråder Morten har avgjort at ikke trenger svar; skjules bare så lenge siste melding er uendret
   let lukket = {}; try { for (const x of JSON.parse(readFileSync(path.join(DIR, "data", "henvendelser-lukket.json"), "utf8")).lukket || []) lukket[x.thread] = x.sisteMelding; } catch {}
-  const open = [];
+  const open = []; let noText = 0, textMs = 60000; // the inbox texts share 60 s per build (10 s each); a text not fetched in time is missing, as when the fetch fails
   for (const id of ids) {
     const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=Auto-Submitted&metadataHeaders=List-Unsubscribe&metadataHeaders=Precedence`, { headers: G });
     if (!r.ok) throw new Error("Gmail thread " + r.status);
@@ -488,10 +493,13 @@ async function fetchHenvendelser() {
     if (msgs.slice(0, -1).some(m => OSS.test(hdr(m, "From"))) && await baretakk(G, last.id)) { if (process.env.HENV_DEBUG) console.log("skjult takk-svar:", lastFrom, "|", subject); continue; }
     const avsender = vaarTraad ? lastFrom : from;
     const navn = avsender.replace(/<.*>/, "").replace(/"/g, "").trim() || avsender;
-    open.push({ d: osloDay(new Date(+last.internalDate)), navn, subject });
+    // fra is for the inbox only: the sender of the last message (never ours), so the inbox name follows the message shown
+    const t0 = Date.now(), tekst = await (textMs > 0 ? svartekst(G, last.id, true, Math.min(10000, textMs)) : Promise.reject()).catch(() => { noText++; return ""; });
+    textMs -= Date.now() - t0;
+    open.push({ d: osloDay(new Date(+last.internalDate)), navn, subject, thread: id, sisteId: last.id, ts: +last.internalDate, fra: lastFrom, tekst });
   }
   open.sort((a, b) => a.d < b.d ? -1 : 1);
-  return { n: open.length, open, threads: ids.length };
+  return { n: open.length, open, threads: ids.length, noText };
 }
 
 // ---------- 4. Kasse (manuell) og kjente forfall ----------
@@ -518,7 +526,8 @@ if (process.env.META_ACCESS_TOKEN) { try { annonser = await fetchMetaAnnonser();
 else if (process.env.META_ANNONSER_TEST) { try { annonser = JSON.parse(readFileSync(process.env.META_ANNONSER_TEST, "utf8")); } catch (e) { annonserErr = e.message; } } // lokal test med eksempeldata
 const metaKilde = meta?.source === "api" ? "Meta API": meta?.source === "manuell" ? "Meta manuelt" : "Meta-kvitteringer";
 let henv = null, henvErr = "";
-try { henv = await fetchHenvendelser(); } catch (e) { henvErr = e.message; console.error("Henvendelser utilgjengelig:", e.message); }
+// the log gets only our own fixed texts with a status code (or OAuth error code); anything else, such as a parse error quoting the answer, becomes the error type
+try { henv = await fetchHenvendelser(); } catch (e) { henvErr = e.message; console.error("Henvendelser utilgjengelig:", /^(Gmail \w+ \d{3}|Gmail: token-feil (\d{3}|invalid_grant|invalid_client|invalid_request|unauthorized_client)|mangler env \w+)$/.test(e?.message) ? e.message : "uventet svar eller feil (" + (e?.name || "ukjent") + ")"); }
 const T = parseKasse();
 let plan = null;
 try { plan = readPlan(env("STATICRYPT_PASSWORD", "")); } catch (e) { console.error("Pace 2.0-plan utilgjengelig:", e.message); }
@@ -926,7 +935,7 @@ try {
   }
   console.log("Sist kontakt:", Object.entries(sistKontakt).map(([k, v]) => `${k.slice(0, 18)} ${v.d} ${v.ret}${v.navn ? "*" : ""}`).join(" | "), "| postbokser:", bokser.length);
 } catch (e) { console.error("Sist kontakt utilgjengelig:", e.message); }
-const metaInfo = { sistKontakt, maal: maalTall, built_at: NOW.toISOString(), shopify_at: shop.at, label: stamp, today: TODAY, meta_through: meta ? meta.coveredThrough : null, totalt: shop.totalt ?? null, daily: series.slice(-30), ukedag: shop.ukedag, geo: shop.geo, kart: { w: KART.w, h: KART.h, fylker: KART.fylker } };
+const metaInfo = { sistKontakt, maal: maalTall, built_at: NOW.toISOString(), shopify_at: shop.at, label: stamp, today: TODAY, meta_through: meta ? meta.coveredThrough : null, totalt: shop.totalt ?? null, daily: series.slice(-30), ukedag: shop.ukedag, geo: shop.geo, kart: { w: KART.w, h: KART.h, fylker: KART.fylker }, henv_n: henv ? henv.n : null };
 
 // ---------- 6b. Fokus nå: én linje per person, kun kort med Fokus = Nå (settes av Morten på boardet), ikke Ferdig ----------
 const PERSONER = ["Anders", "Victoria", "Anna", "Martin", "Morten"];
@@ -935,11 +944,33 @@ const dueTxt = d => { if (!d) return ""; const n = Math.round((Date.UTC(+d.slice
 const fokusRows = PERSONER.map(pn => { const mine = fokusItems.filter(t => t.owner.split(" & ").includes(pn)); return `<div class="f-row"><div class="f-who">${pn}</div><div class="f-what">${mine.length ? mine.map(t => `<span class="f-item">${esc(t.txt)} ${dueTxt(t.due)}</span>`).join("") : `<span class="f-none">ingen fokusoppgave</span>`}</div></div>`; }).join("");
 const fokusHtml = ""; // Fokus nå fjernet fra dashboardet (Morten 13.11.2026: for mye rot). Feltet Fokus finnes fortsatt på boardet.
 
+let INNBOKS = null;
+try {
+  const pw = process.env.STATICRYPT_PASSWORD;
+  if (!pw) console.log("innboks: hoppet over (mangler passord)");
+  else {
+    let kilder, noText = 0;
+    if (process.env.INNBOKS_TEST) kilder = { mail: { ok: true, aapne: JSON.parse(readFileSync(process.env.INNBOKS_TEST, "utf8")) } };
+    else {
+      const items = henv ? henv.open : []; noText = henv ? henv.noText : 0;
+      kilder = { mail: { ok: !!henv, aapne: items.map(x => ({ id: "mail:" + x.thread + ":" + x.sisteId, kanal: "mail", navn: /ny kundemelding/i.test(x.subject) ? contactName(x.tekst) || shortName(x.fra) : shortName(x.fra), ts: x.ts, emne: x.subject, tekst: x.tekst, lenke: gmailLink(x.thread) })) } };
+    }
+    const suggest = process.env.ANTHROPIC_API_KEY ? makeSuggester({ apiKey: process.env.ANTHROPIC_API_KEY, model: process.env.INNBOKS_MODEL || undefined, regler: readFileSync(path.join(DIR, "data", "innboks-regler.md"), "utf8"), redactFn: redact }) : null;
+    // Only the hourly workflow may write the tracked cache file; local builds use a temp file.
+    const innboksFile = process.env.INNBOKS_TEST ? path.join(os.tmpdir(), "innboks-test.enc") : process.env.GITHUB_ACTIONS === "true" ? undefined : path.join(os.tmpdir(), "innboks-local.enc");
+    const res = await buildInbox({ pw, kilder, suggest, now: NOW, file: innboksFile });
+    INNBOKS = res.page;
+    const feilPerStatus = Object.entries(res.stats.status).map(([k, n]) => `${k}: ${n}`).join(", ");
+    console.log(`innboks: mail ${kilder.mail.ok ? "oppe" : "nede"}, ${res.stats.aapne} åpne, ${henv ? henv.threads : "ukjent antall"} tråder | nye ${res.stats.nye} | KI-kall ${res.stats.kall}, tegn ${res.stats.tegn}, feil ${res.stats.feil}${feilPerStatus ? " (" + feilPerStatus + ")" : ""} | uten tekst ${noText}`);
+  }
+} catch (e) { INNBOKS = null; console.error("Innboks utilgjengelig:", e?.code || e?.name || "ukjent feil"); } // never e.message: it can hold a bit of an answer or of the cache
+
 // ---------- 7. Bygg HTML ----------
 let html = readFileSync(TEMPLATE, "utf8");
 const js = s => JSON.stringify(s).replace(/</g, "\\u003c").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
 const put = (re, val, label) => { if (!re.test(html)) throw new Error("template mangler " + label); html = html.replace(re, () => val); };
 put(/\/\*__TASKS__\*\/[\s\S]*?\/\*__TASKS_END__\*\//, `/*__TASKS__*/ const SNAPSHOT = ${js(tasks)}; /*__TASKS_END__*/`, "TASKS");
+put(/\/\*__INNBOKS__\*\/[\s\S]*?\/\*__INNBOKS_END__\*\//, `/*__INNBOKS__*/ const INNBOKS = ${js(INNBOKS)}; /*__INNBOKS_END__*/`, "INNBOKS");
 put(/\/\*__META__\*\/[\s\S]*?\/\*__META_END__\*\//, `/*__META__*/ const META = ${js(metaInfo)}; /*__META_END__*/`, "META");
 put(/\/\*__PAGE_TOKEN__\*\/[\s\S]*?\/\*__PAGE_TOKEN_END__\*\//, `/*__PAGE_TOKEN__*/ const PAGE_TOKEN = ${js(process.env.PACE_PAGE_TOKEN || "")}; /*__PAGE_TOKEN_END__*/`, "PAGE_TOKEN");
 for (const [k, , h] of TABS) put(new RegExp(`<!--STATS_${k}-->[\\s\\S]*?<!--\\/STATS_${k}-->`), `<!--STATS_${k}-->${h}<!--/STATS_${k}-->`, "STATS_" + k);
