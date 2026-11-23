@@ -25,7 +25,7 @@ const b = await chromium.connectOverCDP("http://127.0.0.1:9333"); const pg = awa
 try {
   for (const o of free) {
     const f = (o.fulfillments || []).find(x => x.tracking_number);
-    const base = { nr: o.name, d: o.created_at.slice(0, 10), tags: o.tags || "", sj: sjaktler(o), bud: f?.tracking_company || null, spor: f?.tracking_number || null };
+    const base = { nr: o.name, d: o.created_at.slice(0, 10), tags: o.tags || "", sj: sjaktler(o), bud: f?.tracking_company || null, spor: !!f?.tracking_number };
     const prev = old.ordre[o.name];
     if (prev && FINAL.has(prev.status)) { ordre[o.name] = { ...base, status: prev.status, sist: prev.sist }; continue; }
     if (!f) { ordre[o.name] = { ...base, status: (o.fulfillments || []).length ? "uten_sporing" : "ikke_sendt" }; continue; }
