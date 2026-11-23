@@ -1,0 +1,1284 @@
+{
+ "at": "2026-11-23T10:27:18.375Z",
+ "fullstendig": false,
+ "antall": 127,
+ "retur": 1,
+ "returSj": 10,
+ "statuser": {
+  "registered": 2,
+  "in_transit": 5,
+  "delivered": 27,
+  "ready_for_pickup": 2,
+  "picked_up": 18,
+  "return_to_store": 1,
+  "ukjent_transportor": 5,
+  "ikke_sjekket": 67
+ },
+ "ordre": {
+  "#5361112": {
+   "nr": "#5361112",
+   "d": "2026-11-20",
+   "tags": "seeding",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "473325380151674816",
+   "status": "registered",
+   "sist": "21. november kl. 11:59"
+  },
+  "#5361012": {
+   "nr": "#5361012",
+   "d": "2026-11-20",
+   "tags": "seeding",
+   "sj": 4,
+   "bud": "Helthjem",
+   "spor": "473325380151681821",
+   "status": "in_transit",
+   "sist": "22. november kl. 20:21"
+  },
+  "#5360912": {
+   "nr": "#5360912",
+   "d": "2026-11-20",
+   "tags": "B2B, Prøver",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "473325380151384807",
+   "status": "in_transit",
+   "sist": "22. november kl. 20:45"
+  },
+  "#5360812": {
+   "nr": "#5360812",
+   "d": "2026-11-20",
+   "tags": "B2B, Prøver",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "473325380151367558",
+   "status": "in_transit",
+   "sist": "22. november kl. 22:04"
+  },
+  "#5360012": {
+   "nr": "#5360012",
+   "d": "2026-11-17",
+   "tags": "seeding",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "473325380144275204",
+   "status": "delivered",
+   "sist": "21. november kl. 07:24"
+  },
+  "#5359712": {
+   "nr": "#5359712",
+   "d": "2026-11-16",
+   "tags": "B2B, Prøver",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "473325380141854228",
+   "status": "in_transit",
+   "sist": "17. november kl. 20:01"
+  },
+  "#5359212": {
+   "nr": "#5359212",
+   "d": "2026-11-15",
+   "tags": "seeding",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "473325380140105109",
+   "status": "delivered",
+   "sist": "21. november kl. 00:57"
+  },
+  "#5357312": {
+   "nr": "#5357312",
+   "d": "2026-11-11",
+   "tags": "B2B, Prøver",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "473325380136765096",
+   "status": "ready_for_pickup",
+   "sist": "14. november kl. 07:59"
+  },
+  "#5356312": {
+   "nr": "#5356312",
+   "d": "2026-11-09",
+   "tags": "",
+   "sj": 25,
+   "bud": "Helthjem",
+   "spor": "473325380130029613",
+   "status": "picked_up",
+   "sist": "17. november kl. 10:48"
+  },
+  "#5353512": {
+   "nr": "#5353512",
+   "d": "2026-11-06",
+   "tags": "seeding",
+   "sj": 6,
+   "bud": "Helthjem",
+   "spor": "473325380125086126",
+   "status": "delivered",
+   "sist": "10. november kl. 01:43"
+  },
+  "#5353112": {
+   "nr": "#5353112",
+   "d": "2026-11-06",
+   "tags": "seeding",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "473325380124431439",
+   "status": "delivered",
+   "sist": "9. november kl. 03:42"
+  },
+  "#5350712": {
+   "nr": "#5350712",
+   "d": "2026-11-03",
+   "tags": "Vålerenga Fotball Elite",
+   "sj": 10,
+   "bud": "Helthjem",
+   "spor": "473325380119216553",
+   "status": "return_to_store",
+   "sist": "17. november kl. 12:03"
+  },
+  "#5350012": {
+   "nr": "#5350012",
+   "d": "2026-11-02",
+   "tags": "erstatning",
+   "sj": 1,
+   "bud": "Helthjem",
+   "spor": "473325380117045865",
+   "status": "picked_up",
+   "sist": "7. november kl. 14:28"
+  },
+  "#5348912": {
+   "nr": "#5348912",
+   "d": "2026-11-01",
+   "tags": "seeding",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "473325380115974907",
+   "status": "delivered",
+   "sist": "3. november kl. 05:39"
+  },
+  "#5346312": {
+   "nr": "#5346312",
+   "d": "2026-10-28",
+   "tags": "bml-podcast, seeding",
+   "sj": 6,
+   "bud": "Helthjem",
+   "spor": "473325380109633506",
+   "status": "delivered",
+   "sist": "30. oktober kl. 04:49"
+  },
+  "#5346212": {
+   "nr": "#5346212",
+   "d": "2026-10-28",
+   "tags": "#5311712, erstatning",
+   "sj": 3,
+   "bud": "Helthjem",
+   "spor": "473325380109566385",
+   "status": "picked_up",
+   "sist": "30. oktober kl. 15:49"
+  },
+  "#5344912": {
+   "nr": "#5344912",
+   "d": "2026-10-26",
+   "tags": "seeding",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "473325380104124023",
+   "status": "picked_up",
+   "sist": "29. oktober kl. 15:49"
+  },
+  "#5343412": {
+   "nr": "#5343412",
+   "d": "2026-10-21",
+   "tags": "",
+   "sj": 8,
+   "bud": "Helthjem",
+   "spor": "473325380099573936",
+   "status": "delivered",
+   "sist": "27. oktober kl. 00:35"
+  },
+  "#5343312": {
+   "nr": "#5343312",
+   "d": "2026-10-21",
+   "tags": "seeding",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "473325380099598960",
+   "status": "delivered",
+   "sist": "27. oktober kl. 04:34"
+  },
+  "#5343212": {
+   "nr": "#5343212",
+   "d": "2026-10-21",
+   "tags": "seeding",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "473325380099610655",
+   "status": "delivered",
+   "sist": "26. oktober kl. 02:06"
+  },
+  "#5340712": {
+   "nr": "#5340712",
+   "d": "2026-10-16",
+   "tags": "Subscription, Subscription Recurring Order",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "473325380090015138",
+   "status": "picked_up",
+   "sist": "29. oktober kl. 12:43"
+  },
+  "#5340412": {
+   "nr": "#5340412",
+   "d": "2026-10-15",
+   "tags": "seeding",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "473325380090591687",
+   "status": "delivered",
+   "sist": "21. oktober kl. 04:16"
+  },
+  "#5340312": {
+   "nr": "#5340312",
+   "d": "2026-10-15",
+   "tags": "seeding",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "473325380090597504",
+   "status": "delivered",
+   "sist": "20. oktober kl. 00:37"
+  },
+  "#5338412": {
+   "nr": "#5338412",
+   "d": "2026-10-12",
+   "tags": "seeding",
+   "sj": 4,
+   "bud": "Helthjem",
+   "spor": "473325380082230648",
+   "status": "delivered",
+   "sist": "14. oktober kl. 01:46"
+  },
+  "#5338312": {
+   "nr": "#5338312",
+   "d": "2026-10-12",
+   "tags": "",
+   "sj": 3,
+   "bud": "PostNord Norway",
+   "spor": "473325380082208753",
+   "status": "ukjent_transportor"
+  },
+  "#5337512": {
+   "nr": "#5337512",
+   "d": "2026-10-12",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "473325380080564172",
+   "status": "delivered",
+   "sist": "15. oktober kl. 02:49"
+  },
+  "#5326912": {
+   "nr": "#5326912",
+   "d": "2026-09-29",
+   "tags": "",
+   "sj": 5,
+   "bud": "Helthjem",
+   "spor": "473325380060737251",
+   "status": "delivered",
+   "sist": "1. oktober kl. 01:59"
+  },
+  "#5325912": {
+   "nr": "#5325912",
+   "d": "2026-09-27",
+   "tags": "",
+   "sj": 25,
+   "bud": "Helthjem",
+   "spor": "473325380057991390",
+   "status": "picked_up",
+   "sist": "2. oktober kl. 11:42"
+  },
+  "#5321712": {
+   "nr": "#5321712",
+   "d": "2026-09-16",
+   "tags": "intern, seeding",
+   "sj": 8,
+   "bud": "Helthjem",
+   "spor": "473325380040693034",
+   "status": "delivered",
+   "sist": "19. september kl. 00:20"
+  },
+  "#5314912": {
+   "nr": "#5314912",
+   "d": "2026-09-04",
+   "tags": "Subscription, Subscription Recurring Order",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "473325380021757229",
+   "status": "delivered",
+   "sist": "9. september kl. 05:40"
+  },
+  "#5304312": {
+   "nr": "#5304312",
+   "d": "2026-08-12",
+   "tags": "seeding",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386495848916",
+   "status": "delivered",
+   "sist": "14. august kl. 07:27"
+  },
+  "#5302612": {
+   "nr": "#5302612",
+   "d": "2026-08-09",
+   "tags": "",
+   "sj": 1,
+   "bud": "Helthjem",
+   "spor": "373325386489442700",
+   "status": "delivered",
+   "sist": "19. august kl. 06:37"
+  },
+  "#5301112": {
+   "nr": "#5301112",
+   "d": "2026-08-06",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386486332844",
+   "status": "picked_up",
+   "sist": "11. august kl. 20:34"
+  },
+  "#5298212": {
+   "nr": "#5298212",
+   "d": "2026-08-03",
+   "tags": "",
+   "sj": 3,
+   "bud": "Helthjem",
+   "spor": "373325386481099247",
+   "status": "delivered",
+   "sist": "5. august kl. 01:33"
+  },
+  "#5298112": {
+   "nr": "#5298112",
+   "d": "2026-08-03",
+   "tags": "",
+   "sj": 0,
+   "bud": "Helthjem",
+   "spor": "373325386481067482",
+   "status": "picked_up",
+   "sist": "13. august kl. 16:04"
+  },
+  "#5294112": {
+   "nr": "#5294112",
+   "d": "2026-07-28",
+   "tags": "seeding",
+   "sj": 10,
+   "bud": "Helthjem",
+   "spor": "373325386475104742",
+   "status": "delivered",
+   "sist": "31. juli kl. 03:19"
+  },
+  "#5292912": {
+   "nr": "#5292912",
+   "d": "2026-07-27",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386471065115",
+   "status": "picked_up",
+   "sist": "3. august kl. 08:20"
+  },
+  "#5289812": {
+   "nr": "#5289812",
+   "d": "2026-07-24",
+   "tags": "Subscription, Subscription Recurring Order",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386468559795",
+   "status": "picked_up",
+   "sist": "1. august kl. 18:33"
+  },
+  "#5288012": {
+   "nr": "#5288012",
+   "d": "2026-07-21",
+   "tags": "",
+   "sj": 7,
+   "bud": "Helthjem",
+   "spor": "373325386465064841",
+   "status": "picked_up",
+   "sist": "23. juli kl. 15:09"
+  },
+  "#5287912": {
+   "nr": "#5287912",
+   "d": "2026-07-21",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386465075908",
+   "status": "delivered",
+   "sist": "23. juli kl. 02:28"
+  },
+  "#5283712": {
+   "nr": "#5283712",
+   "d": "2026-07-15",
+   "tags": "",
+   "sj": 0,
+   "bud": "Helthjem",
+   "spor": "373325386458631883",
+   "status": "ready_for_pickup",
+   "sist": "29. juli kl. 20:20"
+  },
+  "#5272712": {
+   "nr": "#5272712",
+   "d": "2026-07-04",
+   "tags": "",
+   "sj": 6,
+   "bud": "Helthjem",
+   "spor": "373325386444341468",
+   "status": "picked_up",
+   "sist": "10. juli kl. 12:04"
+  },
+  "#5272412": {
+   "nr": "#5272412",
+   "d": "2026-07-03",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386441964554",
+   "status": "delivered",
+   "sist": "4. juli kl. 04:06"
+  },
+  "#5266412": {
+   "nr": "#5266412",
+   "d": "2026-06-26",
+   "tags": "",
+   "sj": 6,
+   "bud": "Helthjem",
+   "spor": "373325386432683815",
+   "status": "picked_up",
+   "sist": "1. juli kl. 15:22"
+  },
+  "#5253612": {
+   "nr": "#5253612",
+   "d": "2026-06-12",
+   "tags": "seeding",
+   "sj": 18,
+   "bud": "Helthjem",
+   "spor": "373325386414209675",
+   "status": "in_transit",
+   "sist": "9. juli kl. 01:13"
+  },
+  "#5253512": {
+   "nr": "#5253512",
+   "d": "2026-06-12",
+   "tags": "drift-collab, seeding",
+   "sj": 4,
+   "bud": "Helthjem",
+   "spor": "373325386413659099",
+   "status": "picked_up",
+   "sist": "18. juni kl. 12:13"
+  },
+  "#5253312": {
+   "nr": "#5253312",
+   "d": "2026-06-12",
+   "tags": "",
+   "sj": 20,
+   "bud": "Helthjem",
+   "spor": "373325386413660897",
+   "status": "picked_up",
+   "sist": "22. juni kl. 15:37"
+  },
+  "#5253112": {
+   "nr": "#5253112",
+   "d": "2026-06-12",
+   "tags": "Subscription, Subscription Recurring Order",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386413666950",
+   "status": "delivered",
+   "sist": "17. juni kl. 01:40"
+  },
+  "#5241912": {
+   "nr": "#5241912",
+   "d": "2026-06-01",
+   "tags": "",
+   "sj": 1,
+   "bud": "Helthjem",
+   "spor": "373325386390092476",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5241812": {
+   "nr": "#5241812",
+   "d": "2026-06-01",
+   "tags": "",
+   "sj": 1,
+   "bud": "Helthjem",
+   "spor": "373325386389994781",
+   "status": "delivered",
+   "sist": "3. juni kl. 00:37"
+  },
+  "#5237512": {
+   "nr": "#5237512",
+   "d": "2026-05-28",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386385919382",
+   "status": "registered",
+   "sist": "29. mai kl. 10:01"
+  },
+  "#5236012": {
+   "nr": "#5236012",
+   "d": "2026-05-27",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386384308385",
+   "status": "delivered",
+   "sist": "1. juni kl. 01:40"
+  },
+  "#5234912": {
+   "nr": "#5234912",
+   "d": "2026-05-26",
+   "tags": "internal",
+   "sj": 4,
+   "bud": "Helthjem",
+   "spor": "373325386380749335",
+   "status": "delivered",
+   "sist": "28. mai kl. 00:22"
+  },
+  "#5230212": {
+   "nr": "#5230212",
+   "d": "2026-05-22",
+   "tags": "",
+   "sj": 1,
+   "bud": "Helthjem",
+   "spor": "373325386380477214",
+   "status": "picked_up",
+   "sist": "1. juni kl. 13:30"
+  },
+  "#5229812": {
+   "nr": "#5229812",
+   "d": "2026-05-22",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386380486315",
+   "status": "picked_up",
+   "sist": "30. mai kl. 17:32"
+  },
+  "#5229212": {
+   "nr": "#5229212",
+   "d": "2026-05-22",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386374194448",
+   "status": "delivered",
+   "sist": "26. mai kl. 22:46"
+  },
+  "#5228812": {
+   "nr": "#5228812",
+   "d": "2026-05-21",
+   "tags": "",
+   "sj": 3,
+   "bud": "Helthjem",
+   "spor": "373325386373451726",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5228712": {
+   "nr": "#5228712",
+   "d": "2026-05-21",
+   "tags": "",
+   "sj": 60,
+   "bud": "PostNord Norway",
+   "spor": "373325386374360874",
+   "status": "ukjent_transportor"
+  },
+  "#5226212": {
+   "nr": "#5226212",
+   "d": "2026-05-20",
+   "tags": "",
+   "sj": 1,
+   "bud": "Helthjem",
+   "spor": "373325386368942796",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5225012": {
+   "nr": "#5225012",
+   "d": "2026-05-19",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386367933528",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5224812": {
+   "nr": "#5224812",
+   "d": "2026-05-19",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386366764369",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5224412": {
+   "nr": "#5224412",
+   "d": "2026-05-18",
+   "tags": "",
+   "sj": 24,
+   "bud": "Helthjem",
+   "spor": "373325386366793314",
+   "status": "picked_up",
+   "sist": "23. mai kl. 11:57"
+  },
+  "#5220812": {
+   "nr": "#5220812",
+   "d": "2026-05-15",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386362781513",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5220412": {
+   "nr": "#5220412",
+   "d": "2026-05-15",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386362751806",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5217212": {
+   "nr": "#5217212",
+   "d": "2026-05-13",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386359872682",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5216312": {
+   "nr": "#5216312",
+   "d": "2026-05-12",
+   "tags": "",
+   "sj": 6,
+   "bud": "Helthjem",
+   "spor": "373325386359768046",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5216012": {
+   "nr": "#5216012",
+   "d": "2026-05-12",
+   "tags": "",
+   "sj": 4,
+   "bud": "Helthjem",
+   "spor": "373325386361476885",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5200212": {
+   "nr": "#5200212",
+   "d": "2026-05-03",
+   "tags": "",
+   "sj": 4,
+   "bud": "Helthjem",
+   "spor": "373325386341511834",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5198112": {
+   "nr": "#5198112",
+   "d": "2026-05-01",
+   "tags": "Subscription, Subscription Recurring Order",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386342469264",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5197012": {
+   "nr": "#5197012",
+   "d": "2026-04-29",
+   "tags": "gratis, vareprøve",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386340830080",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5196112": {
+   "nr": "#5196112",
+   "d": "2026-04-29",
+   "tags": "",
+   "sj": 6,
+   "bud": "Helthjem",
+   "spor": "373325386337134214",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5195112": {
+   "nr": "#5195112",
+   "d": "2026-04-26",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386331875366",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5194812": {
+   "nr": "#5194812",
+   "d": "2026-04-26",
+   "tags": "",
+   "sj": 20,
+   "bud": "Helthjem",
+   "spor": "373325386331769122",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5186812": {
+   "nr": "#5186812",
+   "d": "2026-04-16",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386315813971",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5186712": {
+   "nr": "#5186712",
+   "d": "2026-04-16",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386315753420",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5186012": {
+   "nr": "#5186012",
+   "d": "2026-04-16",
+   "tags": "",
+   "sj": 24,
+   "bud": "Helthjem",
+   "spor": "373325386313977439",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5174812": {
+   "nr": "#5174812",
+   "d": "2026-04-01",
+   "tags": "",
+   "sj": 4,
+   "bud": "Helthjem",
+   "spor": "373325386291286912",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5174212": {
+   "nr": "#5174212",
+   "d": "2026-03-31",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386290416136",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5171212": {
+   "nr": "#5171212",
+   "d": "2026-03-27",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386284448709",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5166612": {
+   "nr": "#5166612",
+   "d": "2026-03-20",
+   "tags": "Subscription, Subscription Recurring Order",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386271106162",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5164912": {
+   "nr": "#5164912",
+   "d": "2026-03-18",
+   "tags": "VIF damer og yngre spillere",
+   "sj": 24,
+   "bud": "Helthjem",
+   "spor": "373325386269346587",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5164812": {
+   "nr": "#5164812",
+   "d": "2026-03-18",
+   "tags": "test",
+   "sj": 6,
+   "bud": "Helthjem",
+   "spor": "373325386269342084",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5164412": {
+   "nr": "#5164412",
+   "d": "2026-03-18",
+   "tags": "",
+   "sj": 10,
+   "bud": "Helthjem",
+   "spor": "373325386267905946",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5160712": {
+   "nr": "#5160712",
+   "d": "2026-03-12",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386258737372",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5160612": {
+   "nr": "#5160612",
+   "d": "2026-03-12",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386258708006",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5159412": {
+   "nr": "#5159412",
+   "d": "2026-03-09",
+   "tags": "",
+   "sj": 48,
+   "bud": "PostNord Norway",
+   "spor": "373325386253289913",
+   "status": "ukjent_transportor"
+  },
+  "#5159212": {
+   "nr": "#5159212",
+   "d": "2026-03-09",
+   "tags": "",
+   "sj": 1,
+   "bud": "Helthjem",
+   "spor": "373325386251039336",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5158112": {
+   "nr": "#5158112",
+   "d": "2026-03-05",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386245809457",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5157912": {
+   "nr": "#5157912",
+   "d": "2026-03-04",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386245742945",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5157412": {
+   "nr": "#5157412",
+   "d": "2026-03-04",
+   "tags": "",
+   "sj": 8,
+   "bud": "Helthjem",
+   "spor": "373325386244397115",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5157112": {
+   "nr": "#5157112",
+   "d": "2026-03-03",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386243567724",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5156912": {
+   "nr": "#5156912",
+   "d": "2026-03-03",
+   "tags": "",
+   "sj": 1,
+   "bud": "Helthjem",
+   "spor": "373325386243562484",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5156612": {
+   "nr": "#5156612",
+   "d": "2026-03-03",
+   "tags": "",
+   "sj": 3,
+   "bud": "Helthjem",
+   "spor": "373325386243564235",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5156512": {
+   "nr": "#5156512",
+   "d": "2026-03-03",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386243577204",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5156312": {
+   "nr": "#5156312",
+   "d": "2026-03-03",
+   "tags": "",
+   "sj": 1,
+   "bud": "Helthjem",
+   "spor": "373325386241277694",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5155412": {
+   "nr": "#5155412",
+   "d": "2026-03-01",
+   "tags": "",
+   "sj": 1,
+   "bud": "Helthjem",
+   "spor": "373325386237986791",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#5153812": {
+   "nr": "#5153812",
+   "d": "2026-02-21",
+   "tags": "",
+   "sj": 1,
+   "bud": "Helthjem",
+   "spor": "373325386226758675",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1525": {
+   "nr": "#1525",
+   "d": "2026-02-10",
+   "tags": "",
+   "sj": 6,
+   "bud": "Helthjem",
+   "spor": "373325386210891609",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1518": {
+   "nr": "#1518",
+   "d": "2026-02-06",
+   "tags": "Subscription, Subscription First Order",
+   "sj": 2,
+   "bud": "PostNord Norway",
+   "spor": "373325386205581904",
+   "status": "ukjent_transportor"
+  },
+  "#1517": {
+   "nr": "#1517",
+   "d": "2026-02-02",
+   "tags": "",
+   "sj": 1,
+   "bud": "Helthjem",
+   "spor": "373325386196427014",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1495": {
+   "nr": "#1495",
+   "d": "2026-01-04",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386149616243",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1479": {
+   "nr": "#1479",
+   "d": "2025-12-22",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386136243100",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1477": {
+   "nr": "#1477",
+   "d": "2025-12-15",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386126543104",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1475": {
+   "nr": "#1475",
+   "d": "2025-12-14",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386122854747",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1459": {
+   "nr": "#1459",
+   "d": "2025-11-29",
+   "tags": "",
+   "sj": 1,
+   "bud": "Helthjem",
+   "spor": "373325386082721547",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1440": {
+   "nr": "#1440",
+   "d": "2025-11-24",
+   "tags": "review-bringebær",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386070379125",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1438": {
+   "nr": "#1438",
+   "d": "2025-11-24",
+   "tags": "review-bringebær",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386070446971",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1437": {
+   "nr": "#1437",
+   "d": "2025-11-24",
+   "tags": "review-bringebær",
+   "sj": 9,
+   "bud": "Helthjem",
+   "spor": "373325386070370023",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1436": {
+   "nr": "#1436",
+   "d": "2025-11-24",
+   "tags": "review-bringebær",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325386070388721",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1414": {
+   "nr": "#1414",
+   "d": "2025-11-20",
+   "tags": "",
+   "sj": 6,
+   "bud": "Helthjem",
+   "spor": "373325386060527659",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1402": {
+   "nr": "#1402",
+   "d": "2025-11-14",
+   "tags": "",
+   "sj": 1,
+   "bud": "Helthjem",
+   "spor": "373325386050461826",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1373": {
+   "nr": "#1373",
+   "d": "2025-10-21",
+   "tags": "",
+   "sj": 1,
+   "bud": "Helthjem",
+   "spor": "373325386000840657",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1352": {
+   "nr": "#1352",
+   "d": "2025-10-04",
+   "tags": "",
+   "sj": 1,
+   "bud": "Helthjem",
+   "spor": "373325385972105023",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1346": {
+   "nr": "#1346",
+   "d": "2025-10-01",
+   "tags": "",
+   "sj": 1,
+   "bud": "Helthjem",
+   "spor": "373325385965545171",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1318": {
+   "nr": "#1318",
+   "d": "2025-09-13",
+   "tags": "",
+   "sj": 1,
+   "bud": "Helthjem",
+   "spor": "373325385931270953",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1299": {
+   "nr": "#1299",
+   "d": "2025-09-07",
+   "tags": "",
+   "sj": 3,
+   "bud": "Helthjem",
+   "spor": "373325385920431242",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1282": {
+   "nr": "#1282",
+   "d": "2025-08-28",
+   "tags": "",
+   "sj": 1,
+   "bud": "Helthjem",
+   "spor": "373325385905287734",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1276": {
+   "nr": "#1276",
+   "d": "2025-08-26",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325385899675586",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1239": {
+   "nr": "#1239",
+   "d": "2025-08-08",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325385873014899",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1224": {
+   "nr": "#1224",
+   "d": "2025-08-06",
+   "tags": "",
+   "sj": 1,
+   "bud": "Helthjem",
+   "spor": "373325385867937999",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1223": {
+   "nr": "#1223",
+   "d": "2025-08-06",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325385866293089",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1111": {
+   "nr": "#1111",
+   "d": "2025-07-29",
+   "tags": "",
+   "sj": 1,
+   "bud": "Helthjem",
+   "spor": "373325385855049031",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1075": {
+   "nr": "#1075",
+   "d": "2025-07-04",
+   "tags": "",
+   "sj": 1,
+   "bud": "Helthjem",
+   "spor": "373325385820940929",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1074": {
+   "nr": "#1074",
+   "d": "2025-07-04",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325385820941049",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1060": {
+   "nr": "#1060",
+   "d": "2025-06-23",
+   "tags": "",
+   "sj": 3,
+   "bud": "PostNord Norway",
+   "spor": "373325385801281683",
+   "status": "ukjent_transportor"
+  },
+  "#1059": {
+   "nr": "#1059",
+   "d": "2025-06-23",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325385801278645",
+   "status": "ikke_sjekket",
+   "sist": null
+  },
+  "#1058": {
+   "nr": "#1058",
+   "d": "2025-06-23",
+   "tags": "",
+   "sj": 2,
+   "bud": "Helthjem",
+   "spor": "373325385801275156",
+   "status": "ikke_sjekket",
+   "sist": null
+  }
+ }
+}

@@ -849,6 +849,12 @@ const ltvCard = (() => { const L = shop.ltv?.mnd || [], aar = L.find(x => x.m ==
   const forhold = aar.db / t.cac, pb = L.find(x => x.db >= t.cac), siste = L[L.length - 1];
   return card("Kundeverdi mot kundekost", kr2(forhold).replace(/,(\d)\d$/, ",$1") + " ×", `${nf(aar.db)} kr per kunde på 12 mnd mot ${nf(t.cac)} kr i kundekost · ${pb ? `snitt passerer kundekosten etter ${pb.m} mnd` : `snitt etter ${siste.m} mnd: ${nf(siste.db)} kr (${siste.n} kunder)`} · kunder fra 2025`, "c-cac",
     `Kundeverdi = dekningsbidrag per ny kunde de første 12 månedene (salg eks mva minus varekost, plukk, frakt og gebyr), snitt for ${aar.n} kunder som har vært kunde i minst ett år. Kundekost = all markedsføring siste 30 dager delt på alle nye kunder. Over 1,0 × = kunden betaler tilbake det den kostet å skaffe innen et år. Tilbakebetalingstid = måneden der dekningsbidraget per kunde passerer kundekosten.`); })();
+// gratisordre i retur (Morten 23.11.2026): alle 0-kronersordre, status fra Helthjems sporingsside via scripts/gratis-retur.mjs (kjøres lokalt) → data/gratis-retur.json
+const returCard = (() => { let G; try { G = JSON.parse(readFileSync(path.join(DIR, "data", "gratis-retur.json"), "utf8")); } catch { return ""; }
+  const L = Object.values(G.ordre || {}), r = L.filter(x => /return/i.test(x.status)).sort((a, b) => b.d.localeCompare(a.d)), sendt = L.filter(x => x.spor).length;
+  const sj = r.reduce((x, o) => x + (o.sj || 0), 0), sjekket = osloDay(new Date(G.at)), navn = o => o.nr + (o.tags ? " " + o.tags.split(",")[0].trim() : "");
+  return card("Gratisordre i retur", r.length + " stk", `${r.length ? `${nf(sj)} sjaktler · ${esc(r.slice(0, 2).map(navn).join(", "))}` : `av ${sendt} sendte`} · sjekket ${fmtD(sjekket)}`, "c-kasse",
+    `0-kronersordre (seeding, erstatning, B2B-prøver) der Helthjem melder at pakken ikke ble hentet og går tilbake til 360. ${sendt} gratisordre med sporing i alt${G.fullstendig === false ? ", ikke alle sjekket ved siste kjøring" : ""}. PostNord-pakker sjekkes ikke. Shopify viser slike ordre fortsatt som sendt. Sist sjekket ${fmtD(sjekket)}.${r.length ? " I retur: " + r.map(o => `${navn(o)} (${fmtD(o.d)}, ${o.sj} sj)`).join("; ") + "." : ""}`); })();
 // tallkortene i fire faner (Morten 03.11.2026); ⚠ på fanenavnet hvis et kort i fanen er utdatert
 const TABS = [
   ["res", "Resultat", resCard(30) + resCard(7) + innCard(30) + innUtCard(30)],
@@ -856,7 +862,7 @@ const TABS = [
   ["mf", "Markedsføring", adsCard(7) + adsCard(30) + totalCard() + merCard() + ltvCard],
   ["drift", "Drift", henvCard()
     + card("Kasse", nf(T.kasse) + " kr", "bankbalanse lagt inn " + T.kasse_dato, "c-kasse", `Bankbalanse lagt inn manuelt ${T.kasse_dato}`)
-    + lagerCard("sitron", "PACE01", "u1", T.sitron_bestfor, "Sitron & Lime") + lagerCard("bringebær", "PACE02", "u2", "", "Bringebær") + utgaarCard("Sitron & Lime", "PACE01", "u1", T.sitron_bestfor)],
+    + lagerCard("sitron", "PACE01", "u1", T.sitron_bestfor, "Sitron & Lime") + lagerCard("bringebær", "PACE02", "u2", "", "Bringebær") + utgaarCard("Sitron & Lime", "PACE01", "u1", T.sitron_bestfor) + returCard],
 ];
 const salgFlere = totaltCard() + sjaktlerCard() + estCard() + tolvCard()
   + card("Unike kunder", nf(shop.kunder), `+${sum(win(30), "nye")} nye siste 30 d`, "c-salg", "Kundeprofiler med minst én betalt ordre i hele historikken (uten test- og seeding-ordre)");
