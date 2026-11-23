@@ -972,6 +972,8 @@ let t = readFileSync(tplSrc, "utf8")
   .replace(/(\.staticrypt-title \{)/, "$1color:#e6edf3;font-weight:600;")
   .replace(/(\.staticrypt-instructions \{)/, "$1color:#8b949e;");
 t = t.replace("</style>", ".staticrypt-form input[type=\"password\"], .staticrypt-form input[type=\"text\"] { color:#ffffff !important; -webkit-text-fill-color:#ffffff; caret-color:#ffffff; font-size:18px !important; letter-spacing:3px; } .staticrypt-form input::placeholder { color:#8b949e; -webkit-text-fill-color:#8b949e; letter-spacing:0; font-size:14px; }</style>");
+// Rødt banner på passordsiden: dashboardet er flyttet (23.11.2026)
+t = t.replace('<body class="staticrypt-body">', () => `<body class="staticrypt-body"><div id="flyttet-banner" style="position:sticky;top:0;z-index:2147483647;background:#d1242f;color:#fff;padding:22px 16px;text-align:center;font:700 24px/1.35 -apple-system,'Segoe UI',Roboto,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.4)">Dette dashboardet brukes ikke lenger.<br>Bruk dette dashboardet: <a href="https://tempelbois.github.io/pace-dashboard/" style="color:#fff;text-decoration:underline;word-break:break-all">tempelbois.github.io/pace-dashboard</a></div>`);
 writeFileSync(path.join(DIR, "pace-template.html"), t);
 copyFileSync(PLAIN, path.join(DIR, "pq.html"));
 const bin = path.join(DIR, "node_modules", "staticrypt", "cli", "index.js");
